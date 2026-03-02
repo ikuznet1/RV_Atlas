@@ -43,6 +43,7 @@ files2<-paste0(path,'/',files2)
 files <- c(files1,files2)
 
 txi.kallisto <- tximport(files, type = "kallisto", txOut = FALSE,tx2gene=tx2gene)
+#txi.kallisto <- tximport(files, type = "kallisto", txOut = FALSE,tx2gene=tx2gene,countsFromAbundance="lengthScaledTPM")
 
 
 bulk <- txi.kallisto$counts
@@ -116,7 +117,7 @@ bulk.meta$thyroid[is.na(bulk.meta$thyroid)] <- 'N'
 bulk.meta$pacer[is.na(bulk.meta$pacer)] <- 'N'
 
 
-ddsSE <- DESeqDataSetFromTximport(txi.kallisto,bulk.meta,design=~category+sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+sc+BMI)
+#ddsSE <- DESeqDataSetFromTximport(txi.kallisto,bulk.meta,design=~category+sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+sc+BMI)
 
 ddsSE <- DESeqDataSetFromTximport(txi.kallisto,bulk.meta,design=~category+batch+prep_batch)
 
@@ -124,6 +125,7 @@ ddsSE <- DESeqDataSetFromTximport(txi.kallisto,bulk.meta,design=~category+batch+
 ddsSE <- estimateSizeFactors(ddsSE)
 idx <- rowSums( counts(ddsSE, normalized=TRUE) >= 5 ) >= 3
 ddsSE <- ddsSE[idx,]
+
 
 normalized_counts <- counts(ddsSE, normalized=TRUE)
 
@@ -189,7 +191,7 @@ prv.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','pRV','RVF'), type="ashr")
 
 #Cast to Seurat to use hdWGCNA backend for consistency
 
-mat <- as(normalized_counts,'dgCMatrix')
+mat <- as(assay(vstSE),'dgCMatrix')
 colnames(mat)<-subjects
 bulk <- CreateAssayObject(counts=mat, meta.data=bulk.meta, assay = "RNA")
 

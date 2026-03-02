@@ -5,12 +5,12 @@ library(harmony)
 
 
 
-source('./output/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
 
 
 #######################################
-#############  FIGURE 5A  #############
+#############  FIGURE 6A  #############
 #######################################
 
 M1 <- readRDS(file = "./dependencies/shared/myeloid_subclust.rds")
@@ -79,7 +79,7 @@ PlotEmbedding(M1,group.by='Subsubnames',point_size=1,plot_under=TRUE,plot_theme=
 dev.off()
 
 #######################################
-#############  FIGURE 5B  #############
+#############  FIGURE 6B  #############
 #######################################
 
 pdf(paste0('./output/', 'Myeloid_dot.pdf'), width=6, height=5)
@@ -89,49 +89,9 @@ DotPlot(M1, c("Mono_Score1","TREM2_Mac_Score1","iMac_Score1",
 	scale_x_discrete(labels=c('1','2','3','4','5','6','7'))
 dev.off()
 
-M1$Names_group <- paste0(M1$Subsubnames,'_',M1$group)
-
-
-table(M1$group,M1$Subsubnames)/rowSums(table(M1$group,M1$Subsubnames))
-
-NF_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="NF")@active.ident)/length(subset(M1,group=="NF")@active.ident)*100),type = "NF")
-NF_percent_cell$sum <- (rev(cumsum(rev(NF_percent_cell$Freq))) - NF_percent_cell$Freq/2)/100
-NF_percent_cell$Freq <- NF_percent_cell$Freq/100
-
-
-pRV_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="pRV")@active.ident)/length(subset(M1,group=="pRV")@active.ident)*100),type = "pRV")
-pRV_percent_cell$sum <- (rev(cumsum(rev(pRV_percent_cell$Freq))) - pRV_percent_cell$Freq/2)/100
-pRV_percent_cell$Freq <- pRV_percent_cell$Freq/100
-
-
-RVF_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="RVF")@active.ident)/length(subset(M1,group=="RVF")@active.ident)*100),type = "RVF")
-RVF_percent_cell$sum <- (rev(cumsum(rev(RVF_percent_cell$Freq))) - RVF_percent_cell$Freq/2)/100
-RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
-
-percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
-pdf('./output/Myeloid_prev_stacked.pdf',width=6,height=2.5)
-ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  
-geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + coord_flip()+
-xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + scale_y_continuous(expand=c(0,0)) + geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y")
-dev.off()
 
 #######################################
-#############  FIGURE 5C #############
-#######################################
-
-pdf(paste0('./output/', 'Myeloid_dot_disease.pdf'), width=6, height=2.5)
-
-DotPlot(M1, c("Mono_Score1","TREM2_Mac_Score1","iMac_Score1",
-	"DC_Score1","CCR2+_rMac_Score1","CCR2-_rMac1_Score1",
-	"CCR2-_rMac2_Score1"),col.min=0,col.max=1,group.by='group')+xlab('Marker Score') +
-	scale_x_discrete(labels=c('Mono','TREM2 Mac','iMac','DCs','CCR2+ rMac','CCR2- rMac1','CCR2- rMac2'))+
-  scale_color_gradient2(high='red', mid='grey95', low='blue')+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-dev.off()
-
-
-
-#######################################
-#############  FIGURE 5D  #############
+#############  FIGURE 6C  #############
 #######################################
 library(monocle3)
 library(SeuratWrappers)
@@ -195,8 +155,52 @@ pdf(paste0('./output/', 'Myeloid_pseudo.pdf'), width=5, height=5)
 M1$pseudotime <- pseudotime(cds)
 FeaturePlot(M1,'pseudotime')
 dev.off()
+
 #######################################
-#############  FIGURE 5E  #############
+#############  FIGURE 6D #############
+#######################################
+
+M1$Names_group <- paste0(M1$Subsubnames,'_',M1$group)
+
+
+table(M1$group,M1$Subsubnames)/rowSums(table(M1$group,M1$Subsubnames))
+
+NF_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="NF")@active.ident)/length(subset(M1,group=="NF")@active.ident)*100),type = "NF")
+NF_percent_cell$sum <- (rev(cumsum(rev(NF_percent_cell$Freq))) - NF_percent_cell$Freq/2)/100
+NF_percent_cell$Freq <- NF_percent_cell$Freq/100
+
+
+pRV_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="pRV")@active.ident)/length(subset(M1,group=="pRV")@active.ident)*100),type = "pRV")
+pRV_percent_cell$sum <- (rev(cumsum(rev(pRV_percent_cell$Freq))) - pRV_percent_cell$Freq/2)/100
+pRV_percent_cell$Freq <- pRV_percent_cell$Freq/100
+
+
+RVF_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="RVF")@active.ident)/length(subset(M1,group=="RVF")@active.ident)*100),type = "RVF")
+RVF_percent_cell$sum <- (rev(cumsum(rev(RVF_percent_cell$Freq))) - RVF_percent_cell$Freq/2)/100
+RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
+
+percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
+pdf('./output/Myeloid_prev_stacked.pdf',width=6,height=2.5)
+ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  
+geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + coord_flip()+
+xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + scale_y_continuous(expand=c(0,0)) + geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y")
+dev.off()
+
+
+
+pdf(paste0('./output/', 'Myeloid_dot_disease.pdf'), width=6, height=2.5)
+
+DotPlot(M1, c("Mono_Score1","TREM2_Mac_Score1","iMac_Score1",
+	"DC_Score1","CCR2+_rMac_Score1","CCR2-_rMac1_Score1",
+	"CCR2-_rMac2_Score1"),col.min=0,col.max=1,group.by='group')+xlab('Marker Score') +
+	scale_x_discrete(labels=c('Mono','TREM2 Mac','iMac','DCs','CCR2+ rMac','CCR2- rMac1','CCR2- rMac2'))+
+  scale_color_gradient2(high='red', mid='grey95', low='blue')+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+dev.off()
+
+
+
+#######################################
+#############  FIGURE 6E  #############
 #######################################
 
 seurat_ref <- readRDS('./dependencies/shared/scWGCNA_bulk2sn_projection.rds')
@@ -218,7 +222,7 @@ seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs)
 seurat_ref <- SetIdent(seurat_ref, value = "Names")
 
 
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -288,7 +292,7 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 5F  #############
+#############  FIGURE 6F  #############
 #######################################
 
 
@@ -947,7 +951,7 @@ p / colorbar
 dev.off()
 
 #######################################
-#############  FIGURE 5G  #############
+#############  FIGURE 6G  #############
 #######################################
 
 
@@ -1399,9 +1403,9 @@ pdf(paste0('./output/', 'Myeloid_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), wid
 p / colorbar 
 dev.off()
 
-#######################################
-#############  FIGURE 5H  #############
-#######################################
+#########################################
+#############  FIGURE 6H-J  #############
+#########################################
 
 dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023','Reactome_2022', 'ChEA_2022',"LINCS_L1000_Chem_Pert_Consensus_Sigs")
 
@@ -1563,9 +1567,7 @@ for (i in 1:length(unique(enrichr_df$module))) {
 
 
 
-#######################################
-#############  FIGURE 5I  #############
-#######################################
+
 
 #RVF vs NF
 Idents(seurat_ref) <- "group"
@@ -1688,13 +1690,6 @@ EnhancedVolcano(subsub_set,lab=rownames(subsub_set),
 	FCcutoff = 0.1,
 	colCustom=keyvals) + coord_flip(xlim=c(-5, 5)) 
 dev.off()
-
-
-
-
-#######################################
-#############  FIGURE 5I  #############
-#######################################
 
 
 #NR3C1 gene_set

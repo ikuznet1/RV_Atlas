@@ -8,13 +8,13 @@ library(harmony)
 source('./dependencies/shared/spatial_functions.R')
 
 #######################################
-#############  FIGURE 4A  #############
+#############  FIGURE 5A  #############
 #######################################
-snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/shared/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 all_signif <- c('M1','M2','M3','M4','M5','M8','M10','M11','M12','M14','M20','M25','M26','M28')
 
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(snLV))
 # remove duplicate gene names
@@ -77,7 +77,7 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 4B  #############
+#############  FIGURE 5B  #############
 #######################################
 snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
@@ -85,7 +85,7 @@ snLV<-subset(snLV,Names=="Cardiomyocytes")
 
 all_signif <- c('M1','M2','M3','M4','M5','M8','M10','M11','M12','M14','M20','M25','M26','M28')
 
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(snLV))
 # remove duplicate gene names
@@ -133,7 +133,7 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 4C  #############
+#############  FIGURE 5C  #############
 #######################################
 snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
@@ -142,7 +142,7 @@ snLV <- SetIdent(snLV, value = "condition")
 snLV <- PrepSCTFindMarkers(snLV)
 
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 combined_set <- data.frame()
 mods_idx <- c(2,12,28,10,25,26)
@@ -296,6 +296,10 @@ labs <- rownames(dataset)
 labs[abs(dataset$LV - dataset$RV)<0.1] <- NA
 
 
+#######################################
+#############  FIGURE 5D  #############
+#######################################
+
 pdf(paste0('./output/', 'LV_vs_RV_CM_module_All_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
@@ -314,8 +318,9 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 4D  #############
+#############  FIGURE 5E  #############
 #######################################
+
 library(viridis)
 a<-subset(combined_set,module %in% c('M10','M25','M26','M28'))
 b <- subset(combined_set_RV,module %in% c('M10','M25','M26','M28'))
@@ -357,9 +362,7 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p1
 dev.off()
 
-#######################################
-#############  FIGURE 4E  #############
-#######################################
+
 
 a<-subset(combined_set,module %in% c('M2'))
 b <- subset(combined_set_RV,module %in% c('M2'))
@@ -390,7 +393,7 @@ p1/p2
 dev.off()
 
 #######################################
-#############  FIGURE 4F  #############
+#############  FIGURE 5F  #############
 #######################################
 
 
@@ -526,6 +529,12 @@ assay(vstSE) <- mat
 plotPCA(vstSE[,vstSE$group %in% c('RVF','DCM')],intgroup=c("group"),ntop=100) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
 
 #dev.off()
+
+#######################################
+#############  FIGURE 5G  #############
+#######################################
+
+
 dcm.vs.rvf <- lfcShrink(ddsSE,contrast=c('group','DCM','RVF'), type="ashr")
 
 dcm.vs.rvf.signif <- subset(dcm.vs.rvf,padj<0.1)
@@ -563,95 +572,95 @@ FeaturePlot(M1,'ZSWIM6')
 dev.off()
 
 
-#######################################
-#############  FIGURE 4H  #############
-#######################################
+# #######################################
+# #############  FIGURE 5H  #############
+# #######################################
 
 
-arvm <- read.csv('./dependencies/shared/ARVM_RV_vs_LV.csv')
+# arvm <- read.csv('./dependencies/shared/ARVM_RV_vs_LV.csv')
 
 
-RV_genes <- unlist(lapply(subset(arvm,logFC>0)$SYMBOL,toupper))
-LV_genes <- unlist(lapply(subset(arvm,logFC<0)$SYMBOL,toupper))
+# RV_genes <- unlist(lapply(subset(arvm,logFC>0)$SYMBOL,toupper))
+# LV_genes <- unlist(lapply(subset(arvm,logFC<0)$SYMBOL,toupper))
 
 
 
-pdf(paste0('./output/', 'arvm_RV_LV.pdf'), width=8, height=6)
+# pdf(paste0('./output/', 'arvm_RV_LV.pdf'), width=8, height=6)
 
-EnhancedVolcano(arvm,lab=toupper(arvm$SYMBOL),
-  x='logFC',y='adj.P.Val',
-  FCcutoff = 0.1,pCutoff=0.05,ylim=c(0,3)) + coord_flip()
-dev.off()
+# EnhancedVolcano(arvm,lab=toupper(arvm$SYMBOL),
+#   x='logFC',y='adj.P.Val',
+#   FCcutoff = 0.1,pCutoff=0.05,ylim=c(0,3)) + coord_flip()
+# dev.off()
 
-dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
+# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
 
-library(enrichR)
-library(forcats)
+# library(enrichR)
+# library(forcats)
 
-parse_ratio <- function(ratio) {
-    ratio <- sub("^\\s*", "", as.character(ratio))
-    ratio <- sub("\\s*$", "", ratio)
-    numerator <- as.numeric(sub("/\\d+$", "", ratio))
-    denominator <- as.numeric(sub("^\\d+/", "", ratio))
-    return(numerator/denominator)
-}
+# parse_ratio <- function(ratio) {
+#     ratio <- sub("^\\s*", "", as.character(ratio))
+#     ratio <- sub("\\s*$", "", ratio)
+#     numerator <- as.numeric(sub("/\\d+$", "", ratio))
+#     denominator <- as.numeric(sub("^\\d+/", "", ratio))
+#     return(numerator/denominator)
+# }
 
-wrapText <- function(x, len) {
-    sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
-}
+# wrapText <- function(x, len) {
+#     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
+# }
 
-enriched <- enrichr(RV_genes, dbs)
-pdf('./output/ARVM_RV_enrichr_up.pdf',width=6,height=2.5)
-p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO Biological Process Up') + 
-  scale_y_discrete(labels= fct_inorder(
-    wrapText(sapply(
-      strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
-  scale_color_stepsn(colors=rev(magma(256)))
-p1
-dev.off()
-
-
-enriched <- enrichr(LV_genes, dbs)
-enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/ARVM_LV_enrichr_up.pdf',width=5,height=2.5)
-p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO Biological Process Up') + 
-  scale_y_discrete(labels= fct_inorder(
-    wrapText(sapply(
-      strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
-  scale_color_stepsn(colors=rev(magma(256)))
-p2
-dev.off()
-
-pdf('./output/ARVM_RV_LV_enrichr_up.pdf',width=6,height=5)
-p1/p2
-dev.off()
+# enriched <- enrichr(RV_genes, dbs)
+# pdf('./output/ARVM_RV_enrichr_up.pdf',width=6,height=2.5)
+# p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
+#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
+#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
+#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
+#   ggtitle('GO Biological Process Up') + 
+#   scale_y_discrete(labels= fct_inorder(
+#     wrapText(sapply(
+#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
+#          `[`, 1),35))) + 
+#   theme(axis.text=element_text(colour="black"))+
+#   scale_color_stepsn(colors=rev(magma(256)))
+# p1
+# dev.off()
 
 
-#######################################
-#############  FIGURE 4I  #############
-#######################################
+# enriched <- enrichr(LV_genes, dbs)
+# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
+# pdf('./output/ARVM_LV_enrichr_up.pdf',width=5,height=2.5)
+# p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
+#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
+#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
+#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
+#   ggtitle('GO Biological Process Up') + 
+#   scale_y_discrete(labels= fct_inorder(
+#     wrapText(sapply(
+#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
+#          `[`, 1),35))) + 
+#   theme(axis.text=element_text(colour="black"))+
+#   scale_color_stepsn(colors=rev(magma(256)))
+# p2
+# dev.off()
 
-M2.genes <- score_calc[which(module_colors %in% c("M2"))][[1]]$gene_name
+# pdf('./output/ARVM_RV_LV_enrichr_up.pdf',width=6,height=5)
+# p1/p2
+# dev.off()
 
-M2.arvm <- arvm[toupper(arvm$SYMBOL) %in% M2.genes,]
 
-mito.genes <- unlist(lapply(score_calc[which(module_colors %in% c("M10","M25","M26","M28"))],'[[',1))
+# #######################################
+# #############  FIGURE 5I  #############
+# #######################################
 
-mito.arvm <- arvm[toupper(arvm$SYMBOL) %in% mito.genes,]
+# M2.genes <- score_calc[which(module_colors %in% c("M2"))][[1]]$gene_name
 
-M12.genes <- score_calc[which(module_colors %in% c("M12"))][[1]]$gene_name
+# M2.arvm <- arvm[toupper(arvm$SYMBOL) %in% M2.genes,]
 
-M12.arvm <- arvm[toupper(arvm$SYMBOL) %in% M12.genes,]
+# mito.genes <- unlist(lapply(score_calc[which(module_colors %in% c("M10","M25","M26","M28"))],'[[',1))
+
+# mito.arvm <- arvm[toupper(arvm$SYMBOL) %in% mito.genes,]
+
+# M12.genes <- score_calc[which(module_colors %in% c("M12"))][[1]]$gene_name
+
+# M12.arvm <- arvm[toupper(arvm$SYMBOL) %in% M12.genes,]
 

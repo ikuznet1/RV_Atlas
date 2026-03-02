@@ -32,7 +32,7 @@ seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs)
 seurat_ref <- SetIdent(seurat_ref, value = "Names")
 
 
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -210,6 +210,10 @@ for (i in mods_idx){
       }
     }
   }
+}
+
+wrapText <- function(x, len) {
+    sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
 
@@ -557,7 +561,7 @@ dev.off()
 #######################################
 #Deep dive M2
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #RVF vs NF
@@ -678,7 +682,7 @@ dev.off()
 
 
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #RVF vs NF
@@ -800,7 +804,7 @@ dev.off()
 
 #Deep dive M12
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #RVF vs NF
@@ -847,10 +851,10 @@ dev.off()
 
 library(GeneOverlap)
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules <- subset(bulk_modules,color %in% mods)
 
-sc_modules <- read.csv("./output/sc_heart_modules.csv")
+sc_modules <- read.csv("./dependencies/shared/sc_heart_modules.csv")
 sc_modules <- subset(sc_modules,str_replace(module,"\\-.*", "")
  == "CM")
 
@@ -884,7 +888,7 @@ cat(subset(bulk2sc_mods,bulk_module == 'blue')$gene_name,sep='\n')
 
 VlnPlot(seurat_ref,'module_M2',pt.size=0,group.by='group')
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #key_genes <- subset(bulk_modules,module %in% c(10,25,26))$gene_name
@@ -948,8 +952,8 @@ EnhancedVolcano(combined_set,lab=rownames(combined_set),
 dev.off()
 
 
-sub_set <- sub_set[!grepl('MT-',rownames(sub_set)),]
 sub_set <- subset(combined_set,combined_set$module != 'M2')
+sub_set <- sub_set[!grepl('MT-',rownames(sub_set)),]
 keyvals <- sub_set$color
 names(keyvals)  <- sub_set$module
 
@@ -1039,6 +1043,7 @@ dev.off()
 #### Figure 4G
 ##############################################
 ##############################################
+Xenium.cm <- readRDS('./dependencies/shared/Xenium_cm_minimalist.rds')
 
 pdf('./output/Xenium/CM_Xenium_Trends.pdf',width=20,height=5)
 
@@ -1056,16 +1061,10 @@ p9 <- VlnPlot(Xenium.cm,'TMEM65',group.by='group', pt.size = 0) + NoLegend()
 p1 | p2 | p4 | p5 | p6 | p7 | p8 | p9 | p3 
 dev.off()
 
-##############################################
-##############################################
-#### Figure 4H
-##############################################
-##############################################
 
 
 
 #M1 <- readRDS(file = "./dependencies/shared/cm_new_subclust.rds")
-#Xenium.cm <- readRDS('./output/Xenium/cm_minimalist.rds')
 
 
 
