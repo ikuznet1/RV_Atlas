@@ -9,13 +9,13 @@ library(viridis)
 
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
 #######################################
 ######### Consensus hdWGCNA #########
 #######################################
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/myeloid_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/myeloid_subclust.rds")
 
 M1 <- FindNeighbors(M1)
 M1 <- FindClusters(M1,resolution=1)
@@ -75,7 +75,7 @@ M1 <- AddModuleScore(M1, features=list(c("IL1B","CCL3","CCL4","CXCL3","CXCL8")),
 
 
 
-M2 <- readRDS('~/Downloads/hdWGCNA_TOM/PAB_data_clean.rds')
+M2 <- readRDS('./output/PAB_data_clean.rds')
 
 M2 <- SetIdent(M2, value = "Names")
 M2$group <- M2$orig.ident
@@ -114,7 +114,7 @@ names(labels) <- levels(M3)
 M3 <- RenameIdents(M3, labels)
 M3$Subnames <- M3@active.ident
 
-human2mouse <- read.csv('~/Downloads/hdWGCNA_TOM/human2mouse.csv',header=F)
+human2mouse <- read.csv('./dependencies/shared/human2mouse.csv',header=F)
 idx <- match(unique(human2mouse[,2]),human2mouse[,2])
 human2mouse<-human2mouse[idx,]
 colnames(human2mouse) <-c('human_name', 'mouse_name')
@@ -317,7 +317,7 @@ p <-  plot_df %>%
       plot.margin = margin(0,0,0,0)
     )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/rMac_hubgene_umap_ggplot.pdf'), width=8, height=8)
+pdf(paste0('./output/rMac_hubgene_umap_ggplot.pdf'), width=8, height=8)
 print(p)
 dev.off()
 
@@ -334,7 +334,7 @@ enrich_df <- GetEnrichrTable(M2)
 
 EnrichrBarPlot(
   M2,
-  outdir = "~/Downloads/hdWGCNA_TOM/Myeloid_rMac_consensus_modules", # name of output directory
+  outdir = "./output/Myeloid_rMac_consensus_modules", # name of output directory
   n_terms = 10, # number of enriched terms to show (sometimes more show if there are ties!!!)
   plot_size = c(5,7), # width, height of the output .pdfs
   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -350,7 +350,7 @@ cat(rownames(subset(modules,module=='rMac-CM9')),sep='\n')
 cat(rownames(subset(modules,module=='rMac-CM11')),sep='\n')
 cat(rownames(subset(modules,module=='rMac-CM12')),sep='\n')
 
-write.csv(modules,"~/Downloads/hdWGCNA_TOM/consensusWGCNA_rMac_modules.csv")
+write.csv(modules,"./output/consensusWGCNA_rMac_modules.csv")
 
 modules <- GetModules(M2)
 color_df <- modules %>% subset(module!='grey') %>%
@@ -373,7 +373,7 @@ idx_top_1 <- match(unique(selected_terms$module),selected_terms$module)
 idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
 
 selected_terms<-selected_terms[idx_top_1,]
-#key_terms <- read.csv('~/Downloads/hdWGCNA_TOM/bulkRNA_GOterms_ofinterest.csv')
+#key_terms <- read.csv('./output/bulkRNA_GOterms_ofinterest.csv')
 #selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 #selected_terms <- subset(combined_output, Term %in% selected_terms$Term & P.value < 0.05)
 
@@ -449,7 +449,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/Consensus_WGNCA_rMac_selected_GO_terms.pdf'), width=13, height=8)
+pdf(paste0('./output/Consensus_WGNCA_rMac_selected_GO_terms.pdf'), width=13, height=8)
 p / colorbar #+ plot_layout(heights=c(20,1))
 dev.off()
 
@@ -560,7 +560,7 @@ p <-  plot_df %>%
       plot.margin = margin(0,0,0,0)
     )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/HLA_hubgene_umap_ggplot.pdf'), width=8, height=8)
+pdf(paste0('./output/HLA_hubgene_umap_ggplot.pdf'), width=8, height=8)
 print(p)
 dev.off()
 
@@ -579,7 +579,7 @@ enrich_df <- GetEnrichrTable(M2)
 
 EnrichrBarPlot(
   M2,
-  outdir = "~/Downloads/hdWGCNA_TOM/Myeloid_HLA_consensus_modules", # name of output directory
+  outdir = "./output/Myeloid_HLA_consensus_modules", # name of output directory
   n_terms = 10, # number of enriched terms to show (sometimes more show if there are ties!!!)
   plot_size = c(5,7), # width, height of the output .pdfs
   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -587,7 +587,7 @@ EnrichrBarPlot(
 
 modules <- GetModules(M2) %>% subset(module != 'grey')
 
-write.csv(modules,"~/Downloads/hdWGCNA_TOM/consensusWGCNA_HLA_modules.csv")
+write.csv(modules,"./output/consensusWGCNA_HLA_modules.csv")
 
 cat(rownames(subset(modules,module=='HLA-CM10')),sep='\n')
 cat(rownames(subset(modules,module=='HLA-CM20')),sep='\n')
@@ -614,7 +614,7 @@ idx_top_1 <- match(unique(selected_terms$module),selected_terms$module)
 idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
 
 selected_terms<-selected_terms[idx_top_1,]
-#key_terms <- read.csv('~/Downloads/hdWGCNA_TOM/bulkRNA_GOterms_ofinterest.csv')
+#key_terms <- read.csv('./output/bulkRNA_GOterms_ofinterest.csv')
 #selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 #selected_terms <- subset(combined_output, Term %in% selected_terms$Term & P.value < 0.05)
 
@@ -690,7 +690,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/Consensus_WGNCA_HLA_selected_GO_terms.pdf'), width=13, height=8)
+pdf(paste0('./output/Consensus_WGNCA_HLA_selected_GO_terms.pdf'), width=13, height=8)
 p / colorbar #+ plot_layout(heights=c(20,1))
 dev.off()
 
@@ -704,7 +704,7 @@ dev.off()
 #1632,1467 RVF
 #1681 1691 1697 NF
 
-M1 <- readRDS('~/Downloads/hdWGCNA_TOM/PAB_data_clean.rds')
+M1 <- readRDS('./output/PAB_data_clean.rds')
 
 M1 <- SetIdent(M1, value = "Names")
 M1$group <- M1$orig.ident
@@ -806,7 +806,7 @@ bulk <- MapQuery(anchorset = anchors, reference = M1, query = bulk,
 
 p1 <- DimPlot(M1, reduction = "umap", group.by = "Names", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
@@ -863,7 +863,7 @@ bulk <- MapQuery(anchorset = anchors, reference = M3, query = bulk,
 bulk$group <- paste0(bulk$Origin,'_',bulk$Type)
 p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "group", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
@@ -887,7 +887,7 @@ labs <- rownames(dataset)
 
 cor(dataset[,1],dataset[,2])
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
+pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
 ggplot(dataset, aes(x = sn, y=bulk)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=25) + theme_classic()
 dev.off()
@@ -905,7 +905,7 @@ bulk_RV <- AddModuleScore(bulk_RV,list(c('Ciita','Cd74','H2-Ab1','H2-Aa',
 
 VlnPlot(bulk_RV,'MHCII1')
 
-human2mouse <- read.csv('~/Downloads/hdWGCNA_TOM/human2mouse.csv',header=F)
+human2mouse <- read.csv('./dependencies/shared/human2mouse.csv',header=F)
 idx <- match(unique(human2mouse[,2]),human2mouse[,2])
 human2mouse<-human2mouse[idx,]
 colnames(human2mouse) <-c('human_name', 'mouse_name')
@@ -930,12 +930,12 @@ VlnPlot(bulk_RV,'nr3c11')
 
 
 
-human2mouse <- read.csv('~/Downloads/hdWGCNA_TOM/human2mouse.csv',header=F)
+human2mouse <- read.csv('./dependencies/shared/human2mouse.csv',header=F)
 idx <- match(unique(human2mouse[,2]),human2mouse[,2])
 human2mouse<-human2mouse[idx,]
 colnames(human2mouse) <-c('human_name', 'mouse_name')
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 
 idx_match<- match(consensus_modules$gene_name,human2mouse$human_name)
@@ -963,7 +963,7 @@ M2 <- SetIdent(M2,value='Subnames')
 
 modules_int <- c('M1','M3','M4',"M8")
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
+pdf(paste0('./output/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
 
 p <- DotPlot(M2,paste0('module_',modules_int),group.by='Subnames',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -980,7 +980,7 @@ M2$group <- factor(M2$group,levels = c('Nor','Mod','Sev'))
 
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
+pdf(paste0('./output/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M2,paste0('module_',modules_int),group.by='group',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -999,7 +999,7 @@ dev.off()
 M2 <- AddModuleScore(M2,list(c('Ciita','Cd74','H2-Ab1','H2-Aa',
 	'H2-Eb1','H2-Eb2','H2-Ob','H2-DMb1','H2-DMb2','H2-DMa','H2-Oa')),name='MHCII')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
 
 VlnPlot(subset(M2,Subnames=='HLA'),'MHCII1',group.by='group',pt.size=0)
 dev.off()
@@ -1016,13 +1016,13 @@ gluc_response_mouse <- human2mouse$mouse_name[match(gluc_response,human2mouse$hu
 M2 <- AddModuleScore(M2,list(gluc_response_mouse),name='nr3c1')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
 
 VlnPlot(M2,'nr3c11',group.by='group',pt.size=0)
 dev.off()
 
 M1$group <- M1$orig.ident
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Wnt1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'Wnt1.pdf'), width=3, height=3)
 DimPlot(M1)
 dev.off()
 
@@ -1119,7 +1119,7 @@ library(EnhancedVolcano)
 
 gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==1)$gene_name)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 EnhancedVolcano(gene_set,lab=rownames(gene_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1128,7 +1128,7 @@ dev.off()
 
 gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==8)$gene_name)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 EnhancedVolcano(gene_set,lab=rownames(gene_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1150,13 +1150,13 @@ M2 <- RunUMAP(M2, dims = 1:50,reduction = "harmony")
 M2$Names <- M2@active.ident
 markers<-FindAllMarkers(M2,recorrect_umi=F)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M2,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
 
 
-M3 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/cm_subclust.rds")
+M3 <- readRDS(file = "./dependencies/shared/cm_subclust.rds")
 
 new.cluster.ids <- c("Cm1","Cm2","Cm3","Cm4","Cm5","Cm6","Cm7","Cm8","Cm9","Cm10")
 names(new.cluster.ids) <- levels(M3)
@@ -1345,17 +1345,17 @@ M2$map_score <- score
 
 p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -1381,7 +1381,7 @@ M3 <- AddModuleScore(M3,marks,name='RV_marks')
 
 M2$predicted.celltype <- factor(M2$predicted.celltype,levels=levels(M3))
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
 
 DotPlot(M2,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),
@@ -1394,7 +1394,7 @@ DotPlot(M3,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),col.min = 0) +
 scale_x_discrete(labels=c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10'))
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
+pdf(paste0('./output/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
 VlnPlot(M2,'map_score',group.by='predicted.celltype',pt.size=0)
 dev.off()
 
@@ -1415,7 +1415,7 @@ labs <- rownames(dataset)
 #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 dev.off()
@@ -1430,7 +1430,7 @@ labs <- rownames(dataset)
 #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 dev.off()
@@ -1445,7 +1445,7 @@ labs <- rownames(dataset)
 #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 dev.off()
@@ -1460,7 +1460,7 @@ labs <- rownames(dataset)
 labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
 dev.off()
@@ -1468,7 +1468,7 @@ dev.off()
 #############  FIGURE S6M  ############
 #######################################
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
 consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name), consensus_modules$gene_name),]
@@ -1491,7 +1491,7 @@ M2 <- SetIdent(M2, value = "group")
 M2$group <- factor(M2$group,levels=c('Nor','Mod','Sev'))
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
+pdf(paste0('./output/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M2,paste0('module_',
   c('M2','M10','M12','M25','M26','M28')),dot.min=0,col.min=0,col.max=2,group.by='group') +
@@ -1511,8 +1511,8 @@ dev.off()
 #######################################
 library("readxl")
 
-Human.Mito <- read_excel("~/Downloads/hdWGCNA_TOM/Human.MitoCarta3.0.xls", sheet = "A Human MitoCarta3.0")
-Mouse.Mito <- read_excel("~/Downloads/hdWGCNA_TOM/Mouse.MitoCarta3.0.xls", sheet = "A Mouse MitoCarta3.0")
+Human.Mito <- read_excel("./dependencies/shared/Human.MitoCarta3.0.xls", sheet = "A Human MitoCarta3.0")
+Mouse.Mito <- read_excel("./dependencies/shared/Mouse.MitoCarta3.0.xls", sheet = "A Mouse MitoCarta3.0")
 
 
 M3 <- AddModuleScore(M3,list(Human.Mito$Symbol),name='mito')
@@ -1521,7 +1521,7 @@ M2 <- AddModuleScore(M2,list(union(Human.Mito$Symbol,Mouse.Mito$Symbol)),name='m
 p1<-VlnPlot(M2,'mito1',group.by='group',pt.size=0)
 p2<-VlnPlot(M3,'mito1',group.by='group',pt.size=0)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
+pdf(paste0('./output/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
 
 p1 / p2
 dev.off()
@@ -1544,7 +1544,7 @@ names(colors) <- keyvals
 
 
 library(EnhancedVolcano)
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_RV_Mito.pdf'), width=6, height=11)
+pdf(paste0('./output/', 'CM_RV_Mito.pdf'), width=6, height=11)
 
 EnhancedVolcano(a,lab=rownames(a),
   x='avg_log2FC',y='p_val_adj',

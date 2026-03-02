@@ -4,14 +4,14 @@ library(ggeasy)
 library(dplyr)
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./output/spatial_functions.R')
 
 
 
 #######################################
 #############  FIGURE 7A  #############
 #######################################
-M1 <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_Peds_Hearts/objects/all_data.rds')
+M1 <- readRDS('./dependencies/shared/all_peds_data.rds')
 M1$Names <- M1$cell.type
 M1$NewNames <- M1$Names
 M1 <- SetIdent(M1, value = "NewNames")
@@ -39,13 +39,13 @@ for(i in 1:13) {
 }
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'snPeds_Vln.pdf'), width=4, height=20)
+pdf(paste0('./output/', 'snPeds_Vln.pdf'), width=4, height=20)
 p
 dev.off()
 
 
 
-M2 <- readRDS('/Volumes/Extreme SSD/Final_Analysis/CellTypes/Post_R3_FINAL_with_counts.rds')
+M2 <- readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
 
 
 M2 <- merge(M1,M2)
@@ -65,16 +65,16 @@ M2 <- M2%>%
 
 M2$CombinedNames <- M2$NewNames
 M2$CombinedNames[is.na(M2$NewNames)] <- M2$Names[is.na(M2$NewNames)]
-#saveRDS(M2,'~/Downloads/hdWGCNA_TOM/RV_Peds_merge.rds')
-#M2 <- readRDS('~/Downloads/hdWGCNA_TOM/RV_Peds_merge.rds')
+#saveRDS(M2,'./output/RV_Peds_merge.rds')
+#M2 <- readRDS('./output/RV_Peds_merge.rds')
 #M1 <- subset(M2,origin==TRUE)
-#saveRDS(M1,'~/Downloads/hdWGCNA_TOM/Peds_clean.rds')
+#saveRDS(M1,'./output/Peds_clean.rds')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sn_RV_Peds_UMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'sn_RV_Peds_UMAP.pdf'), width=5, height=5)
 PlotEmbedding(M2,group.by='CombinedNames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sn_Peds_UMAP_reprojected.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'sn_Peds_UMAP_reprojected.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='NewNames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -109,7 +109,7 @@ RVF_percent_cell$sum <- (rev(cumsum(rev(RVF_percent_cell$Freq))) - RVF_percent_c
 RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
 
 percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
-pdf('~/Downloads/hdWGCNA_TOM/RV_Peds_prev_stacked.pdf',width=6,height=2.5)
+pdf('./output/RV_Peds_prev_stacked.pdf',width=6,height=2.5)
 ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  
 geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + coord_flip()+
 xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + scale_y_continuous(expand=c(0,0)) + geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y")
@@ -125,7 +125,7 @@ cells$group<-M2$group[match(cells$Var2,M2$patient)]
 cells$group<-as.factor(cells$group)
 
 library(ggpubr)
-pdf('~/Downloads/hdWGCNA_TOM/Peds_RV_clust_freq.pdf',width=8,height=5)
+pdf('./output/Peds_RV_clust_freq.pdf',width=8,height=5)
 p <- ggboxplot(cells[length(cells$group):1,],x="group",y="Freq",fill="group",group="group")+
   theme_classic() + 
   theme(axis.text.x=element_text(size=16),
@@ -153,7 +153,7 @@ cells$group<-M2$group[match(cells$Var2,M2$patient)]
 cells$group<-as.factor(cells$group)
 
 library(ggpubr)
-pdf('~/Downloads/hdWGCNA_TOM/Peds_clust_freq.pdf',width=8,height=5)
+pdf('./output/Peds_clust_freq.pdf',width=8,height=5)
 p <- ggboxplot(cells[length(cells$group):1,],x="group",y="Freq",fill="group",group="group")+
   theme_classic() + 
   theme(axis.text.x=element_text(size=16),
@@ -178,7 +178,7 @@ dev.off()
 
 
 ######Load module
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
 
@@ -226,7 +226,7 @@ M2@meta.data <- cbind(M2@meta.data, MEs)
 M2 <- SetIdent(M2, value = "CombinedNames")
 
 
-#consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+#consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 #consensus_modules <- consensus_modules[,1:3]
 #consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
 # remove duplicate gene names
@@ -237,8 +237,8 @@ library(dplyr)
 score_calc <- consensus_modules %>% group_by(module) %>% group_split()
 module_colors <- unique(unlist(lapply(score_calc,'[[','module')))
 module_colors <- paste0('M',match(module_colors,mapping))
-#saveRDS(M2, '~/Downloads/hdWGCNA_TOM/scWGCNA_RV_Peds_bulk2sn_projection.rds')
-#M2<- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_RV_Peds_bulk2sn_projection.rds')
+#saveRDS(M2, './output/scWGCNA_RV_Peds_bulk2sn_projection.rds')
+#M2<- readRDS('./output/scWGCNA_RV_Peds_bulk2sn_projection.rds')
 
 DefaultAssay(M2) <- 'SCT'
 
@@ -246,7 +246,7 @@ DefaultAssay(M2) <- 'SCT'
 
 #rm(seurat_ref)
 #gc()
-#seurat_ref<-readRDS('/Volumes/Extreme SSD/Final_Analysis/CellTypes/Post_R3_FINAL_with_counts.rds')
+#seurat_ref<-readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
 #seurat_ref <- SetIdent(seurat_ref, value = "Names")
 #seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs)
 
@@ -264,7 +264,7 @@ M2$origin[M2$origin == FALSE] = 'RV'
 
 M2$CombinedNamesSplit <- paste0(M2$CombinedNames,'_',M2$origin)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot.pdf'), width=7, height=5)
+pdf(paste0('./output/', 'RV_Peds_Dot.pdf'), width=7, height=5)
 p <- DotPlot(M2,paste0('module_',all_signif),group.by='CombinedNamesSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -277,7 +277,7 @@ p
 dev.off()
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot_ordered.pdf'), width=7, height=5)
+pdf(paste0('./output/', 'RV_Peds_Dot_ordered.pdf'), width=7, height=5)
 
 p <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),group.by='CombinedNamesSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -293,7 +293,7 @@ dev.off()
 M2$groupSplit <- paste0(M2$group,'_',M2$origin)
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot_disease_ordered.pdf'), width=7, height=4)
+pdf(paste0('./output/', 'RV_Peds_Dot_disease_ordered.pdf'), width=7, height=4)
 
 p <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),group.by='groupSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -315,7 +315,7 @@ dev.off()
 M2$group_split <- paste0(M2$group,'_',M2$origin)
 M2$group_split <- factor(M2$group_split,levels=c('NF_RV','pRV_RV','RVF_RV','NF_Peds','pRV_Peds','RVF_Peds'))
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot_CM_Peds.pdf'), width=7, height=3)
+pdf(paste0('./output/', 'RV_Peds_Dot_CM_Peds.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='Peds'),paste0('module_',c('M2','M12','M28','M10','M25','M26')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -327,7 +327,7 @@ p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='Peds'),paste0('module_',c(
 p
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot_CM_RV.pdf'), width=7, height=3)
+pdf(paste0('./output/', 'RV_Peds_Dot_CM_RV.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='RV'),paste0('module_',c('M2','M12','M28','M10','M25','M26')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -339,7 +339,7 @@ p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='RV'),paste0('module_',c('M
 p
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot_Myeloid_Peds.pdf'), width=7, height=3)
+pdf(paste0('./output/', 'RV_Peds_Dot_Myeloid_Peds.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='Myeloid' & origin=='Peds'),paste0('module_',c('M1','M3','M4','M8')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -351,7 +351,7 @@ p <- DotPlot(subset(M2,CombinedNames=='Myeloid' & origin=='Peds'),paste0('module
 p
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot_Myeloid_RV.pdf'), width=7, height=3)
+pdf(paste0('./output/', 'RV_Peds_Dot_Myeloid_RV.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='Myeloid' & origin=='RV'),paste0('module_',c('M1','M3','M4','M8')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -382,7 +382,7 @@ dataset <- data.frame(Peds=gene_set_Peds[shared,]$avg_log2FC,RV=gene_set_RV[shar
 rownames(dataset) <- shared
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_RV.pdf'), width=8, height=8)
+pdf(paste0('./output/', 'Peds_vs_RV.pdf'), width=8, height=8)
 ggplot(dataset, aes(x = RV, y=Peds)) + geom_point() + 
   geom_text_repel(label=rownames(dataset),max.overlaps = 50) + theme_classic()
 dev.off()
@@ -394,7 +394,7 @@ dataset <- data.frame(Peds=gene_set_Peds[shared,]$avg_log2FC,RV=gene_set_RV[shar
 rownames(dataset) <- shared
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_RV_5percent.pdf'), width=8, height=8)
+pdf(paste0('./output/', 'Peds_vs_RV_5percent.pdf'), width=8, height=8)
 ggplot(dataset, aes(x = RV, y=Peds)) + geom_point() + 
   geom_text_repel(label=rownames(dataset),max.overlaps = 20) + theme_classic()
 dev.off()
@@ -404,7 +404,7 @@ dev.off()
 #############  FIGURE 7F  #############
 #######################################
 
-M1 <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_Peds_Hearts/objects/cardiomyocyte annotated.rds')
+M1 <- readRDS('./dependencies/Figure_8/cardiomyocyte annotated.rds')
 M1$Names <- M1$cell.type
 M1$NewNames <- M1$Names
 M1$Subnames <- M1$sub.type
@@ -413,7 +413,7 @@ M1 <- SetIdent(M1, value = "NewSubnames")
 DefaultAssay(M1) <- 'SCT'
 
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M1))
 # remove duplicate gene names
@@ -432,7 +432,7 @@ Idents(M1) <- factor(x = Idents(M1), levels = sort(levels(M1)))
 
 #Dot Plot of enrichment cell type of CM enriched modules
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_mod_trend_subcluster_CM.pdf'), width=4.5, height=3)
+pdf(paste0('./output/', 'peds_mod_trend_subcluster_CM.pdf'), width=4.5, height=3)
 
 p <- DotPlot(M1,paste0('module_',
   c('M2','M12','M25','M26','M10','M28')),dot.min=0,col.min=0,col.max=2) +
@@ -451,7 +451,7 @@ M1 <- SetIdent(M1, value = "condition")
 Idents(M1) <- factor(x = Idents(M1), levels = c('Donor','NF','SystolicHF'))
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_mod_trend_condition_CM.pdf'), width=5, height=2.5)
+pdf(paste0('./output/', 'peds_mod_trend_condition_CM.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M1,paste0('module_',
   c('M2','M12','M25','M26','M10','M28')),dot.min=0,col.min=0,col.max=2) +
@@ -656,7 +656,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_CM_by_cluster_terms_cell_type_up_SystolicHF_vs_Donor.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'peds_CM_by_cluster_terms_cell_type_up_SystolicHF_vs_Donor.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -770,7 +770,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_CM_by_cluster_terms_cell_type_down_SystolicHF_vs_Donor.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'peds_CM_by_cluster_terms_cell_type_down_SystolicHF_vs_Donor.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -882,7 +882,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_CM_by_cluster_terms_cell_type_both_SystolicHF_vs_Donor.pdf'), width=6, height=9)
+pdf(paste0('./output/', 'peds_CM_by_cluster_terms_cell_type_both_SystolicHF_vs_Donor.pdf'), width=6, height=9)
 p / colorbar 
 dev.off()
 
@@ -891,7 +891,7 @@ dev.off()
 #######################################
 #Deep dive M2
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
@@ -945,7 +945,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M2_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_Peds_M2_enrichr_up.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -962,7 +962,7 @@ dev.off()
 
 enriched <- enrichr(M2_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/CM_Peds_M2_enrichr_down.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -977,7 +977,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_up_down.pdf',width=6,height=4)
+pdf('./output/CM_Peds_M2_enrichr_up_down.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
@@ -985,7 +985,7 @@ dev.off()
 
 enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_mito_enrichr_up.pdf',width=6,height=3)
+pdf('./output/CM_Peds_mito_enrichr_up.pdf',width=6,height=3)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1006,7 +1006,7 @@ dev.off()
 ###PRV
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
@@ -1060,7 +1060,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M2_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_up_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/CM_Peds_M2_enrichr_up_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1077,7 +1077,7 @@ dev.off()
 
 enriched <- enrichr(M2_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_down_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/CM_Peds_M2_enrichr_down_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1092,7 +1092,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
+pdf('./output/CM_Peds_M2_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
@@ -1100,7 +1100,7 @@ dev.off()
 
 enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_mito_enrichr_up_RVF_vs_pRV.pdf.pdf',width=6,height=3)
+pdf('./output/CM_Peds_mito_enrichr_up_RVF_vs_pRV.pdf.pdf',width=6,height=3)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1120,7 +1120,7 @@ dev.off()
 ###SV vs NF
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
@@ -1174,7 +1174,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M2_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_up_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
+pdf('./output/CM_Peds_M2_enrichr_up_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1191,7 +1191,7 @@ dev.off()
 
 enriched <- enrichr(M2_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_down_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
+pdf('./output/CM_Peds_M2_enrichr_down_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1206,7 +1206,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_M2_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
+pdf('./output/CM_Peds_M2_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
@@ -1214,7 +1214,7 @@ dev.off()
 
 enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_Peds_mito_enrichr_up_pRV_vs_NF.pdf.pdf',width=6,height=3)
+pdf('./output/CM_Peds_mito_enrichr_up_pRV_vs_NF.pdf.pdf',width=6,height=3)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1236,7 +1236,7 @@ dev.off()
 #############  FIGURE 7I  #############
 #######################################
 
-M1 <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_Peds_Hearts/objects/myeloid annotated.rds')
+M1 <- readRDS('./dependencies/Figure_8/myeloid annotated.rds')
 M1$Names <- M1$cell.type
 M1$NewNames <- M1$Names
 M1$Subnames <- M1$sub.type
@@ -1253,7 +1253,7 @@ M1 <- AddModuleScore(M1, features=list(c("LYVE1","FOLR2","SIGLEC1","F13A1")),ass
 M1 <- AddModuleScore(M1, features=list(c("RBMS3","PLA2G5","EBF1")),assay="SCT",name="CCR2-_rMac2_Score")
 M1 <- AddModuleScore(M1, features=list(c("IL1B","CCL3","CCL4","CXCL3","CXCL8")),assay="SCT",name="iMac_Score")
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_myeloid_dot.pdf'), width=7, height=6)
+pdf(paste0('./output/', 'Peds_myeloid_dot.pdf'), width=7, height=6)
 DotPlot(M1, c("Mono_Score1","CCR2-_rMac2_Score1","iMac_Score1","TREM2_Mac_Score1",
   "CCR2+_rMac_Score1","CCR2-_rMac1_Score1","DC_Score1"))+xlab('Marker Score')+
   scale_x_discrete(labels=c('Mono','CCR2- 2','iMac','TREM2','CCR2+','CCR2- 1','DC'))
@@ -1266,7 +1266,7 @@ DotPlot(M1, c("Mono_Score1","CCR2-_rMac2_Score1","iMac_Score1","TREM2_Mac_Score1
 
 a <- FindMarkers(M1,ident.1='SystolicHF',ident.2='NF')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_myeloid_volcano_RVF_pRV.pdf'), width=6, height=5)
+pdf(paste0('./output/', 'Peds_myeloid_volcano_RVF_pRV.pdf'), width=6, height=5)
 p1<-EnhancedVolcano(a,lab=rownames(a),
   x='avg_log2FC',y='p_val_adj',
   FCcutoff = 0.1) + coord_flip()
@@ -1274,13 +1274,13 @@ dev.off()
 
 a <- FindMarkers(M1,ident.1='NF',ident.2='Donor')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_myeloid_volcano_pRV_NF.pdf'), width=6, height=5)
+pdf(paste0('./output/', 'Peds_myeloid_volcano_pRV_NF.pdf'), width=6, height=5)
 p2<-EnhancedVolcano(a,lab=rownames(a),
   x='avg_log2FC',y='p_val_adj',
   FCcutoff = 0.1) + coord_flip()
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_myeloid_volcano.pdf'), width=12, height=5)
+pdf(paste0('./output/', 'Peds_myeloid_volcano.pdf'), width=12, height=5)
 p2+p1
 dev.off()
 
@@ -1288,7 +1288,7 @@ dev.off()
 #############  FIGURE 7J  #############
 #######################################
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M1))
 # remove duplicate gene names
@@ -1308,7 +1308,7 @@ Idents(M1) <- factor(x = Idents(M1), levels = sort(levels(M1)))
 
 #Dot Plot of enrichment cell type of CM enriched modules
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_mod_trend_subcluster_myeloid.pdf'), width=5, height=3)
+pdf(paste0('./output/', 'peds_mod_trend_subcluster_myeloid.pdf'), width=5, height=3)
 
 p <- DotPlot(M1,paste0('module_',
   c('M1','M3','M4','M8')),dot.min=0,col.min=0,col.max=2) +
@@ -1327,7 +1327,7 @@ M1 <- SetIdent(M1, value = "condition")
 Idents(M1) <- factor(x = Idents(M1), levels = c('Donor','NF','SystolicHF'))
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_mod_trend_condition_myeloid.pdf'), width=5, height=2.5)
+pdf(paste0('./output/', 'peds_mod_trend_condition_myeloid.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M1,paste0('module_',
   c('M1','M3','M4','M8')),dot.min=0,col.min=0,col.max=2) +
@@ -1346,7 +1346,7 @@ dev.off()
 #######################################
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
@@ -1397,7 +1397,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M1_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M1_enrichr_up.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1414,7 +1414,7 @@ dev.off()
 
 enriched <- enrichr(M1_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M1_enrichr_down.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1429,7 +1429,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_up_down.pdf',width=6,height=4)
+pdf('./output/myeloid_Peds_M1_enrichr_up_down.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
@@ -1437,7 +1437,7 @@ dev.off()
 
 enriched <- enrichr(M8_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_up.pdf',width=6,height=3)
+pdf('./output/myeloid_Peds_M8_enrichr_up.pdf',width=6,height=3)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1454,7 +1454,7 @@ dev.off()
 
 enriched <- enrichr(M8_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_down.pdf',width=6,height=3)
+pdf('./output/myeloid_Peds_M8_enrichr_down.pdf',width=6,height=3)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1469,7 +1469,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_up_down.pdf',width=6,height=4)
+pdf('./output/myeloid_Peds_M8_enrichr_up_down.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
@@ -1484,7 +1484,7 @@ dev.off()
 ###PRV
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
@@ -1535,7 +1535,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M1_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_up_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M1_enrichr_up_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1552,7 +1552,7 @@ dev.off()
 
 enriched <- enrichr(M1_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_down_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M1_enrichr_down_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1567,14 +1567,14 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
+pdf('./output/myeloid_Peds_M1_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
 
 enriched <- enrichr(M8_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_up_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M8_enrichr_up_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1591,7 +1591,7 @@ dev.off()
 
 enriched <- enrichr(M8_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_down_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M8_enrichr_down_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1606,7 +1606,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
+pdf('./output/myeloid_Peds_M8_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
@@ -1615,7 +1615,7 @@ dev.off()
 
 ###SV vs NF
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
@@ -1666,7 +1666,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M1_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_up_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M1_enrichr_up_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1683,7 +1683,7 @@ dev.off()
 
 enriched <- enrichr(M1_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_down_pRV_vs_NFpdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M1_enrichr_down_pRV_vs_NFpdf.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1698,14 +1698,14 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M1_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
+pdf('./output/myeloid_Peds_M1_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
 
 enriched <- enrichr(M8_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_up_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M8_enrichr_up_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1722,7 +1722,7 @@ dev.off()
 
 enriched <- enrichr(M8_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_down_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
+pdf('./output/myeloid_Peds_M8_enrichr_down_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1737,7 +1737,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/myeloid_Peds_M8_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
+pdf('./output/myeloid_Peds_M8_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
 p1/p2
 dev.off()
 
@@ -1923,7 +1923,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'peds_Myeloid_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -2034,7 +2034,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=6.6, height=5)
+pdf(paste0('./output/', 'peds_Myeloid_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=6.6, height=5)
 p / colorbar 
 dev.off()
 
@@ -2147,7 +2147,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'peds_Myeloid_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -2258,7 +2258,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6.6, height=5)
+pdf(paste0('./output/', 'peds_Myeloid_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6.6, height=5)
 p / colorbar 
 dev.off()
 
@@ -2371,7 +2371,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_reactome_terms_cell_type_up_pRV_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'peds_Myeloid_reactome_terms_cell_type_up_pRV_vs_NF.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -2482,7 +2482,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_reactome_terms_cell_type_down_pRV_vs_NF.pdf'), width=6.6, height=5)
+pdf(paste0('./output/', 'peds_Myeloid_reactome_terms_cell_type_down_pRV_vs_NF.pdf'), width=6.6, height=5)
 p / colorbar 
 dev.off()
 
@@ -2601,7 +2601,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'peds_Myeloid_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=10, height=5)
 p / colorbar 
 dev.off()
 
@@ -2712,7 +2712,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'peds_Myeloid_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -2825,7 +2825,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'peds_Myeloid_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=10, height=5)
 p / colorbar 
 dev.off()
 
@@ -2936,7 +2936,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'peds_Myeloid_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -3052,7 +3052,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_chea_terms_cell_type_up_pRV_vs_NF.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'peds_Myeloid_chea_terms_cell_type_up_pRV_vs_NF.pdf'), width=10, height=5)
 p / colorbar 
 dev.off()
 
@@ -3163,7 +3163,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_Myeloid_chea_terms_cell_type_down_NF_vs_Donor.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'peds_Myeloid_chea_terms_cell_type_down_NF_vs_Donor.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -3173,9 +3173,9 @@ dev.off()
 #######################################
 
 
-M2 <- readRDS('~/Downloads/hdWGCNA_TOM/EC_hdWGCNA_by_celltype.rds')
+M2 <- readRDS('./dependencies/shared/EC_hdWGCNA_by_celltype.rds')
 
-M1 <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_Peds_Hearts/objects/endothelium annotated.rds')
+M1 <- readRDS('./dependencies/Figure_8/endothelium annotated.rds')
 
 consensus_modules <- GetModules(M2) %>% subset(module != 'grey')
 consensus_modules <- consensus_modules[,1:3]
@@ -3195,7 +3195,7 @@ colnames(M1@meta.data) <- cols_current
 M1<-SetIdent(M1,value='sub.type')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_mod_trend_subcluster_EC.pdf'), width=4.5, height=3)
+pdf(paste0('./output/', 'peds_mod_trend_subcluster_EC.pdf'), width=4.5, height=3)
 
 p <- DotPlot(M1,paste0('module_',
   c('M1','M2','M3','M4','M5','M6','M7')),dot.min=0,col.min=0,col.max=2) +
@@ -3214,7 +3214,7 @@ M1 <- SetIdent(M1, value = "condition")
 Idents(M1) <- factor(x = Idents(M1), levels = c('Donor','NF','SystolicHF'))
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_mod_trend_condition_EC.pdf'), width=5, height=2.5)
+pdf(paste0('./output/', 'peds_mod_trend_condition_EC.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M1,paste0('module_',
   c('M1','M2','M3','M4','M5','M6','M7')),dot.min=0,col.min=0,col.max=2) +
@@ -3261,7 +3261,7 @@ RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
 
 percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
 
-pdf('~/Downloads/hdWGCNA_TOM/peds_EC_subclust_prev_stacked.pdf',width=5,height=5)
+pdf('./output/peds_EC_subclust_prev_stacked.pdf',width=5,height=5)
 ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + scale_y_continuous(expand=c(0,0)) + geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y")
 dev.off()
 
@@ -3307,44 +3307,44 @@ angio_genes <- intersect(angio_genes,rownames(M1))
 M1 <- AddModuleScore(M1,list(angio_genes),name="AllAngioGenes")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_all_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'peds_EC_all_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'AllAngioGenes1',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_coronary_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'peds_EC_coronary_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'CoronaryAngioGenes1',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_negative_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'peds_EC_negative_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'NegativeAngioGenes1',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_positive_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'peds_EC_positive_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'PositiveAngioGenes1',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_regulatory_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'peds_EC_regulatory_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'AngioGenes1',pt.size=0)
 dev.off()
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_combined_angio_genes.pdf'), width=10, height=4)
+pdf(paste0('./output/', 'peds_EC_combined_angio_genes.pdf'), width=10, height=4)
 VlnPlot(M1,c('AllAngioGenes1','CoronaryAngioGenes1','PositiveAngioGenes1','NegativeAngioGenes1'),group.by='condition',ncol=4,pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_MECOM.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'peds_EC_MECOM.pdf'), width=3, height=3)
 VlnPlot(subset(M1,sub.type=='Artery1'),'MECOM',group.by='condition',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_MECOM_feat.pdf'), width=4, height=3)
+pdf(paste0('./output/', 'peds_EC_MECOM_feat.pdf'), width=4, height=3)
 DotPlot(M1,'MECOM',group.by='sub.type',col.min=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_SMAD1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'peds_EC_SMAD1.pdf'), width=3, height=3)
 VlnPlot(subset(M1,sub.type=='Capillary'),'SMAD1',group.by='condition',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_EC_SMAD1_feat.pdf'), width=4, height=3)
+pdf(paste0('./output/', 'peds_EC_SMAD1_feat.pdf'), width=4, height=3)
 DotPlot(M1,'SMAD1',group.by='sub.type',col.min=0)
 dev.off()
 
@@ -3552,7 +3552,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'pedsEC_GO_terms_cell_type.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'pedsEC_GO_terms_cell_type.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -3665,7 +3665,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'pedsEC_GO_terms_M7.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'pedsEC_GO_terms_M7.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -3687,7 +3687,7 @@ M2 <- AddModuleScore(M2,list(c('AFF3','HEY2','SOX17','MSX1','TOX2','PRDM16')),na
 p1 <- VlnPlot(M1,'ArtTF1',group.by='condition',pt.size=0)
 p2 <- VlnPlot(M2,'ArtTF1',group.by='group',pt.size=0)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_RV_art_TF.pdf'), width=3, height=5)
+pdf(paste0('./output/', 'peds_RV_art_TF.pdf'), width=3, height=5)
 p1/p2
 dev.off()
 
@@ -3702,7 +3702,7 @@ M2 <- AddModuleScore(M2,list(set),name='Notch')
 p1 <- VlnPlot(M1,'Notch1',group.by='condition',pt.size=0)
 p2 <- VlnPlot(M2,'Notch1',group.by='group',pt.size=0)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_RV_Notch.pdf'), width=3, height=5)
+pdf(paste0('./output/', 'peds_RV_Notch.pdf'), width=3, height=5)
 p1/p2
 dev.off()
 
@@ -3711,7 +3711,7 @@ dev.off()
 p1 <- VlnPlot(M1,'SMAD1',group.by='condition',pt.size=0)
 p2 <- VlnPlot(M2,'SMAD1',group.by='group',pt.size=0)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_RV_Smad.pdf'), width=3, height=5)
+pdf(paste0('./output/', 'peds_RV_Smad.pdf'), width=3, height=5)
 p1/p2
 dev.off()
 
@@ -3739,7 +3739,7 @@ M2 <- AddModuleScore(M2,list(set),name='Vein')
 p1 <- VlnPlot(subset(M1,sub.type=='Vein'),'Vein1',group.by='condition',pt.size=0)
 p2 <- VlnPlot(subset(M2,Names=='Venous'),'Vein1',group.by='group',pt.size=0)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_RV_vein.pdf'), width=3, height=5)
+pdf(paste0('./output/', 'peds_RV_vein.pdf'), width=3, height=5)
 p1/p2
 dev.off()
 
@@ -3747,7 +3747,7 @@ dev.off()
 p1<-VlnPlot(subset(M1,sub.type=='Vein'),'NR2F2',group.by='condition',pt.size=0)
 p2<-VlnPlot(subset(M2,Names=='Venous'),'NR2F2',group.by='group',pt.size=0)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'peds_RV_NR2F2.pdf'), width=3, height=5)
+pdf(paste0('./output/', 'peds_RV_NR2F2.pdf'), width=3, height=5)
 p1/p2
 dev.off()
 
@@ -3808,7 +3808,7 @@ p1 <- DimPlot(
 )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sn_RV_Peds_CM_Harmonized_UMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'sn_RV_Peds_CM_Harmonized_UMAP.pdf'), width=5, height=5)
 PlotEmbedding(M3,group.by='origin',reduction="umap.cca",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -3842,7 +3842,7 @@ p1 <- DimPlot(
 )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sn_RV_Peds_Myeloid_Harmonized_UMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'sn_RV_Peds_Myeloid_Harmonized_UMAP.pdf'), width=5, height=5)
 PlotEmbedding(M3,group.by='origin',reduction="umap.cca",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -3881,7 +3881,7 @@ M3 <- SetIdent(M3, value = "origin")
 cm_compare <- FindMarkers(M3,ident.1='RV',ident.2='Peds')
 
 
-write.csv(cm_compare,'~/Downloads/hdWGCNA_TOM/cm_RV_vs_Peds_DEG.csv')
+write.csv(cm_compare,'./output/cm_RV_vs_Peds_DEG.csv')
 
 
 
@@ -3898,7 +3898,7 @@ myeloid_compare <- FindMarkers(M3,ident.1='RV',ident.2='Peds')
 
 
 
-RefMerge<-readRDS('~/Downloads/hdWGCNA_TOM/Kory_with_RV_modules_projected.rds')
+RefMerge<-readRDS('./output/Kory_with_RV_modules_projected.rds')
 
 
 
@@ -3962,12 +3962,12 @@ p1 <- p1 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV2LV_LV_CM_modules_dot.pdf'), width=7.5, height=5)
+pdf(paste0('./output/', 'RV2LV_LV_CM_modules_dot.pdf'), width=7.5, height=5)
 p1
 dev.off()
 
 
-seurat_ref <- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_all_celltypes.rds')
+seurat_ref <- readRDS('./output/scWGCNA_all_celltypes.rds')
 seurat_ref<-SetActiveWGCNA(seurat_ref, "CM")
 seurat_ref <- ModuleConnectivity(seurat_ref,group.by = 'Names', group_name = 'CM')
 
@@ -3997,11 +3997,11 @@ p2 <- p2 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_CM_modules_dot.pdf"), width=7.5, height=5)
+pdf(paste0('./output/', "LV_CM_modules_dot.pdf"), width=7.5, height=5)
 p2
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_CM_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+pdf(paste0('./output/', "LV_CM_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 wrap_plots(list(p1,p2),ncol=1)
 dev.off()
 
@@ -4065,7 +4065,7 @@ p1 <- p1 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV2LV_LV_EC_modules_dot.pdf'), width=7.5, height=5)
+pdf(paste0('./output/', 'RV2LV_LV_EC_modules_dot.pdf'), width=7.5, height=5)
 p1
 dev.off()
 
@@ -4099,11 +4099,11 @@ p2 <- p2 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_EC_modules_dot.pdf"), width=7.5, height=5)
+pdf(paste0('./output/', "LV_EC_modules_dot.pdf"), width=7.5, height=5)
 p2
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_EC_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+pdf(paste0('./output/', "LV_EC_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 wrap_plots(list(p1,p2),ncol=1)
 dev.off()
 
@@ -4169,7 +4169,7 @@ p1 <- p1 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV2LV_LV_FB_modules_dot.pdf'), width=7.5, height=5)
+pdf(paste0('./output/', 'RV2LV_LV_FB_modules_dot.pdf'), width=7.5, height=5)
 p1
 dev.off()
 
@@ -4203,11 +4203,11 @@ p2 <- p2 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_FB_modules_dot.pdf"), width=7.5, height=5)
+pdf(paste0('./output/', "LV_FB_modules_dot.pdf"), width=7.5, height=5)
 p2
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_FB_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+pdf(paste0('./output/', "LV_FB_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 wrap_plots(list(p1,p2),ncol=1)
 dev.off()
 
@@ -4273,7 +4273,7 @@ p1 <- p1 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV2LV_LV_Myeloid_modules_dot.pdf'), width=7.5, height=5)
+pdf(paste0('./output/', 'RV2LV_LV_Myeloid_modules_dot.pdf'), width=7.5, height=5)
 p1
 dev.off()
 
@@ -4307,11 +4307,11 @@ p2 <- p2 +
   xlab('') + ylab('')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_Myeloid_modules_dot.pdf"), width=7.5, height=5)
+pdf(paste0('./output/', "LV_Myeloid_modules_dot.pdf"), width=7.5, height=5)
 p2
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', "LV_Myeloid_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+pdf(paste0('./output/', "LV_Myeloid_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 wrap_plots(list(p1,p2),ncol=1)
 dev.off()
 
@@ -4322,7 +4322,7 @@ dev.off()
 #######################################
 
 
-RefMerge<-readRDS('~/Downloads/hdWGCNA_TOM/Kory_with_RV_modules_projected.rds')
+RefMerge<-readRDS('./output/Kory_with_RV_modules_projected.rds')
 
 RefMerge<-SetActiveWGCNA(RefMerge, "CM_RV2LV")
 
@@ -4333,7 +4333,7 @@ plot_list <- PlotModulePreservation(
   statistics = "summary"
 )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV2LV_CM_pres.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'RV2LV_CM_pres.pdf'), width=5, height=5)
 wrap_plots(plot_list, ncol=2)
 dev.off()
 
@@ -4348,7 +4348,7 @@ dev.off()
 #EC not preserved - M1, M2, M4, M5, M10, M11, M12
 #EC preserved - M8
 
-seurat_ref <- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_all_celltypes.rds')
+seurat_ref <- readRDS('./output/scWGCNA_all_celltypes.rds')
 seurat_ref<-SetActiveWGCNA(seurat_ref, "CM")
 
 
@@ -4366,7 +4366,7 @@ enrich_df <- GetEnrichrTable(seurat_ref)
 
 EnrichrBarPlot(
   seurat_ref,
-  outdir = "~/Downloads/hdWGCNA_TOM/sc_enrichr_plot_CM", 
+  outdir = "./output/sc_enrichr_plot_CM", 
   n_terms = 5,
   plot_size = c(5,4), # width, height of the output .pdfs
   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -4390,7 +4390,7 @@ enrich_df <- GetEnrichrTable(seurat_ref)
 
 EnrichrBarPlot(
   seurat_ref,
-  outdir = "~/Downloads/hdWGCNA_TOM/sc_enrichr_plot_EC", 
+  outdir = "./output/sc_enrichr_plot_EC", 
   n_terms = 5,
   plot_size = c(5,4), # width, height of the output .pdfs
   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -4402,11 +4402,11 @@ EnrichrBarPlot(
 #######################################
 library(GeneOverlap)
 
-seurat_ref <- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_all_celltypes.rds')
+seurat_ref <- readRDS('./output/scWGCNA_all_celltypes.rds')
 seurat_ref<-SetActiveWGCNA(seurat_ref, "CM")
 
 
-bulk_rv_vs_lv <- read.csv(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_LV_align_NRVM_NRMV_ARVM.csv'))
+bulk_rv_vs_lv <- read.csv(paste0('./output/', 'RV_LV_align_NRVM_NRMV_ARVM.csv'))
 genes <- toupper(bulk_rv_vs_lv[,2])
 #nrvm <- bulk_rv_vs_lv[2:348,14]
 arvm <- bulk_rv_vs_lv[,20]
@@ -4527,7 +4527,7 @@ p <- overlap_df_rv %>%
     plot.title = element_text(hjust=0.5, face='plain')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RVbulk_R2LV_CM_overlap.pdf'), width=4.5, height=5)
+pdf(paste0('./output/', 'RVbulk_R2LV_CM_overlap.pdf'), width=4.5, height=5)
 p
 dev.off()
 
@@ -4537,11 +4537,11 @@ dev.off()
 #######################################
 rm(RefMerge)
 rm(seurat_ref)
-seurat_ref <- readRDS('/Volumes/Extreme SSD/Final_Analysis/CellTypes/Post_R3_FINAL_with_counts.rds')
-load('~/Downloads/hdWGCNA_TOM/GSE183852_DCM_Integrated.Robj')
+seurat_ref <- readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
+load('./output/GSE183852_DCM_Integrated.Robj')
 
 
-sc_modules <- read.csv(paste0('~/Downloads/hdWGCNA_TOM/', 'sc_heart_modules.csv'))
+sc_modules <- read.csv(paste0('./output/', 'sc_heart_modules.csv'))
 seurat_ref <- AddModuleScore(seurat_ref,list(
   subset(sc_modules,module=="CM-M1")$gene_name,
   subset(sc_modules,module=="CM-M2")$gene_name,

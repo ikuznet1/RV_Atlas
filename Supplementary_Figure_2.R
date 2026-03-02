@@ -4,7 +4,7 @@
 ##############################################
 ##############################################
 
-RV_data <- readRDS('~/Downloads/hdWGCNA_TOM//RV_data.rds')
+RV_data <- readRDS('./dependencies/shared/RV_data.rds')
 RV_data <- subset(RV_data, Names=='CM')
 
 RV_data <- SCTransform(RV_data,vst.flavor="v2", assay = "RNA",vars.to.regress=c('nFeature_RNA','percent.mt'))
@@ -52,11 +52,11 @@ RV_data <- RenameIdents(RV_data, new.cluster.ids)
 RV_data$Subnames <- RV_data@active.ident
 RV_data$SubNames_Groups <- paste(RV_data$Subnames,RV_data$group,sep='_')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_New_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'CM_New_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(RV_data,group.by='Subnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
-#saveRDS(RV_data,'~/Downloads/hdWGCNA_TOM/cm_new_subclust.rds')
+#saveRDS(RV_data,'./dependencies/shared/cm_new_subclust.rds')
 ##############################################
 ##############################################
 #### Figure S2B
@@ -75,7 +75,7 @@ RV_data <- AddModuleScore(RV_data, features=list(c('HS6ST3','GRIK2','KCNJ3')),as
 RV_data <- AddModuleScore(RV_data, features=list(c('COX7A1','COX6A2')),assay="SCT",name="Clust9Score")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_new_sn_Dot.pdf'), width=8, height=5)
+pdf(paste0('./output/', 'CM_new_sn_Dot.pdf'), width=8, height=5)
 DotPlot(RV_data,features=c("Clust0Score1",
   "Clust1Score1","Clust2Score1","Clust3Score1",
   "Clust4Score1","Clust5Score1","Clust6Score1",
@@ -108,12 +108,12 @@ cm.patient$disease <- factor(cm.patient$disease, levels=c('NF','pRV','RVF'))
 
 
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_clust_counts.pdf',width=10,height=3)
+pdf('./output/CM_clust_counts.pdf',width=10,height=3)
 ggplot(cm.patient,aes(Var1,Freq,color = disease))+geom_boxplot() + theme_classic()
 dev.off()
 
 library(ggpubr)
-pdf('~/Downloads/hdWGCNA_TOM/CM_clust_freq_stats.pdf',width=12.5,height=15)
+pdf('./output/CM_clust_freq_stats.pdf',width=12.5,height=15)
 p <- ggboxplot(cm.patient,x="disease",y="Freq",fill="disease",group="disease")+
   theme_classic() + 
   theme(axis.text.x=element_text(size=16),
@@ -142,7 +142,7 @@ dev.off()
 library(enrichR)
 #CAMK2D, SORBS2, TNNT1. ACTA1, PLCE1, NPPA, NPPB
 
-M1 <- readRDS(file = "~/Downloads/hdWGCNA_TOM/cm_new_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/cm_new_subclust.rds")
 a <- FindAllMarkers(M1)
 
 
@@ -172,7 +172,7 @@ for (i in 1:length(unique(M1$Subnames))) {
 M1 <- SetupForWGCNA(M1,wgcna_name='temp')
 M1 <- SetEnrichrTable(M1, combined_output)
 
-outdir = '~/Downloads/hdWGCNA_TOM/scCM_subclust_enrichr_plot'
+outdir = './output/scCM_subclust_enrichr_plot'
 
 
 wrapText <- function(x, len) {
@@ -290,7 +290,7 @@ p <- selected_terms %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_by_cluster_New_GO.pdf'), width=5.25, height=8)
+pdf(paste0('./output/', 'CM_by_cluster_New_GO.pdf'), width=5.25, height=8)
 p
 dev.off()
 
@@ -301,7 +301,7 @@ dev.off()
 ##############################################
 ##############################################
 
-seurat_ref <- readRDS(file = "~/Downloads/hdWGCNA_TOM/cm_new_subclust.rds")
+seurat_ref <- readRDS(file = "./dependencies/shared/cm_new_subclust.rds")
 seurat_ref <- SetIdent(seurat_ref, value = "Subnames")
 
 modules_up <- c('M2','M12','M28')
@@ -310,7 +310,7 @@ modules_down <- c('M10','M25','M26')
 mapping <- labels2colors(1:100)
 
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -348,7 +348,7 @@ colnames(seurat_ref@meta.data) <- cols_current
 modules_all <- c('M2','M12',"M10","M25","M26","M28")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_cluster_dot_new_subclust_mods.pdf'), width=6, height=2.5)
+pdf(paste0('./output/', 'CM_cluster_dot_new_subclust_mods.pdf'), width=6, height=2.5)
 
 p <- DotPlot(seurat_ref,paste0('module_',modules_all),group.by='Subnames',dot.min=0,col.min=0) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -369,7 +369,7 @@ dev.off()
 ##############################################
 
 
-Xenium.cm <- readRDS(file = "~/Downloads/hdWGCNA_TOM/Xenium/cm.rds")
+Xenium.cm <- readRDS(file = "./dependencies/shared/Xenium_cm.rds")
 
 
 Xenium.cm <- SCTransform(Xenium.cm,vst.flavor="v2", assay = "Xenium",vars.to.regress=c('nFeature_Xenium'))
@@ -435,7 +435,7 @@ Xenium.cm <- AddModuleScore(Xenium.cm, features=list(c('ANKRD1','ACTA1')),assay=
 
 #PTN
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/Xenium/', 'Xenium_cm_marks.pdf'), width=7, height=3.5)
+pdf(paste0('./output/Xenium/', 'Xenium_cm_marks.pdf'), width=7, height=3.5)
 DotPlot(Xenium.cm,features=c("Clust0Score1",
   "Clust1Score1","Clust2Score1","Clust3Score1",
   "Clust4Score1","Clust5Score1","Clust6Score1",
@@ -460,7 +460,7 @@ dev.off()
 ##############################################
 ##############################################
 
-meta.data <- read.csv('~/Downloads/hdWGCNA_TOM/Xenium/metadata.csv')
+meta.data <- read.csv('./dependencies/shared/Xenium_meta.data.csv')
 niche_manual <- meta.data$niche_manual
 names(niche_manual) <- rownames(meta.data)
 
@@ -476,10 +476,10 @@ cm.niche <- cm.niche[feats,]
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-#saveRDS(Xenium.cm,'~/Downloads/hdWGCNA_TOM/Xenium/cm_minimalist.rds')
+#saveRDS(Xenium.cm,'./output/Xenium/cm_minimalist.rds')
 
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/xenium_heatmap_niche.pdf',width=3.5,height=4.5)
+pdf('./output/Xenium/xenium_heatmap_niche.pdf',width=3.5,height=4.5)
 
 heatmap.2(as.matrix(cm.niche), scale="row",
    labRow=rownames(cm.niche), 
@@ -497,7 +497,7 @@ cm.niche <- data.frame(cm.niche)
 
 
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/CM_niche_counts.pdf',width=10,height=3)
+pdf('./output/Xenium/CM_niche_counts.pdf',width=10,height=3)
 ggplot(cm.niche,aes(Var1,Freq,color = Var2))+geom_boxplot() + theme_classic()
 dev.off()
 
@@ -510,14 +510,14 @@ dev.off()
 Xenium.cm$NPPA <- as.character(Xenium.cm$Subnames)
 Xenium.cm$NPPA[Xenium.cm$NPPA != 'NPPA/NPPB'] = 'Other'
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/CM_niche_spatial.pdf',width=5,height=5)
+pdf('./output/Xenium/CM_niche_spatial.pdf',width=5,height=5)
 
 ImageDimPlot(subset(Xenium.cm,niche_manual == 'Endocardial CMs'), 
   group.by = 'NPPA',fov = "fov.5",
   axes = F, dark.background=F,size=1)
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/CM_niche_spatial_all.pdf',width=5,height=5)
+pdf('./output/Xenium/CM_niche_spatial_all.pdf',width=5,height=5)
 
 ImageDimPlot(Xenium.cm, 
   group.by = 'NPPA',fov = "fov.5",
@@ -526,14 +526,14 @@ dev.off()
 
 
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/CM_niche_spatial_alt.pdf',width=5,height=5)
+pdf('./output/Xenium/CM_niche_spatial_alt.pdf',width=5,height=5)
 
 ImageDimPlot(subset(Xenium.cm,niche_manual == 'Endocardial CMs'), 
   group.by = 'NPPA',fov = "fov.7",
   axes = F, dark.background=F,size=1)
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/CM_niche_spatial_all_alt.pdf',width=5,height=5)
+pdf('./output/Xenium/CM_niche_spatial_all_alt.pdf',width=5,height=5)
 
 ImageDimPlot(Xenium.cm, 
   group.by = 'NPPA',fov = "fov.7",

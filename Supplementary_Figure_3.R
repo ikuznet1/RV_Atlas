@@ -5,19 +5,19 @@ library(harmony)
 
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
 
 #######################################
 ############  FIGURE S3A  #############
 #######################################
-snLV <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 snLV<-subset(snLV,Names=="Myeloid")
 
 all_signif <- c('M1','M2','M3','M4','M5','M8','M10','M11','M12','M14','M20','M25','M26','M28')
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(snLV))
 # remove duplicate gene names
@@ -43,11 +43,11 @@ which(module_colors %in% c('M1','M3','M4','M8'))
 
 
 snLV <- SetIdent(snLV, value = "condition")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vln_modules.pdf'), width=6, height=3)
+pdf(paste0('./output/', 'LV_vln_modules.pdf'), width=6, height=3)
 VlnPlot(snLV,c('module_M1','module_M3','module_M4','module_M8'),pt.size=0,ncol=4)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_dot_modules.pdf'), width=4.5, height=2.2)
+pdf(paste0('./output/', 'LV_dot_modules.pdf'), width=4.5, height=2.2)
 p <- DotPlot(snLV,paste0('module_',
   c('M1','M3','M4','M8')),dot.min=0,col.min=0,col.max=2) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -65,7 +65,7 @@ dev.off()
 #######################################
 
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/myeloid_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/myeloid_subclust.rds")
 
 M1 <- FindNeighbors(M1)
 M1 <- FindClusters(M1,resolution=1)
@@ -126,7 +126,7 @@ M1$SubNames_group <- paste0(M1$Subsubnames,'_',M1$group)
 M1 <- SetIdent(M1, value = "group")
 M1$group <- factor(M1$group,levels=c("NF","pRV","RVF"))
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M1))
 # remove duplicate gene names
@@ -149,11 +149,11 @@ colnames(M1@meta.data) <- cols_current
 
 which(module_colors %in% c('M1','M3','M4','M8'))
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_vln_modules.pdf'), width=6, height=3)
+pdf(paste0('./output/', 'RV_vln_modules.pdf'), width=6, height=3)
 VlnPlot(M1,c('module_M1','module_M3','module_M4','module_M8'),pt.size=0,ncol=4)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_dot_modules.pdf'), width=4.5, height=2.2)
+pdf(paste0('./output/', 'RV_dot_modules.pdf'), width=4.5, height=2.2)
 p <- DotPlot(M1,paste0('module_',
   c('M1','M3','M4','M8')),dot.min=0,col.min=0,col.max=2) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -172,7 +172,7 @@ dev.off()
 
 
 #Reference mao LV to RV
-scLV <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_reprocessed_all.rds')
+scLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 scLV <- subset(scLV,tech=='SC')
 scLV<-subset(scLV,Names=="Myeloid")
 
@@ -189,7 +189,7 @@ M2 <- RunPCA(M2, npcs = 50, verbose = FALSE)
 M2 <- RunUMAP(M2, reduction = "pca", dims = 1:30)
 
 
-human2mouse <- read.csv('~/Downloads/hdWGCNA_TOM/human2mouse.csv',header=F)
+human2mouse <- read.csv('./output/human2mouse.csv',header=F)
 idx <- match(unique(human2mouse[,2]),human2mouse[,2])
 human2mouse<-human2mouse[idx,]
 colnames(human2mouse) <-c('human_name', 'mouse_name')
@@ -229,7 +229,7 @@ snLV$map_score <- score
 
 p1 <- DimPlot(M2, reduction = "umap", group.by = "Subsubnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(snLV, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_LV_myeloid_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_LV_myeloid_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
@@ -267,7 +267,7 @@ scLV$map_score <- score
 
 p1 <- DimPlot(M2, reduction = "umap", group.by = "Subsubnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(scLV, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_LV_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_LV_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
@@ -354,7 +354,7 @@ snLV$LV_names <- snLV@active.ident
 
 p1 <- DimPlot(snLV, reduction = "ref.umap", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(scLV, reduction = "ref.umap", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_sn_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'LV_sn_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
@@ -379,7 +379,7 @@ labs <- rownames(dataset)
 #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_vs_LV_myeloid__dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'RV_vs_LV_myeloid__dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=15) + theme_classic()
 dev.off()
@@ -403,7 +403,7 @@ scLV <- AddModuleScore(scLV,list(gluc_response),name='nr3c1')
 
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_myeloid_nr3c1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'RV_myeloid_nr3c1.pdf'), width=3, height=3)
 
 VlnPlot(M1,'nr3c11',group.by='group',pt.size=0)
 dev.off()
@@ -412,12 +412,12 @@ snLV$condition <- factor(snLV$condition,levels=c('Donor','DCM'))
 scLV$condition <- factor(scLV$condition,levels=c('Donor','DCM'))
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_sn_myeloid_nr3c1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'LV_sn_myeloid_nr3c1.pdf'), width=3, height=3)
 VlnPlot(snLV,'nr3c11',group.by='condition',pt.size=0)
 dev.off()
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_sc_myeloid_nr3c1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'LV_sc_myeloid_nr3c1.pdf'), width=3, height=3)
 VlnPlot(scLV,'nr3c11',group.by='condition',pt.size=0)
 dev.off()
 
@@ -436,7 +436,7 @@ scLV <- AddModuleScore(scLV,list(mhcII),name='mhcII')
 
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_myeloid_mhcII.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'RV_myeloid_mhcII.pdf'), width=3, height=3)
 
 VlnPlot(M1,'mhcII1',group.by='group',pt.size=0)
 dev.off()
@@ -445,12 +445,12 @@ snLV$condition <- factor(snLV$condition,levels=c('Donor','DCM'))
 scLV$condition <- factor(scLV$condition,levels=c('Donor','DCM'))
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_sn_myeloid_mhcII.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'LV_sn_myeloid_mhcII.pdf'), width=3, height=3)
 VlnPlot(snLV,'mhcII1',group.by='condition',pt.size=0)
 dev.off()
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_sc_myeloid_mhcII.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'LV_sc_myeloid_mhcII.pdf'), width=3, height=3)
 VlnPlot(scLV,'mhcII1',group.by='condition',pt.size=0)
 dev.off()
 
@@ -461,14 +461,14 @@ dev.off()
 #######################################
 ############  FIGURE S3E  #############
 #######################################
-snLV <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 snLV<-subset(snLV,Names=="Fibroblasts")
 
 snLV <- SetIdent(snLV, value = "condition")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_FB_dot_myoFb.pdf'), width=4, height=3.5)
+pdf(paste0('./output/', 'LV_FB_dot_myoFb.pdf'), width=4, height=3.5)
 p <- DotPlot(snLV,
   c('ACTA2','CDH11','TAGLN','SLIT3','MINDY2','MYO1B','LIMS2','GARS'),dot.min=0,col.min=0,col.max=2) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -486,7 +486,7 @@ dev.off()
 #######################################
 
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/fb_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/fb_subclust.rds")
 
 new.cluster.ids <- c("Fb1","Fb2","Fb3","Fb4","Fb5","Fb6","Fb7")
 names(new.cluster.ids) <- levels(M1)
@@ -544,7 +544,7 @@ snLV$map_score <- score
 
 p1 <- DimPlot(M2, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(snLV, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_LV_fb_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_LV_fb_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
@@ -567,7 +567,7 @@ FeaturePlot(snLV,reduction='ref.umap',label=TRUE,'Fb11')
 FeaturePlot(snLV,reduction='ref.umap',label=TRUE,'Fb81')
 FeaturePlot(snLV,reduction='ref.umap',label=TRUE,'Fb91')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_LV_fb_ref_mapped_dot.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'RV_LV_fb_ref_mapped_dot.pdf'), width=6, height=4)
 
 DotPlot(snLV,c('Fb31','Fb61','Fb91','Fb41','Fb71','Fb21',
   'Fb51','Fb81','Fb11'),group.by = "predicted.celltype",col.min=0,col.max=2)
@@ -596,7 +596,7 @@ labs <- rownames(dataset)
 #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_vs_LV_fb_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'RV_vs_LV_fb_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
 dev.off()
@@ -665,7 +665,7 @@ snLV$LV_names <- snLV@active.ident
 
 p1 <- DimPlot(snLV, reduction = "ref.umap", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(scLV, reduction = "ref.umap", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_sn_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'LV_sn_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
@@ -702,7 +702,7 @@ dev.off()
 
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 combined_set_RV <- data.frame()
 mods_idx <- c(1,3,4,8)
@@ -721,14 +721,14 @@ for (i in mods_idx){
   }
 }
 
-snLV <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 snLV<-subset(snLV,Names=="Myeloid")
 snLV <- SetIdent(snLV, value = "condition")
 snLV <- PrepSCTFindMarkers(snLV)
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 combined_set <- data.frame()
 mods_idx <- c(1,3,4,8)
@@ -768,7 +768,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_Myeloid_module_M1_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_Myeloid_module_M1_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -779,7 +779,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_Myeloid_module_M3_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_Myeloid_module_M3_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -791,7 +791,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_Myeloid_module_M4_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_Myeloid_module_M4_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -802,7 +802,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_Myeloid_module_M8_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_Myeloid_module_M8_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -817,7 +817,7 @@ labs <- rownames(dataset)
 labs[abs(dataset$LV - dataset$RV)<0.1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_All_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_All_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
 dev.off()
@@ -865,7 +865,7 @@ wrapText <- function(x, len) {
 }
 
 enriched <- enrichr(mito_genes, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_mito_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_LV_mito_enrichr_up.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -889,7 +889,7 @@ M2_genes <- rownames(subset(dataset,LV>0 & RV>0))
 
 enriched <- enrichr(M2_genes, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_LV_M2_enrichr_up.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -904,7 +904,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_M&mito2_enrichr_up.pdf',width=6,height=5)
+pdf('./output/CM_RV_LV_M&mito2_enrichr_up.pdf',width=6,height=5)
 p1/p2
 dev.off()
 
@@ -913,7 +913,7 @@ dev.off()
 #######################################
 
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/cm_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/cm_subclust.rds")
 
 new.cluster.ids <- c("Cm1","Cm2","Cm3","Cm4","Cm5","Cm6","Cm7","Cm8","Cm9","Cm10")
 names(new.cluster.ids) <- levels(M1)
@@ -1011,7 +1011,7 @@ assay(vstSE) <- mat
 
 plotPCA(vstSE,intgroup=c("group"),ntop=100) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_vst_batchcorrect_PCA.pdf',width=6,height=2.5)
+pdf('./output/CM_RV_LV_vst_batchcorrect_PCA.pdf',width=6,height=2.5)
 plotPCA(vstSE[,vstSE$group %in% c('pRV','RVF','DCM')],intgroup=c("group"),ntop=100) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
 dev.off()
 
@@ -1040,7 +1040,7 @@ mm <- model.matrix(~group, colData(vstSE))
 mat <- limma::removeBatchEffect(mat, covariates=colData(vstSE)[,4:18], design=mm)
 assay(vstSE) <- mat
 
-#pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
+#pdf('./output/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
 
 plotPCA(vstSE[,vstSE$group %in% c('RVF','DCM')],intgroup=c("group"),ntop=100) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
 
@@ -1065,7 +1065,7 @@ cat(rv.genes,sep='\n')
 
 
 library(EnhancedVolcano)
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_LV_RV_DESeq.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_LV_RV_DESeq.pdf'), width=8, height=6)
 
 EnhancedVolcano(subset(dcm.vs.rvf,baseMean>100),lab=rownames(subset(dcm.vs.rvf,baseMean>100)),
   x='log2FoldChange',y='padj',
@@ -1076,7 +1076,7 @@ dev.off()
 
 
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
+pdf('./output/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
 FeaturePlot(M1,'ZSWIM6')
 
 dev.off()
@@ -1087,7 +1087,7 @@ dev.off()
 #######################################
 
 
-arvm <- read.csv('~/Downloads/hdWGCNA_TOM/ARVM_RV_vs_LV.csv')
+arvm <- read.csv('./dependencies/shared/ARVM_RV_vs_LV.csv')
 
 
 RV_genes <- unlist(lapply(subset(arvm,logFC>0)$SYMBOL,toupper))
@@ -1095,7 +1095,7 @@ LV_genes <- unlist(lapply(subset(arvm,logFC<0)$SYMBOL,toupper))
 
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'arvm_RV_LV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'arvm_RV_LV.pdf'), width=8, height=6)
 
 EnhancedVolcano(arvm,lab=toupper(arvm$SYMBOL),
   x='logFC',y='adj.P.Val',
@@ -1120,7 +1120,7 @@ wrapText <- function(x, len) {
 }
 
 enriched <- enrichr(RV_genes, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/ARVM_RV_enrichr_up.pdf',width=6,height=2.5)
+pdf('./output/ARVM_RV_enrichr_up.pdf',width=6,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1138,7 +1138,7 @@ dev.off()
 
 enriched <- enrichr(LV_genes, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/ARVM_LV_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/ARVM_LV_enrichr_up.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1153,7 +1153,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/ARVM_RV_LV_enrichr_up.pdf',width=6,height=5)
+pdf('./output/ARVM_RV_LV_enrichr_up.pdf',width=6,height=5)
 p1/p2
 dev.off()
 

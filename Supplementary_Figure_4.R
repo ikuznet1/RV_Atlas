@@ -5,13 +5,13 @@ library(harmony)
 
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
 #######################################
 #############  FIGURE S5A  ############
 #######################################
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/fb_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/fb_subclust.rds")
 
 new.cluster.ids <- c("Fb1","Fb2","Fb3","Fb4","Fb5","Fb6","Fb7")
 names(new.cluster.ids) <- levels(M1)
@@ -20,7 +20,7 @@ M1 <- RenameIdents(M1, new.cluster.ids)
 M1$Subnames <- M1@active.ident
 M1$SubNames_Groups <- paste(M1$Subnames,M1$group,sep='_')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'FB_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='Subnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -42,7 +42,7 @@ M1 <- AddModuleScore(M1, features=list(c("SYN3","TIMP3")),assay="SCT",name="Fb7S
 #Fb4 (PCOLCE2, FBN1, MFAP5, CREB5), Fb5 (GRID2, NAMPT, NR4A3, NR4A1)
 #Fb6 (SERPINE1, DEC1 TNC, FN1), Fb7 (SYN3, TMIP3)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_sn_Dot.pdf'), width=6, height=5)
+pdf(paste0('./output/', 'FB_sn_Dot.pdf'), width=6, height=5)
 
 DotPlot(M1,features=c("Fb1Score1",
 	"Fb2Score1","Fb3Score1","Fb4Score1",
@@ -100,7 +100,7 @@ for (i in 1:length(unique(M1$Subnames))) {
 M1 <- SetupForWGCNA(M1,wgcna_name='temp')
 M1 <- SetEnrichrTable(M1, combined_output)
 
-outdir = '~/Downloads/hdWGCNA_TOM/scFB_subclust_enrichr_plot'
+outdir = './output/scFB_subclust_enrichr_plot'
 
 
 wrapText <- function(x, len) {
@@ -221,7 +221,7 @@ p <- selected_terms %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_by_cluster_GO.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'FB_by_cluster_GO.pdf'), width=6, height=8)
 p
 dev.off()
 
@@ -229,7 +229,7 @@ dev.off()
 #######################################
 #############  FIGURE S5D  ############
 #######################################
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'MyoFB_dot.pdf'), width=4.5, height=4)
+pdf(paste0('./output/', 'MyoFB_dot.pdf'), width=4.5, height=4)
 DotPlot(M1,c('ACTA2','CDH11','TAGLN','SLIT3',
   'MINDY2','MYO1B','LIMS2','GARS'),group.by='group',dot.min=0,col.min=0,col.max=2) +
   coord_flip() + ylab('')+ xlab('')+
@@ -245,7 +245,7 @@ dev.off()
 M1 <- AddModuleScore(M1, features=list(c('ACTA2','CDH11','TAGLN','SLIT3',
   'MINDY2','MYO1B','LIMS2','GARS')),assay="SCT",name="MyoFBScore")
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'MyoFB_Vln.pdf'), width=4.5, height=4)
+pdf(paste0('./output/', 'MyoFB_Vln.pdf'), width=4.5, height=4)
 VlnPlot(M1,'MyoFBScore1',split.by='group',pt.size=0)
 dev.off()
 
@@ -255,7 +255,7 @@ dev.off()
 #############  FIGURE S5E  ############
 #######################################
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -392,7 +392,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'FB_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -461,7 +461,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'FB_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -532,7 +532,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'FB_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -601,7 +601,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'FB_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -677,7 +677,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'FB_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -746,7 +746,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'FB_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -817,7 +817,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'FB_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -886,7 +886,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'FB_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'FB_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -895,7 +895,7 @@ dev.off()
 #######################################
 
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/pc_sm_subclust.rds")
+M1 <- readRDS(file = "./dependencies/Supplementary_Figure_4/pc_sm_subclust.rds")
 
 
 new.cluster.ids <- c("Sm","Pc","Pc","Sm")
@@ -906,7 +906,7 @@ M1 <- RenameIdents(M1, new.cluster.ids)
 M1$Subnames <- M1@active.ident
 M1$SubNames_Groups <- paste(M1$Subnames,M1$group,sep='_')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PC_SM_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'PC_SM_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='Subnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -917,7 +917,7 @@ dev.off()
 #M5, M20, M11
 
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -1105,7 +1105,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -1216,7 +1216,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -1353,7 +1353,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -1422,7 +1422,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -1493,7 +1493,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -1562,7 +1562,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=4, height=4)
+pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=4, height=4)
 p 
 dev.off()
 
@@ -1638,7 +1638,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -1707,7 +1707,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -1778,7 +1778,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -1847,7 +1847,7 @@ p <- selected_terms %>%
     panel.grid = element_line(size=0.25, color='lightgrey')
   )
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=8, height=7)
 p 
 dev.off()
 
@@ -1857,7 +1857,7 @@ dev.off()
 a<-FindMarkers(seurat_ref,ident.1=c('Pc_RVF','Sm_RVF'),ident.2=c('Pc_pRV','Sm_pRV'))
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'PCSM_volcano_RVF_vs_pRV.pdf'), width=4, height=8)
+pdf(paste0('./output/', 'PCSM_volcano_RVF_vs_pRV.pdf'), width=4, height=8)
 
 EnhancedVolcano(a,lab=rownames(a),
   x='avg_log2FC',y='p_val_adj',

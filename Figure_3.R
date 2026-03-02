@@ -430,7 +430,7 @@ Crop_custom <-
 ### SLIDE 1
 
 # Load the Xenium data
-data <- ReadXenium('~/Downloads/hdWGCNA_TOM/Xenium/proseg-output-XETG00217__0038213__Region_1__20241206__182124',
+data <- ReadXenium('./dependencies/Figure_3/proseg-output-XETG00217__0038213__Region_1__20241206__182124',
 	outs = c("matrix", "microns"), type = c("centroids", "segmentations"))
 
 
@@ -453,9 +453,9 @@ xenium.obj[["fov"]] <- coords
 # remove cells with 0 counts
 xenium.obj1 <- subset(xenium.obj, subset = nCount_Xenium > 0)
 
-region1 <- read.table('~/Downloads/hdWGCNA_TOM/Xenium/output-XETG00217__0038213__Region_1__20241206__182124/Region1_coordinates.csv',sep=',')
-region2 <- read.table('~/Downloads/hdWGCNA_TOM/Xenium/output-XETG00217__0038213__Region_1__20241206__182124/Region2_coordinates.csv',sep=',')
-region3 <- read.table('~/Downloads/hdWGCNA_TOM/Xenium/output-XETG00217__0038213__Region_1__20241206__182124/Region3_coordinates.csv',sep=',')
+region1 <- read.table('./dependencies/Figure_3/XETG00217__0038213__Region_1__20241206__182124/Region1_coordinates.csv',sep=',')
+region2 <- read.table('./dependencies/Figure_3/XETG00217__0038213__Region_1__20241206__182124/Region2_coordinates.csv',sep=',')
+region3 <- read.table('./dependencies/Figure_3/XETG00217__0038213__Region_1__20241206__182124/Region3_coordinates.csv',sep=',')
 
 names1 <- rep("seg1", length(region1$V1))
 names2 <- rep("seg2", length(region2$V1))
@@ -490,16 +490,16 @@ xenium.1697$group <- 'NF'
 xenium.1691$group <- 'NF'
 xenium.1618$group <- 'pRV'
 
-saveRDS(xenium.1697,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1697.rds')
-saveRDS(xenium.1691,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1691.rds')
-saveRDS(xenium.1618,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1618.rds')
+saveRDS(xenium.1697,'./dependencies/Figure_3/xenium_1697.rds')
+saveRDS(xenium.1691,'./dependencies/Figure_3/xenium_1691.rds')
+saveRDS(xenium.1618,'./dependencies/Figure_3/xenium_1618.rds')
 
 
 
 ### Sample 2
 
 # Load the Xenium data
-data <- ReadXenium('~/Downloads/hdWGCNA_TOM/Xenium/proseg-output-XETG00217__0038216__Region_1__20241206__182124',
+data <- ReadXenium('./output/Xenium/proseg-output-XETG00217__0038216__Region_1__20241206__182124',
 	outs = c("matrix", "microns"), type = c("centroids", "segmentations"))
 
 
@@ -522,8 +522,8 @@ xenium.obj[["fov"]] <- coords
 # remove cells with 0 counts
 xenium.obj2 <- subset(xenium.obj, subset = nCount_Xenium > 0)
 
-region1 <- read.table('~/Downloads/hdWGCNA_TOM/Xenium/output-XETG00217__0038216__Region_1__20241206__182124/Region1_coordinates.csv',sep=',')
-region2 <- read.table('~/Downloads/hdWGCNA_TOM/Xenium/output-XETG00217__0038216__Region_1__20241206__182124/Region2_coordinates.csv',sep=',')
+region1 <- read.table('./output/Xenium/output-XETG00217__0038216__Region_1__20241206__182124/Region1_coordinates.csv',sep=',')
+region2 <- read.table('./output/Xenium/output-XETG00217__0038216__Region_1__20241206__182124/Region2_coordinates.csv',sep=',')
 
 names1 <- rep("seg1", length(region1$V1))
 names2 <- rep("seg2", length(region2$V1))
@@ -549,14 +549,14 @@ xenium.1692$patient <- '1692'
 xenium.1567$group <- 'pRV'
 xenium.1692$group <- 'pRV'
 
-saveRDS(xenium.1567,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1567.rds')
-saveRDS(xenium.1692,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1692.rds')
+saveRDS(xenium.1567,'./output/Xenium/xenium_1567.rds')
+saveRDS(xenium.1692,'./dependencies/Figure_3/xenium_1692.rds')
 
 
 ### Sample 3
 
 # Load the Xenium data
-data <- ReadXenium('~/Downloads/hdWGCNA_TOM/Xenium/proseg-output-XETG00217__0038290__Region_1__20241212__142808',
+data <- ReadXenium('./dependencies/Figure_3/proseg-output-XETG00217__0038290__Region_1__20241212__142808',
 	outs = c("matrix", "microns"), type = c("centroids", "segmentations"))
 
 
@@ -587,14 +587,14 @@ xenium.1561$patient <- '1561'
 
 xenium.1561$group <- 'NF'
 
-saveRDS(xenium.1561,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1561.rds')
+saveRDS(xenium.1561,'./dependencies/Figure_3/xenium_1561.rds')
 
 
 
 ### Sample 4
 
 # Load the Xenium data
-data <- ReadXenium('~/Downloads/hdWGCNA_TOM/Xenium/proseg-output-XETG00217__0038290__Region_2__20241212__142808',
+data <- ReadXenium('./dependencies/Figure_3/proseg-output-XETG00217__0038290__Region_2__20241212__142808',
 	outs = c("matrix", "microns"), type = c("centroids", "segmentations"))
 
 
@@ -625,13 +625,13 @@ xenium.1343$patient <- '1343'
 
 xenium.1343$group <- 'RVF'
 
-saveRDS(xenium.1343,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1343.rds')
+saveRDS(xenium.1343,'./dependencies/Figure_3/xenium_1343.rds')
 
 
 ### Sample 5
 
 # Load the Xenium data
-data <- ReadXenium('~/Downloads/hdWGCNA_TOM/Xenium/proseg-output-XETG00217__0038291__Region_1__20241212__142808',
+data <- ReadXenium('./dependencies/Figure_3/proseg-output-XETG00217__0038291__Region_1__20241212__142808',
 	outs = c("matrix", "microns"), type = c("centroids", "segmentations"))
 
 
@@ -662,14 +662,14 @@ xenium.1467$patient <- '1467'
 
 xenium.1467$group <- 'RVF'
 
-saveRDS(xenium.1467,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1467.rds')
+saveRDS(xenium.1467,'./dependencies/Figure_3/xenium_1467.rds')
 
 
 
 ### Sample 6
 
 # Load the Xenium data
-data <- ReadXenium('~/Downloads/hdWGCNA_TOM/Xenium/proseg-output-XETG00217__0038291__Region_2__20241212__142808',
+data <- ReadXenium('./dependencies/Figure_3/proseg-output-XETG00217__0038291__Region_2__20241212__142808',
 	outs = c("matrix", "microns"), type = c("centroids", "segmentations"))
 
 
@@ -701,7 +701,7 @@ xenium.1632$patient <- '1632'
 
 xenium.1632$group <- 'RVF'
 
-saveRDS(xenium.1632,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1632.rds')
+saveRDS(xenium.1632,'./dependencies/Figure_3/xenium_1632.rds')
 
 
 ##############################################
@@ -710,15 +710,15 @@ saveRDS(xenium.1632,'~/Downloads/hdWGCNA_TOM/Xenium/xenium_1632.rds')
 ##############################################
 ##############################################
 
-xenium.1343 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1343.rds')
-xenium.1467 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1467.rds')
-xenium.1561 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1561.rds')
-xenium.1567 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1567.rds')
-xenium.1618 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1618.rds')
-xenium.1632 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1632.rds')
-xenium.1691 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1691.rds')
-xenium.1692 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1692.rds')
-xenium.1697 <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/xenium_1697.rds')
+xenium.1343 <- readRDS('./dependencies/Figure_3/xenium_1343.rds')
+xenium.1467 <- readRDS('./dependencies/Figure_3/xenium_1467.rds')
+xenium.1561 <- readRDS('./dependencies/Figure_3/xenium_1561.rds')
+xenium.1567 <- readRDS('./dependencies/Figure_3/xenium_1567.rds')
+xenium.1618 <- readRDS('./dependencies/Figure_3/xenium_1618.rds')
+xenium.1632 <- readRDS('./dependencies/Figure_3/xenium_1632.rds')
+xenium.1691 <- readRDS('./dependencies/Figure_3/xenium_1691.rds')
+xenium.1692 <- readRDS('./dependencies/Figure_3/xenium_1692.rds')
+xenium.1697 <- readRDS('./dependencies/Figure_3/xenium_1697.rds')
 
 
 
@@ -743,7 +743,7 @@ xenium.obj <- RunUMAP(xenium.obj, reduction = "harmony", dims = 1:30)
 xenium.obj <- FindNeighbors(xenium.obj, reduction = "harmony", dims = 1:30)
 xenium.obj <- FindClusters(xenium.obj, resolution = 0.3)
 
-#saveRDS(xenium.obj,'~/Downloads/hdWGCNA_TOM/Xenium/collated_xenium_data.rds')
+#saveRDS(xenium.obj,'./output/Xenium/collated_xenium_data.rds')
 
 DimPlot(xenium.obj,label=T)
 
@@ -839,7 +839,7 @@ xenium.obj <- RunUMAP(xenium.obj, reduction = "harmony", dims = 1:30)
 xenium.obj <- FindNeighbors(xenium.obj, reduction = "harmony", dims = 1:30)
 xenium.obj <- FindClusters(xenium.obj, resolution = 1)
 
-#saveRDS(xenium.obj,'~/Downloads/hdWGCNA_TOM/Xenium/collated_xenium_data_clean.rds')
+#saveRDS(xenium.obj,'./output/Xenium/collated_xenium_data_clean.rds')
 
 
 
@@ -878,7 +878,8 @@ names(new.cluster.ids) <- levels(xenium.obj)
 xenium.obj <- RenameIdents(xenium.obj, new.cluster.ids)
 xenium.obj$names <- xenium.obj@active.ident
 
-saveRDS(xenium.obj,'~/Downloads/hdWGCNA_TOM/Xenium/collated_xenium_data_FINAL.rds')
+#saveRDS(xenium.obj,'./dependencies/Figure_3/collated_xenium_data_FINAL.rds')
+xenium.obj <- readRDS('./dependencies/Figure_3/collated_xenium_data_FINAL.rds')
 
 VlnPlot(xenium.obj, features = c("nFeature_Xenium", "nCount_Xenium"), ncol = 2, pt.size = 0)
 
@@ -929,7 +930,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 cm$subnames <- paste0('Cm_',cm@active.ident)
 cm$markernames <- paste0('Cm_',unlist(m3[cm@active.ident]))
 
-#saveRDS(cm,'~/Downloads/hdWGCNA_TOM/Xenium/cm.rds')
+#saveRDS(cm,'./output/Xenium/cm.rds')
 
 #Assign back to parent object
 idx <- match(colnames(cm),colnames(xenium.obj))
@@ -972,7 +973,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 fb$subnames <- paste0('Fb_',fb@active.ident)
 fb$markernames <- paste0('Fb_',unlist(m3[fb@active.ident]))
 
-#saveRDS(fb,'~/Downloads/hdWGCNA_TOM/Xenium/fb.rds')
+#saveRDS(fb,'./output/Xenium/fb.rds')
 
 #Assign back to parent object
 idx <- match(colnames(fb),colnames(xenium.obj))
@@ -1013,7 +1014,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 ec$subnames <- paste0('Ec_',ec@active.ident)
 ec$markernames <- paste0('Ec_',unlist(m3[ec@active.ident]))
 
-#saveRDS(ec,'~/Downloads/hdWGCNA_TOM/Xenium/ec.rds')
+#saveRDS(ec,'./output/Xenium/ec.rds')
 
 #Assign back to parent object
 idx <- match(colnames(ec),colnames(xenium.obj))
@@ -1054,7 +1055,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 myeloid$subnames <- paste0('Myeloid_',myeloid@active.ident)
 myeloid$markernames <- paste0('Myeloid_',unlist(m3[myeloid@active.ident]))
 
-#saveRDS(myeloid,'~/Downloads/hdWGCNA_TOM/Xenium/myeloid.rds')
+#saveRDS(myeloid,'./output/Xenium/myeloid.rds')
 
 #Assign back to parent object
 idx <- match(colnames(myeloid),colnames(xenium.obj))
@@ -1095,7 +1096,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 nkt$subnames <- paste0('NKT_',nkt@active.ident)
 nkt$markernames <- paste0('NKT_',unlist(m3[nkt@active.ident]))
 
-#saveRDS(nkt,'~/Downloads/hdWGCNA_TOM/Xenium/nkt.rds')
+#saveRDS(nkt,'./output/Xenium/nkt.rds')
 
 #Assign back to parent object
 idx <- match(colnames(nkt),colnames(xenium.obj))
@@ -1136,7 +1137,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 adipo$subnames <- paste0('Adipo_',adipo@active.ident)
 adipo$markernames <- paste0('Adipo_',unlist(m3[adipo@active.ident]))
 
-#saveRDS(adipo,'~/Downloads/hdWGCNA_TOM/Xenium/Adipo.rds')
+#saveRDS(adipo,'./output/Xenium/Adipo.rds')
 
 #Assign back to parent object
 idx <- match(colnames(adipo),colnames(xenium.obj))
@@ -1178,7 +1179,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 pc$subnames <- paste0('Pc_',pc@active.ident)
 pc$markernames <- paste0('Pc_',unlist(m3[pc@active.ident]))
 
-#saveRDS(pc,'~/Downloads/hdWGCNA_TOM/Xenium/Pc.rds')
+#saveRDS(pc,'./output/Xenium/Pc.rds')
 
 #Assign back to parent object
 idx <- match(colnames(pc),colnames(xenium.obj))
@@ -1220,7 +1221,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 sm$subnames <- paste0('Pc_',sm@active.ident)
 sm$markernames <- paste0('Pc_',unlist(m3[sm@active.ident]))
 
-#saveRDS(sm,'~/Downloads/hdWGCNA_TOM/Xenium/SM.rds')
+#saveRDS(sm,'./output/Xenium/SM.rds')
 
 #Assign back to parent object
 idx <- match(colnames(sm),colnames(xenium.obj))
@@ -1264,7 +1265,7 @@ m3 <- lapply(m2,function(x){paste(unlist(na.omit(x[1:5,]$gene)),collapse='_')})
 lec$subnames <- paste0('Pc_',lec@active.ident)
 lec$markernames <- paste0('Pc_',unlist(m3[lec@active.ident]))
 
-#saveRDS(lec,'~/Downloads/hdWGCNA_TOM/Xenium/LEC.rds')
+#saveRDS(lec,'./output/Xenium/LEC.rds')
 
 #Assign back to parent object
 idx <- match(colnames(lec),colnames(xenium.obj))
@@ -1272,13 +1273,13 @@ xenium.obj$subnames[idx] <- lec$subnames
 xenium.obj$markernames[idx] <- lec$markernames
 
 
-#saveRDS(xenium.obj,'~/Downloads/hdWGCNA_TOM/Xenium/collated_xenium_data_FINAL.rds')
+#saveRDS(xenium.obj,'./dependencies/Figure_3/collated_xenium_data_FINAL.rds')
 
 
 
 ##############################################
 ##############################################
-#### Figure XA
+#### Figure 3A
 ##############################################
 ##############################################
 
@@ -1287,23 +1288,23 @@ library(hdWGCNA)
 library(ggeasy)
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
-M1<-readRDS('~/Downloads/hdWGCNA_TOM/Xenium/collated_xenium_data_FINAL.rds')
+M1<-readRDS('./dependencies/Figure_3/collated_xenium_data_FINAL.rds')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/Xenium/', 'Xenium_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/Xenium/', 'Xenium_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='names',point_size=.05,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
 ##############################################
 ##############################################
-#### Figure XB
+#### Figure 3B
 ##############################################
 ##############################################
 
-M1<-readRDS('~/Downloads/hdWGCNA_TOM/Xenium/collated_xenium_data_FINAL.rds')
+M1<-readRDS('./dependencies/Figure_3/collated_xenium_data_FINAL.rds')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/Xenium/', 'Xenium_1697_celltype.pdf'), width=4, height=5)
+pdf(paste0('./output/Xenium/', 'Xenium_1697_celltype.pdf'), width=4, height=5)
 ImageDimPlot(M1, fov = "fov.2",split.by='names',cols = "polychrome", size =0.35,
 	axes = FALSE, dark.background = FALSE) + NoLegend()
 dev.off()
@@ -1312,10 +1313,13 @@ dev.off()
 
 ##############################################
 ##############################################
-#### Figure XC
+#### Figure 3C
 ##############################################
 ##############################################
 
+
+M1_list <- SplitObject(M1, split.by = "patient")
+fov_list <- c('fov','fov.2','fov.3','fov.4','fov.5','fov.6','fov.7','fov.8','fov.9')
 
 # Recalculate just for broad celltypes
 
@@ -1403,7 +1407,7 @@ for(i in colnames(res.clusters.ordered))
 
 	}
 
-write.table(res.clusters.ordered,'~/Downloads/hdWGCNA_TOM/Xenium/Niche_bulk_clusters.csv',sep=',')
+write.table(res.clusters.ordered,'./output/Xenium/Niche_bulk_clusters.csv',sep=',')
 
 niche.patient <- table(M1$kmeans_15,M1$patient)
 niche.patient <- t(t(niche.patient) / colSums(niche.patient))
@@ -1424,6 +1428,9 @@ niche.names <- niche.names / rowSums(niche.names)
 
 niche.names_t <- table(M1$kmeans_15,M1$names)
 niche.names_t <- t(t(niche.names_t) / colSums(niche.names_t))
+
+Idents(M1) <- "kmeans_15"
+
 
 #1 - SM, FB, EC
 #2 - FB, LEC, EC
@@ -1611,25 +1618,26 @@ names(new.cluster.ids) <- levels(M1)
 M1 <- RenameIdents(M1, new.cluster.ids)
 M1$niche_manual <- M1@active.ident
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/niche_fov2.pdf',width=5,height=5)
+pdf('./output/Xenium/niche_fov2.pdf',width=5,height=5)
 ImageDimPlot(M1, fov = "fov.2", group.by = "niche_manual", 
 	size = .25, dark.background = F)
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/niche_fov9.pdf',width=5,height=5)
+pdf('./output/Xenium/niche_fov9.pdf',width=5,height=5)
 ImageDimPlot(M1, fov = "fov.9", group.by = "niche_manual", 
 	size = .25, dark.background = F)
 dev.off()
 
 
-write.table(M1@meta.data,'~/Downloads/hdWGCNA_TOM/Xenium/metadata.csv',sep=',')
+write.table(M1@meta.data,'./output/Xenium/metadata.csv',sep=',')
 
 ##############################################
 ##############################################
-#### Figure XD
+#### Figure 3D
 ##############################################
 ##############################################
 
+niche.counts <- table(M1$niche_manual)
 
 niche.patient <- table(M1$niche_manual,M1$patient)
 niche.patient <- t(t(niche.patient) / colSums(niche.patient))
@@ -1642,15 +1650,14 @@ niche.patient <- data.frame(niche = disease,niche.patient)
 niche.patient$niche <- factor(niche.patient$niche, levels=c('NF','pRV','RVF'))
 niche.patient$Var1 <- factor(niche.patient$Var1, levels=rev(names(sort(niche.counts))))
 
-niche.counts <- table(M1$niche_manual)
 
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/niche_counts.pdf',width=12,height=5)
+pdf('./output/Xenium/niche_counts.pdf',width=12,height=5)
 ggplot(niche.patient,aes(Var1,Freq,color = niche))+geom_boxplot() + theme_classic()
 dev.off()
 
 library(ggpubr)
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/niche_clust_freq_stats.pdf',width=12.5,height=15)
+pdf('./output/Xenium/niche_clust_freq_stats.pdf',width=12.5,height=15)
 p <- ggboxplot(niche.patient,x="niche",y="Freq",fill="niche",group="niche")+
 	theme_classic() + 
 	theme(axis.text.x=element_text(size=16),
@@ -1669,77 +1676,77 @@ dev.off()
 
 
 
-##############################################
-##############################################
-#### Figure XE
-##############################################
-##############################################
+# ##############################################
+# ##############################################
+# #### Figure 3E
+# ##############################################
+# ##############################################
 
 
-M2 <- subset(M1,niche_manual=='Arterioles')
-M2 <- SetIdent(M2,value="group")
-FindMarkers(M2,ident.1='RVF',ident.2='pRV',recorrect_umi=F)
+# M2 <- subset(M1,niche_manual=='Arterioles')
+# M2 <- SetIdent(M2,value="group")
+# FindMarkers(M2,ident.1='RVF',ident.2='pRV',recorrect_umi=F)
 
 
-M2 <- subset(M1,niche_manual=='Capillaries')
-M2 <- SetIdent(M2,value="group")
-FindMarkers(M2,ident.1='RVF',ident.2='pRV',recorrect_umi=F)
+# M2 <- subset(M1,niche_manual=='Capillaries')
+# M2 <- SetIdent(M2,value="group")
+# FindMarkers(M2,ident.1='RVF',ident.2='pRV',recorrect_umi=F)
 
 
-M2 <- subset(M1,niche_manual=='Peri-immune CMs')
-M2 <- SetIdent(M2,value="group")
-FindMarkers(M2,ident.1='RVF',ident.2='pRV',recorrect_umi=F)
+# M2 <- subset(M1,niche_manual=='Peri-immune CMs')
+# M2 <- SetIdent(M2,value="group")
+# FindMarkers(M2,ident.1='RVF',ident.2='pRV',recorrect_umi=F)
 
-M1 <- SetIdent(M1,value="group")
-markers.RVF <- FindMarkers(M1,ident.1='RVF',ident.2='pRV',recorrect_umi=T,assay='Xenium')
-RVF_vs_pRV_25_up <- rownames(subset(markers.RVF,avg_log2FC > 0 & p_val_adj < 0.05))[1:25]
-RVF_vs_pRV_25_down <- rownames(subset(markers.RVF,avg_log2FC < 0 & p_val_adj < 0.05))[1:25]
-markers.pRV <- FindMarkers(M1,ident.1='pRV',ident.2='NF',recorrect_umi=T)
-pRV_vs_NF_25_up <- rownames(subset(markers.pRV,avg_log2FC > 0 & p_val_adj < 0.05))[1:200]
-pRV_vs_NF_25_down <- rownames(subset(markers.pRV,avg_log2FC < 0 & p_val_adj < 0.05))[1:200]
+# M1 <- SetIdent(M1,value="group")
+# markers.RVF <- FindMarkers(M1,ident.1='RVF',ident.2='pRV',recorrect_umi=T,assay='Xenium')
+# RVF_vs_pRV_25_up <- rownames(subset(markers.RVF,avg_log2FC > 0 & p_val_adj < 0.05))[1:25]
+# RVF_vs_pRV_25_down <- rownames(subset(markers.RVF,avg_log2FC < 0 & p_val_adj < 0.05))[1:25]
+# markers.pRV <- FindMarkers(M1,ident.1='pRV',ident.2='NF',recorrect_umi=T)
+# pRV_vs_NF_25_up <- rownames(subset(markers.pRV,avg_log2FC > 0 & p_val_adj < 0.05))[1:200]
+# pRV_vs_NF_25_down <- rownames(subset(markers.pRV,avg_log2FC < 0 & p_val_adj < 0.05))[1:200]
 
-up_int <- intersect(RVF_vs_pRV_25_up,pRV_vs_NF_25_up)
+# up_int <- intersect(RVF_vs_pRV_25_up,pRV_vs_NF_25_up)
 
-down_int <- intersect(RVF_vs_pRV_25_down,pRV_vs_NF_25_down)
-
-
-to_plot <- c(RVF_vs_pRV_25_up,RVF_vs_pRV_25_down)
-
-library(EnhancedVolcano)
-EnhancedVolcano(markers.RVF,lab = rownames(markers.RVF), x = 'avg_log2FC',y = 'p_val_adj',pCutoff = 0.05,FCcutoff=0.25)
-
-M1.aggreg <- AggregateExpression(object = M1, group.by = c('patient'),assays='Xenium')
+# down_int <- intersect(RVF_vs_pRV_25_down,pRV_vs_NF_25_down)
 
 
-#Pseudobulk
-#M1.aggreg <- AggregateExpression(object = M1, group.by = c('patient'), return.seurat = T, assays='Xenium')
-mycol <- colorpanel(1000,"blue","white","red")
-#disease <- c('RVF','RVF','NF','pRV','pRV','RVF','NF','pRV','NF')
-#M1.aggreg$group <- disease
-#M1.aggreg <- SetIdent(M1.aggreg,value="group")
-#markers.RVF <- FindMarkers(M1.aggreg,ident.1='RVF',ident.2=c('pRV'),test.use = "DESeq2")
-#RVF_vs_pRVF_25_up <- rownames(subset(markers.RVF,avg_log2FC > 0))[1:25]
-#RVF_vs_pRVF_25_down <- rownames(subset(markers.RVF,avg_log2FC < 0))[1:25]
-#to_plot <- c(RVF_vs_pRVF_25_up,RVF_vs_pRVF_25_down)
+# to_plot <- c(RVF_vs_pRV_25_up,RVF_vs_pRV_25_down)
+
+# library(EnhancedVolcano)
+# EnhancedVolcano(markers.RVF,lab = rownames(markers.RVF), x = 'avg_log2FC',y = 'p_val_adj',pCutoff = 0.05,FCcutoff=0.25)
+
+# M1.aggreg <- AggregateExpression(object = M1, group.by = c('patient'),assays='Xenium')
 
 
+# #Pseudobulk
+# #M1.aggreg <- AggregateExpression(object = M1, group.by = c('patient'), return.seurat = T, assays='Xenium')
+# mycol <- colorpanel(1000,"blue","white","red")
+# #disease <- c('RVF','RVF','NF','pRV','pRV','RVF','NF','pRV','NF')
+# #M1.aggreg$group <- disease
+# #M1.aggreg <- SetIdent(M1.aggreg,value="group")
+# #markers.RVF <- FindMarkers(M1.aggreg,ident.1='RVF',ident.2=c('pRV'),test.use = "DESeq2")
+# #RVF_vs_pRVF_25_up <- rownames(subset(markers.RVF,avg_log2FC > 0))[1:25]
+# #RVF_vs_pRVF_25_down <- rownames(subset(markers.RVF,avg_log2FC < 0))[1:25]
+# #to_plot <- c(RVF_vs_pRVF_25_up,RVF_vs_pRVF_25_down)
 
 
 
-M1.aggreg <- AggregateExpression(object = M1, group.by = c('niche_manual'),return.seurat=T,assay='Xenium')
-M1.aggreg <- FindVariableFeatures(M1.aggreg,selection.method = "vst")
-to_plot <- VariableFeatures(M1.aggreg)[1:50]
-M1.aggreg <- ScaleData(M1.aggreg)
-data <- GetAssayData(M1.aggreg,layer='scale.data')
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/xenium_heatmap_niche.pdf',width=4,height=10)
 
-heatmap.2(as.matrix(data[to_plot,rev(names(sort(niche.counts)))]), scale="row",
-   labRow=to_plot, 
-   col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
-   Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
+# M1.aggreg <- AggregateExpression(object = M1, group.by = c('niche_manual'),return.seurat=T,assay='Xenium')
+# M1.aggreg <- FindVariableFeatures(M1.aggreg,selection.method = "vst")
+# to_plot <- VariableFeatures(M1.aggreg)[1:50]
+# M1.aggreg <- ScaleData(M1.aggreg)
+# data <- GetAssayData(M1.aggreg,layer='scale.data')
 
-dev.off()
+# pdf('./output/Xenium/xenium_heatmap_niche.pdf',width=4,height=10)
+
+# heatmap.2(as.matrix(data[to_plot,rev(names(sort(niche.counts)))]), scale="row",
+#    labRow=to_plot, 
+#    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
+#    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
+
+# dev.off()
 
 
 
@@ -2022,7 +2029,7 @@ dev.off()
 
 # 	}
 
-# write.table(res.clusters.ordered,'~/Downloads/hdWGCNA_TOM/Xenium/Niche_clusters.csv',sep=',')
+# write.table(res.clusters.ordered,'./output/Xenium/Niche_clusters.csv',sep=',')
 
 # DimPlot(M1,group.by='kmeans_2',label=T)
 

@@ -5,16 +5,16 @@ library(harmony)
 
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
 #######################################
 #############  FIGURE 4A  #############
 #######################################
-snLV <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 all_signif <- c('M1','M2','M3','M4','M5','M8','M10','M11','M12','M14','M20','M25','M26','M28')
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(snLV))
 # remove duplicate gene names
@@ -39,7 +39,7 @@ colnames(snLV@meta.data) <- cols_current
 snLV <- SetIdent(snLV, value = "Names")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sc_seurat_dot_bulk2lv.pdf'), width=7.5, height=4)
+pdf(paste0('./output/', 'sc_seurat_dot_bulk2lv.pdf'), width=7.5, height=4)
 
 p <- DotPlot(snLV,paste0('module_',
   c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),
@@ -61,7 +61,7 @@ my_levels <- c("Donor","DCM")
 Idents(snLV) <- factor(Idents(snLV), levels= my_levels)
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sc_seurat_LV_trend.pdf'), width=6.5, height=2)
+pdf(paste0('./output/', 'sc_seurat_LV_trend.pdf'), width=6.5, height=2)
 
 p <- DotPlot(snLV,paste0('module_',
   c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),dot.min=0,col.min=0,col.max=2) +
@@ -79,13 +79,13 @@ dev.off()
 #######################################
 #############  FIGURE 4B  #############
 #######################################
-snLV <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 snLV<-subset(snLV,Names=="Cardiomyocytes")
 
 all_signif <- c('M1','M2','M3','M4','M5','M8','M10','M11','M12','M14','M20','M25','M26','M28')
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(snLV))
 # remove duplicate gene names
@@ -114,7 +114,7 @@ snLV <- AddModuleScore(snLV,list(mito_genes),name="module_mito")
 
 
 snLV <- SetIdent(snLV, value = "condition")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vln_modules.pdf'), width=4.5, height=3)
+pdf(paste0('./output/', 'LV_vln_modules.pdf'), width=4.5, height=3)
 VlnPlot(snLV,c('module_M2','module_mito1'),pt.size=0)
 dev.off()
 
@@ -135,14 +135,14 @@ dev.off()
 #######################################
 #############  FIGURE 4C  #############
 #######################################
-snLV <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 snLV<-subset(snLV,Names=="Cardiomyocytes")
 snLV <- SetIdent(snLV, value = "condition")
 snLV <- PrepSCTFindMarkers(snLV)
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 combined_set <- data.frame()
 mods_idx <- c(2,12,28,10,25,26)
@@ -162,7 +162,7 @@ for (i in mods_idx){
 }
 
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/cm_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/cm_subclust.rds")
 new.cluster.ids <- c("Cm1","Cm2","Cm3","Cm4","Cm5","Cm6","Cm7","Cm8","Cm9","Cm10")
 names(new.cluster.ids) <- levels(M1)
 M1 <- RenameIdents(M1, new.cluster.ids)
@@ -170,7 +170,7 @@ M1$Subnames <- M1@active.ident
 M1$SubNames_Groups <- paste(M1$Subnames,M1$group,sep='_')
 M1 <- SetIdent(M1, value = "group")
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 combined_set_RV <- data.frame()
 mods_idx <- c(2,12,28,10,25,26)
@@ -209,7 +209,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_M2_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_M2_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -222,7 +222,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_M12_dot.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_M12_dot.pdf'), width=8, height=6)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -234,7 +234,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_M25_dot.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_M25_dot.pdf'), width=8, height=6)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -246,7 +246,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_M10_dot.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_M10_dot.pdf'), width=8, height=6)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -257,7 +257,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_M26_dot.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_M26_dot.pdf'), width=8, height=6)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -269,7 +269,7 @@ shared <- intersect(rownames(a),rownames(b))
 dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_M28_dot.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_M28_dot.pdf'), width=8, height=6)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -282,7 +282,7 @@ dataset <- data.frame(LV=a[shared,]$avg_log2FC,RV=b[shared,]$avg_log2FC)
 rownames(dataset) <- shared
 #cat(rownames(subset(dataset,LV<0 & RV<0)),sep='\n')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_mito_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_mito_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
@@ -296,7 +296,7 @@ labs <- rownames(dataset)
 labs[abs(dataset$LV - dataset$RV)<0.1] <- NA
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'LV_vs_RV_CM_module_All_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'LV_vs_RV_CM_module_All_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 
   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
 dev.off()
@@ -342,7 +342,7 @@ wrapText <- function(x, len) {
 }
 
 enriched <- enrichr(mito_genes, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_mito_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_LV_mito_enrichr_up.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -370,7 +370,7 @@ M2_genes <- rownames(subset(dataset,LV>0 & RV>0))
 
 enriched <- enrichr(M2_genes, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_LV_M2_enrichr_up.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -385,7 +385,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_M&mito2_enrichr_up.pdf',width=6,height=5)
+pdf('./output/CM_RV_LV_M&mito2_enrichr_up.pdf',width=6,height=5)
 p1/p2
 dev.off()
 
@@ -394,7 +394,7 @@ dev.off()
 #######################################
 
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/cm_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/cm_subclust.rds")
 
 new.cluster.ids <- c("Cm1","Cm2","Cm3","Cm4","Cm5","Cm6","Cm7","Cm8","Cm9","Cm10")
 names(new.cluster.ids) <- levels(M1)
@@ -492,7 +492,7 @@ assay(vstSE) <- mat
 
 plotPCA(vstSE,intgroup=c("group"),ntop=100) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_vst_batchcorrect_PCA.pdf',width=6,height=2.5)
+pdf('./output/CM_RV_LV_vst_batchcorrect_PCA.pdf',width=6,height=2.5)
 plotPCA(vstSE[,vstSE$group %in% c('pRV','RVF','DCM')],intgroup=c("group"),ntop=100) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
 dev.off()
 
@@ -521,7 +521,7 @@ mm <- model.matrix(~group, colData(vstSE))
 mat <- limma::removeBatchEffect(mat, covariates=colData(vstSE)[,4:18], design=mm)
 assay(vstSE) <- mat
 
-#pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
+#pdf('./output/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
 
 plotPCA(vstSE[,vstSE$group %in% c('RVF','DCM')],intgroup=c("group"),ntop=100) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
 
@@ -546,7 +546,7 @@ cat(rv.genes,sep='\n')
 
 
 library(EnhancedVolcano)
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_LV_RV_DESeq.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_LV_RV_DESeq.pdf'), width=8, height=6)
 
 EnhancedVolcano(subset(dcm.vs.rvf,baseMean>100),lab=rownames(subset(dcm.vs.rvf,baseMean>100)),
   x='log2FoldChange',y='padj',
@@ -557,7 +557,7 @@ dev.off()
 
 
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
+pdf('./output/CM_RV_LV_vst_batchcorrect_PCA_temp.pdf',width=6,height=2.5)
 FeaturePlot(M1,'ZSWIM6')
 
 dev.off()
@@ -568,7 +568,7 @@ dev.off()
 #######################################
 
 
-arvm <- read.csv('~/Downloads/hdWGCNA_TOM/ARVM_RV_vs_LV.csv')
+arvm <- read.csv('./dependencies/shared/ARVM_RV_vs_LV.csv')
 
 
 RV_genes <- unlist(lapply(subset(arvm,logFC>0)$SYMBOL,toupper))
@@ -576,7 +576,7 @@ LV_genes <- unlist(lapply(subset(arvm,logFC<0)$SYMBOL,toupper))
 
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'arvm_RV_LV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'arvm_RV_LV.pdf'), width=8, height=6)
 
 EnhancedVolcano(arvm,lab=toupper(arvm$SYMBOL),
   x='logFC',y='adj.P.Val',
@@ -601,7 +601,7 @@ wrapText <- function(x, len) {
 }
 
 enriched <- enrichr(RV_genes, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/ARVM_RV_enrichr_up.pdf',width=6,height=2.5)
+pdf('./output/ARVM_RV_enrichr_up.pdf',width=6,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -619,7 +619,7 @@ dev.off()
 
 enriched <- enrichr(LV_genes, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/ARVM_LV_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/ARVM_LV_enrichr_up.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -634,7 +634,7 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/ARVM_RV_LV_enrichr_up.pdf',width=6,height=5)
+pdf('./output/ARVM_RV_LV_enrichr_up.pdf',width=6,height=5)
 p1/p2
 dev.off()
 

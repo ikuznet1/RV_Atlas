@@ -5,7 +5,7 @@ library(harmony)
 
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./output/spatial_functions.R')
 
 
 
@@ -13,7 +13,7 @@ source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
 #############  FIGURE 5A  #############
 #######################################
 
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/myeloid_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/myeloid_subclust.rds")
 
 M1 <- FindNeighbors(M1)
 M1 <- FindClusters(M1,resolution=1)
@@ -74,7 +74,7 @@ M1 <- AddModuleScore(M1, features=list(c("IL1B","CCL3","CCL4","CXCL3","CXCL8")),
 # 0, 2,3,10,11 mystery
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'Myeloid_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='Subsubnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -82,7 +82,7 @@ dev.off()
 #############  FIGURE 5B  #############
 #######################################
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_dot.pdf'), width=6, height=5)
+pdf(paste0('./output/', 'Myeloid_dot.pdf'), width=6, height=5)
 DotPlot(M1, c("Mono_Score1","TREM2_Mac_Score1","iMac_Score1",
 	"DC_Score1","CCR2+_rMac_Score1","CCR2-_rMac1_Score1",
 	"CCR2-_rMac2_Score1"))+xlab('Marker Score')+
@@ -109,7 +109,7 @@ RVF_percent_cell$sum <- (rev(cumsum(rev(RVF_percent_cell$Freq))) - RVF_percent_c
 RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
 
 percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
-pdf('~/Downloads/hdWGCNA_TOM/Myeloid_prev_stacked.pdf',width=6,height=2.5)
+pdf('./output/Myeloid_prev_stacked.pdf',width=6,height=2.5)
 ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  
 geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + coord_flip()+
 xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + scale_y_continuous(expand=c(0,0)) + geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y")
@@ -119,7 +119,7 @@ dev.off()
 #############  FIGURE 5C #############
 #######################################
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_dot_disease.pdf'), width=6, height=2.5)
+pdf(paste0('./output/', 'Myeloid_dot_disease.pdf'), width=6, height=2.5)
 
 DotPlot(M1, c("Mono_Score1","TREM2_Mac_Score1","iMac_Score1",
 	"DC_Score1","CCR2+_rMac_Score1","CCR2-_rMac1_Score1",
@@ -160,7 +160,7 @@ plot_cells(cds,
            label_branch_points=FALSE,
            label_roots = FALSE,
            trajectory_graph_color = "grey60")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_rMac_pseudo.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'Myeloid_rMac_pseudo.pdf'), width=5, height=5)
 M1$pseudotime <- pseudotime(cds)
 FeaturePlot(M1,'pseudotime')
 dev.off()
@@ -176,7 +176,7 @@ plot_cells(cds,
            label_branch_points=FALSE,
            label_roots = FALSE,
            trajectory_graph_color = "grey60")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_mono_pseudo.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'Myeloid_mono_pseudo.pdf'), width=5, height=5)
 M1$pseudotime <- pseudotime(cds)
 FeaturePlot(M1,'pseudotime')
 dev.off()
@@ -191,7 +191,7 @@ plot_cells(cds,
            label_branch_points=FALSE,
            label_roots = FALSE,
            trajectory_graph_color = "grey60")
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_pseudo.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'Myeloid_pseudo.pdf'), width=5, height=5)
 M1$pseudotime <- pseudotime(cds)
 FeaturePlot(M1,'pseudotime')
 dev.off()
@@ -199,7 +199,7 @@ dev.off()
 #############  FIGURE 5E  #############
 #######################################
 
-seurat_ref <- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_bulk2sn_projection.rds')
+seurat_ref <- readRDS('./dependencies/shared/scWGCNA_bulk2sn_projection.rds')
 
 
 seurat_ref <- SetActiveWGCNA(seurat_ref , 'bulk2sn')
@@ -218,7 +218,7 @@ seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs)
 seurat_ref <- SetIdent(seurat_ref, value = "Names")
 
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -234,7 +234,7 @@ module_colors <- paste0('M',match(module_colors,mapping))
 rm(seurat_ref)
 gc()
 seurat_ref<-M1
-#seurat_ref<-readRDS('~/Downloads/hdWGCNA_TOM/RV_data.rds')
+#seurat_ref<-readRDS('./output/RV_data.rds')
 
 
 idx <- rownames(MEs) %in% colnames(seurat_ref)
@@ -260,7 +260,7 @@ colnames(seurat_ref@meta.data) <- cols_current
 modules_up <- c('M3','M4',"M8")
 modules_down <- c('M1')
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_dot_subclust_up.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'Myeloid_dot_subclust_up.pdf'), width=5, height=5)
 
 p <- DotPlot(seurat_ref,paste0('module_',modules_up),group.by='Subnames',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -273,7 +273,7 @@ p <- DotPlot(seurat_ref,paste0('module_',modules_up),group.by='Subnames',dot.min
 p
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_dot_subclust_down.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'Myeloid_dot_subclust_down.pdf'), width=5, height=5)
 
 p <- DotPlot(seurat_ref,paste0('module_',modules_down),group.by='Subnames',dot.min=0.5,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -292,7 +292,7 @@ dev.off()
 #######################################
 
 
-seurat_obj <- readRDS('~/Downloads/RV_bulkRNASeq_seurat.rds')
+seurat_obj <- readRDS('./dependencies/shared/RV_bulkRNASeq_seurat.rds')
 
 modules <- GetModules(seurat_obj)
 #color_df <- modules %>% subset(module!='grey') %>%
@@ -428,7 +428,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_reactome_terms.pdf'), width=10, height=6)
+pdf(paste0('./output/', 'Myeloid_reactome_terms.pdf'), width=10, height=6)
 colorbar + p
 dev.off()
 
@@ -607,7 +607,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'Myeloid_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -718,7 +718,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=6.6, height=5)
+pdf(paste0('./output/', 'Myeloid_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=6.6, height=5)
 p / colorbar 
 dev.off()
 
@@ -831,7 +831,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'Myeloid_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -942,7 +942,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6.6, height=5)
+pdf(paste0('./output/', 'Myeloid_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6.6, height=5)
 p / colorbar 
 dev.off()
 
@@ -1060,7 +1060,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'Myeloid_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=10, height=5)
 p / colorbar 
 dev.off()
 
@@ -1171,7 +1171,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'Myeloid_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -1284,7 +1284,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'Myeloid_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=10, height=5)
 p / colorbar 
 dev.off()
 
@@ -1395,7 +1395,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'Myeloid_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -1467,8 +1467,8 @@ for (i in mods_idx){
 
 
 
-outdir = '~/Downloads/hdWGCNA_TOM/scMyeloid_subclust_enrichr_plot'
-#dir.create("~/Downloads/hdWGCNA_TOM/scMyeloid_subclust_enrichr_plot")
+outdir = './output/scMyeloid_subclust_enrichr_plot'
+#dir.create("./output/scMyeloid_subclust_enrichr_plot")
 
 
 enrichr_df <- combined_output
@@ -1597,7 +1597,7 @@ combined_set <- combined_set[!grepl('MT-',rownames(combined_set)),]
 keyvals <- combined_set$color
 names(keyvals)  <- combined_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 EnhancedVolcano(combined_set,lab=rownames(combined_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1611,7 +1611,7 @@ sub_set <- subset(combined_set,combined_set$module != 'M1')
 keyvals <- sub_set$color
 names(keyvals)  <- sub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_module_volcano_no_M1_all_RVF_vs_NF.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'Myeloid_module_volcano_no_M1_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 EnhancedVolcano(sub_set,lab=rownames(sub_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1623,7 +1623,7 @@ subsub_set <- subset(sub_set,sub_set$module == 'M8' )
 keyvals <- subsub_set$color
 names(keyvals)  <- subsub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_module_volcano_M8_only_RVF_vs_NF.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'Myeloid_module_volcano_M8_only_RVF_vs_NF.pdf'), width=8, height=6)
 
 EnhancedVolcano(subsub_set,lab=rownames(subsub_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1655,7 +1655,7 @@ combined_set <- combined_set[!grepl('MT-',rownames(combined_set)),]
 keyvals <- combined_set$color
 names(keyvals)  <- combined_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'Myeloid_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
 
 EnhancedVolcano(combined_set,lab=rownames(combined_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1669,7 +1669,7 @@ sub_set <- subset(combined_set,combined_set$module != 'M1')
 keyvals <- sub_set$color
 names(keyvals)  <- sub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_module_volcano_no_M1_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'Myeloid_module_volcano_no_M1_all_RVF_vs_pRV.pdf'), width=8, height=6)
 
 EnhancedVolcano(sub_set,lab=rownames(sub_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1681,7 +1681,7 @@ subsub_set <- subset(sub_set,sub_set$module == 'M8' )
 keyvals <- subsub_set$color
 names(keyvals)  <- subsub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Myeloid_module_volcano_M8_only_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'Myeloid_module_volcano_M8_only_RVF_vs_pRV.pdf'), width=8, height=6)
 
 EnhancedVolcano(subsub_set,lab=rownames(subsub_set),
 	x='avg_log2FC',y='p_val_adj',
@@ -1706,7 +1706,7 @@ gluc_response <- str_split(gluc_response[1],';')[[1]]
 M1 <- AddModuleScore(M1,list(gluc_response),name='nr3c1')
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'myeloid_nr3c1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'myeloid_nr3c1.pdf'), width=3, height=3)
 
 VlnPlot(M1,'nr3c11',group.by='group',pt.size=0)
 dev.off()

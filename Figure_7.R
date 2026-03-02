@@ -4,23 +4,23 @@ library(ggeasy)
 library(harmony)
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./output/spatial_functions.R')
 
 
 
 #######################################
 #############  FIGURE 6A  #############
 #######################################
-M1 <- readRDS(file = "/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/ec_subclust.rds")
+M1 <- readRDS(file = "./dependencies/Figure_6/ec_subclust.rds")
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'EC_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
 #######################################
 #############  FIGURE 6B  #############
 #######################################
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_dot.pdf'), width=4.5, height=4)
+pdf(paste0('./output/', 'EC_dot.pdf'), width=4.5, height=4)
 DotPlot(M1, c("VenousScore1","ArterialScore1","LymphScore1",
   "CapillaryScore1","EndoScore1"),col.min=0)+xlab('Marker Score')+
   scale_x_discrete(labels=c('1','2','3','4','5'))
@@ -55,7 +55,7 @@ RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
 
 percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
 
-pdf('~/Downloads/hdWGCNA_TOM/EC_subclust_prev_stacked.pdf',width=5,height=5)
+pdf('./output/EC_subclust_prev_stacked.pdf',width=5,height=5)
 ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + scale_y_continuous(expand=c(0,0)) + geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y")
 dev.off()
 
@@ -75,7 +75,7 @@ cells$group = rep(c("RVF","pRV","RVF","NF","pRV","pRV","RVF","NF","NF","pRV","NF
 #my_comparisons <- list( c("NF", "pRV"),c("pRV", "RVF"),c("NF", "RVF"))
 
 library(ggpubr)
-pdf('~/Downloads/hdWGCNA_TOM/EC_clust_freq.pdf',width=12.5,height=5)
+pdf('./output/EC_clust_freq.pdf',width=12.5,height=5)
 p <- ggboxplot(cells[55:1,],x="group",y="Freq",fill="group",group="group")+
   theme_classic() + 
   theme(axis.text.x=element_text(size=16),
@@ -253,7 +253,7 @@ p <-  plot_df %>%
       plot.margin = margin(0,0,0,0)
     )
 
-pdf('~/Downloads/hdWGCNA_TOM/EC_hdWGCNA.pdf',width=6,height=6)
+pdf('./output/EC_hdWGCNA.pdf',width=6,height=6)
 print(p)
 dev.off()
 
@@ -273,7 +273,7 @@ enrich_df <- GetEnrichrTable(M1)
 
 EnrichrBarPlot(
   M1,
-  outdir = "~/Downloads/hdWGCNA_TOM/scEC_subclust_enrichr_plot", 
+  outdir = "./output/scEC_subclust_enrichr_plot", 
   n_terms = 5,
   plot_size = c(5,4), # width, height of the output .pdfs
   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -402,7 +402,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_GO_terms.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'EC_GO_terms.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -414,13 +414,13 @@ dev.off()
 #######################################
 
 
-pdf('~/Downloads/hdWGCNA_TOM/EC_celltype_mods.pdf',width=6,height=3)
+pdf('./output/EC_celltype_mods.pdf',width=6,height=3)
 p <- DotPlot(M1, features=sort(mods_num), group.by = 'Names',col.min=0)
 p
 dev.off()
 
 
-pdf('~/Downloads/hdWGCNA_TOM/EC_group_mods.pdf',width=6,height=2)
+pdf('./output/EC_group_mods.pdf',width=6,height=2)
 p <- DotPlot(M1, features=sort(mods_num), group.by = 'group',col.min=0)
 p
 dev.off()
@@ -433,7 +433,7 @@ down_RVF = c('M2','M3','M6')
 #############  FIGURE 6G  #############
 #######################################
 
-pdf('~/Downloads/hdWGCNA_TOM/EC_feature.pdf',width=4,height=6)
+pdf('./output/EC_feature.pdf',width=4,height=6)
 FeaturePlot(M1,c('M1','M4','M7'),label=T,min.cutoff=0,ncol=1)
 dev.off()
 
@@ -477,7 +477,7 @@ keyvals <- M1_subset$color
 names(keyvals)  <- M1_subset$module
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_EC_module_volcano_aM1.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'RV_EC_module_volcano_aM1.pdf'), width=8, height=6)
 
 EnhancedVolcano(M1_subset,lab=rownames(M1_subset),
   x='avg_log2FC',y='p_val_adj',
@@ -500,7 +500,7 @@ M4_subset_down <- subset(M4_subset,avg_log2FC<0)
 cat(rownames(M4_subset_up),sep='\n')
 cat(rownames(M4_subset_down),sep='\n')
 
-#saveRDS(M1,'~/Downloads/hdWGCNA_TOM/EC_hdWGCNA_by_celltype.rds')
+#saveRDS(M1,'./output/EC_hdWGCNA_by_celltype.rds')
 
 
 DefaultAssay(M1) <- "SCT"
@@ -550,44 +550,44 @@ angio_genes <- intersect(angio_genes,rownames(M1))
 M1 <- AddModuleScore(M1,list(angio_genes),name="AllAngioGenes")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_all_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'EC_all_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'AllAngioGenes1')
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_coronary_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'EC_coronary_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'CoronaryAngioGenes1')
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_negative_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'EC_negative_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'NegativeAngioGenes1')
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_positive_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'EC_positive_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'PositiveAngioGenes1')
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_regulatory_angio_genes.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'EC_regulatory_angio_genes.pdf'), width=8, height=6)
 VlnPlot(M1,'AngioGenes1')
 dev.off()
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_combined_angio_genes.pdf'), width=10, height=4)
+pdf(paste0('./output/', 'EC_combined_angio_genes.pdf'), width=10, height=4)
 VlnPlot(M1,c('AllAngioGenes1','CoronaryAngioGenes1','PositiveAngioGenes1','NegativeAngioGenes1'),group.by='group',ncol=4,pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_MECOM.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'EC_MECOM.pdf'), width=3, height=3)
 VlnPlot(subset(M1,Names=='Arterial'),'SMAD1',group.by='group',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_MECOM_feat.pdf'), width=4, height=3)
+pdf(paste0('./output/', 'EC_MECOM_feat.pdf'), width=4, height=3)
 DotPlot(M1,'MECOM',group.by='Names',col.min=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_SMAD1.pdf'), width=3, height=3)
+pdf(paste0('./output/', 'EC_SMAD1.pdf'), width=3, height=3)
 VlnPlot(subset(M1,Names=='Capillary'),'SMAD1',group.by='group',pt.size=0)
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'EC_SMAD1_feat.pdf'), width=4, height=3)
+pdf(paste0('./output/', 'EC_SMAD1_feat.pdf'), width=4, height=3)
 DotPlot(M1,'SMAD1',group.by='Names',col.min=0)
 dev.off()
 
@@ -678,7 +678,7 @@ M1 <- ModuleConnectivity(
 
 modules <- GetModules(M1)
 mods <- levels(modules$module); mods <- mods[mods != 'grey']
-saveRDS(M1,'~/Downloads/hdWGCNA_TOM/EC_hdWGCNA_by_group.rds')
+saveRDS(M1,'./output/EC_hdWGCNA_by_group.rds')
 
 
 

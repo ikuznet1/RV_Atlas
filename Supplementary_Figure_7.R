@@ -5,20 +5,20 @@ library(harmony)
 
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
 #######################################
 #############  FIGURE S7A  ############
 #######################################
 
-M1 <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_Peds_Hearts/objects/all_data.rds')
+M1 <- readRDS('./dependencies/shared/all_peds_data.rds')
 M1$Names <- M1$cell.type
 
 
 M1 <- SetIdent(M1, value = "Names")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'Peds_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -63,7 +63,7 @@ cells$group = factor(cells$group,levels=c('Donor','NF','SystolicHF'))
 #my_comparisons <- list( c("NF", "pRV"),c("pRV", "RVF"),c("NF", "RVF"))
 
 library(ggpubr)
-pdf('~/Downloads/hdWGCNA_TOM/peds_clust_freq.pdf',width=12.5,height=5)
+pdf('./output/peds_clust_freq.pdf',width=12.5,height=5)
 p <- ggboxplot(cells[77:1,],x="group",y="Freq",fill="group",group="group")+
   theme_classic() + 
   theme(axis.text.x=element_text(size=16),
@@ -84,5 +84,5 @@ dev.off()
 #######################################
 #############  FIGURE S7C  ############
 #######################################
-M1 <- readRDS('~/Downloads/hdWGCNA_TOM/Kory_Peds_Hearts/objects/all_data.rds')
+M1 <- readRDS('./dependencies/shared/all_peds_data.rds')
 

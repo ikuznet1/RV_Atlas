@@ -5,14 +5,14 @@ library(harmony)
 
 
 
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 
 
 #######################################
 #############  FIGURE 4A  #############
 #######################################
 
-seurat_ref <- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_bulk2sn_projection.rds')
+seurat_ref <- readRDS('./dependencies/shared/scWGCNA_bulk2sn_projection.rds')
 
 
 seurat_ref <- SetActiveWGCNA(seurat_ref , 'bulk2sn')
@@ -32,7 +32,7 @@ seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs)
 seurat_ref <- SetIdent(seurat_ref, value = "Names")
 
 
-consensus_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -48,7 +48,7 @@ module_colors <- paste0('M',match(module_colors,mapping))
 rm(seurat_ref)
 gc()
 seurat_ref<-readRDS('/Volumes/Extreme\ SSD/Final_Analysis/CellTypes/cm_subclust.rds')
-#seurat_ref<-readRDS('~/Downloads/hdWGCNA_TOM/RV_data.rds')
+#seurat_ref<-readRDS('./output/RV_data.rds')
 
 new.cluster.ids <- c("Cm1","Cm2","Cm3","Cm4","Cm5","Cm6","Cm7","Cm8","Cm9","Cm10")
 names(new.cluster.ids) <- levels(seurat_ref)
@@ -76,7 +76,7 @@ colnames(seurat_ref@meta.data) <- cols_current
 
 #Dot Plot of enrichment cell type of CM enriched modules
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_dot_subclust_up.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'CM_dot_subclust_up.pdf'), width=5, height=5)
 
 p <- DotPlot(seurat_ref,paste0('module_',modules_up),group.by='Subnames',dot.min=0,col.min=0,col.max=2) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -89,7 +89,7 @@ p <- DotPlot(seurat_ref,paste0('module_',modules_up),group.by='Subnames',dot.min
 p
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_dot_subclust_down.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'CM_dot_subclust_down.pdf'), width=5, height=5)
 
 p <- DotPlot(seurat_ref,paste0('module_',modules_down),group.by='Subnames',dot.min=0,col.min=0,col.max=2) +
   RotatedAxis() + ylab('')+ xlab('')+
@@ -107,7 +107,7 @@ seurat_ref <- SetIdent(seurat_ref, value = "group")
 my_levels <- c("NF","pRV","RVF")
 Idents(seurat_ref) <- factor(Idents(seurat_ref), levels= my_levels)
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sc_seurat_RV_trend_CM.pdf'), width=4.5, height=2)
+pdf(paste0('./output/', 'sc_seurat_RV_trend_CM.pdf'), width=4.5, height=2)
 
 p <- DotPlot(seurat_ref,paste0('module_',
   c('M2','M12','M25','M26','M10','M28')),dot.min=0,col.min=0,col.max=2) +
@@ -124,7 +124,7 @@ dev.off()
 seurat_ref <- SetIdent(seurat_ref, value = "Subnames")
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'sc_seurat_RV_trend_CM_subnames.pdf'), width=4.5, height=5)
+pdf(paste0('./output/', 'sc_seurat_RV_trend_CM_subnames.pdf'), width=4.5, height=5)
 
 p <- DotPlot(seurat_ref,paste0('module_',
   c('M2','M12','M25','M26','M10','M28')),dot.min=0,col.min=0,col.max=2) +
@@ -321,7 +321,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_by_cluster_terms_cell_type_up_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'CM_by_cluster_terms_cell_type_up_RVF_vs_NF.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -435,7 +435,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_by_cluster_terms_cell_type_down_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'CM_by_cluster_terms_cell_type_down_RVF_vs_NF.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -547,7 +547,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_by_cluster_terms_cell_type_both_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'CM_by_cluster_terms_cell_type_both_RVF_vs_NF.pdf'), width=6, height=4)
 p / colorbar 
 dev.off()
 
@@ -557,7 +557,7 @@ dev.off()
 #######################################
 #Deep dive M2
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #RVF vs NF
@@ -604,7 +604,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M2_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M2_enrichr_up.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -622,7 +622,7 @@ dev.off()
 
 enriched <- enrichr(M12_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M12_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M12_enrichr_up.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -637,12 +637,12 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p2
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M12_enrichr_up.pdf',width=5,height=5)
+pdf('./output/CM_RV_M12_enrichr_up.pdf',width=5,height=5)
 p1/p2
 dev.off()
 
 enriched <- enrichr(M2_genes_down, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M2_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M2_enrichr_down.pdf',width=5,height=2.5)
 p3<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -659,7 +659,7 @@ dev.off()
 
 
 enriched <- enrichr(M12_genes_down, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M12_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M12_enrichr_down.pdf',width=5,height=2.5)
 p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -678,7 +678,7 @@ dev.off()
 
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #RVF vs NF
@@ -725,7 +725,7 @@ wrapText <- function(x, len) {
 
 enriched <- enrichr(M2_genes_up, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_RVF_vs_pRV_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_RVF_vs_pRV_M2_enrichr_up.pdf',width=5,height=2.5)
 p5<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -743,7 +743,7 @@ dev.off()
 
 enriched <- enrichr(M2_genes_down, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_RVF_vs_pRV_M2_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_RVF_vs_pRV_M2_enrichr_down.pdf',width=5,height=2.5)
 p6<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -758,7 +758,7 @@ p6<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
 p6
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_RVF_vs_NF_and_RVF_vs_pRV_M2_enrichr_up.pdf',width=5,height=4.5)
+pdf('./output/CM_RV_RVF_vs_NF_and_RVF_vs_pRV_M2_enrichr_up.pdf',width=5,height=4.5)
 p1/p5
 dev.off()
 
@@ -781,14 +781,14 @@ temp_set$avg_log2FC[temp_set$avg_log2FC > 5] = 5
 
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
 
 EnhancedVolcano(temp_set,lab=rownames(temp_set),
   x='avg_log2FC',y='p_val_adj',xlim=c(-5,5),
   FCcutoff = 0.1) + coord_flip()
 dev.off()
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_ACTA1_vln.pdf'), width=3, height=2.8)
+pdf(paste0('./output/', 'CM_ACTA1_vln.pdf'), width=3, height=2.8)
 VlnPlot(seurat_ref,'ACTA1',group.by='group')
 dev.off()
 
@@ -800,7 +800,7 @@ dev.off()
 
 #Deep dive M12
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #RVF vs NF
@@ -834,7 +834,7 @@ temp_set$avg_log2FC[temp_set$avg_log2FC > 5] = 5
 
 #LRRC39,TNNI3,BMPR2,MYH7,TNNI3K
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_M12_key_vln.pdf'), width=6, height=3)
+pdf(paste0('./output/', 'CM_M12_key_vln.pdf'), width=6, height=3)
 
 VlnPlot(seurat_ref,c('TNNI3','MYH7','BMPR2','TNNI3K'),group.by='group',ncol=4)
 
@@ -847,10 +847,10 @@ dev.off()
 
 library(GeneOverlap)
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules <- subset(bulk_modules,color %in% mods)
 
-sc_modules <- read.csv("~/Downloads/hdWGCNA_TOM/sc_heart_modules.csv")
+sc_modules <- read.csv("./output/sc_heart_modules.csv")
 sc_modules <- subset(sc_modules,str_replace(module,"\\-.*", "")
  == "CM")
 
@@ -884,7 +884,7 @@ cat(subset(bulk2sc_mods,bulk_module == 'blue')$gene_name,sep='\n')
 
 VlnPlot(seurat_ref,'module_M2',pt.size=0,group.by='group')
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #key_genes <- subset(bulk_modules,module %in% c(10,25,26))$gene_name
@@ -939,7 +939,7 @@ combined_set <- combined_set[!grepl('MT-',rownames(combined_set)),]
 keyvals <- combined_set$color
 names(keyvals)  <- combined_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_all.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_all.pdf'), width=8, height=6)
 
 EnhancedVolcano(combined_set,lab=rownames(combined_set),
   x='avg_log2FC',y='p_val_adj',
@@ -953,7 +953,7 @@ sub_set <- subset(combined_set,combined_set$module != 'M2')
 keyvals <- sub_set$color
 names(keyvals)  <- sub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_no_M2_all.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_no_M2_all.pdf'), width=8, height=6)
 
 EnhancedVolcano(sub_set,lab=rownames(sub_set),
   x='avg_log2FC',y='p_val_adj',
@@ -965,7 +965,7 @@ subsub_set <- subset(sub_set,sub_set$module != 'M12')
 keyvals <- subsub_set$color
 names(keyvals)  <- subsub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_mito_mods_all.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_mito_mods_all.pdf'), width=8, height=6)
 
 EnhancedVolcano(subsub_set,lab=rownames(subsub_set),
   x='avg_log2FC',y='p_val_adj',
@@ -998,7 +998,7 @@ combined_set <- combined_set[!grepl('MT-',rownames(combined_set)),]
 keyvals <- combined_set$color
 names(keyvals)  <- combined_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
 
 EnhancedVolcano(combined_set,lab=rownames(combined_set),
   x='avg_log2FC',y='p_val_adj',
@@ -1012,7 +1012,7 @@ sub_set <- subset(combined_set,combined_set$module != 'M2')
 keyvals <- sub_set$color
 names(keyvals)  <- sub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_no_M2_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_no_M2_all_RVF_vs_pRV.pdf'), width=8, height=6)
 
 EnhancedVolcano(sub_set,lab=rownames(sub_set),
   x='avg_log2FC',y='p_val_adj',
@@ -1024,7 +1024,7 @@ subsub_set <- subset(sub_set,sub_set$module != 'M12')
 keyvals <- subsub_set$color
 names(keyvals)  <- subsub_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_mito_mods_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_mito_mods_all_RVF_vs_pRV.pdf'), width=8, height=6)
 
 EnhancedVolcano(subsub_set,lab=rownames(subsub_set),
   x='avg_log2FC',y='p_val_adj',
@@ -1040,7 +1040,7 @@ dev.off()
 ##############################################
 ##############################################
 
-pdf('~/Downloads/hdWGCNA_TOM/Xenium/CM_Xenium_Trends.pdf',width=20,height=5)
+pdf('./output/Xenium/CM_Xenium_Trends.pdf',width=20,height=5)
 
 p1 <- VlnPlot(Xenium.cm,'sct_NPPA',group.by='group', pt.size = 0) + NoLegend()
 p2 <- VlnPlot(Xenium.cm,'NPPB',group.by='group', pt.size = 0) + NoLegend()
@@ -1064,8 +1064,8 @@ dev.off()
 
 
 
-#M1 <- readRDS(file = "~/Downloads/hdWGCNA_TOM/cm_new_subclust.rds")
-#Xenium.cm <- readRDS('~/Downloads/hdWGCNA_TOM/Xenium/cm_minimalist.rds')
+#M1 <- readRDS(file = "./dependencies/shared/cm_new_subclust.rds")
+#Xenium.cm <- readRDS('./output/Xenium/cm_minimalist.rds')
 
 
 
@@ -1103,7 +1103,7 @@ dev.off()
 #############  FIGURE 3B  #############
 #######################################
 
-seurat_obj <- readRDS('~/Downloads/RV_bulkRNASeq_seurat.rds')
+seurat_obj <- readRDS('./dependencies/shared/RV_bulkRNASeq_seurat.rds')
 
 #modules <- GetModules(seurat_obj)
 #color_df <- modules %>% subset(module!='grey') %>%
@@ -1239,7 +1239,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_reactome_terms.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'CM_reactome_terms.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -1355,7 +1355,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_chea_terms.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'CM_chea_terms.pdf'), width=8, height=7)
 p / colorbar 
 dev.off()
 
@@ -1364,7 +1364,7 @@ dev.off()
 #############  FIGURE 3E  #############
 #######################################
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 #RVF vs NF
@@ -1401,7 +1401,7 @@ M2_set <- subset(combined_set,module=="M2")
 keyvals <- M2_set$color
 names(keyvals)  <- M2_set$module
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'CM_module_volcano_M2.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'CM_module_volcano_M2.pdf'), width=8, height=6)
 
 EnhancedVolcano(M2_set,lab=rownames(combined_set),
   x='avg_log2FC',y='p_val_adj',
@@ -1440,7 +1440,7 @@ wrapText <- function(x, len) {
 }
 
 enriched <- enrichr(M2_genes_up, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M2_enrichr_up.pdf',width=5,height=2.5)
 p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1457,7 +1457,7 @@ dev.off()
 
 
 enriched <- enrichr(M12_gene_up, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M12_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M12_enrichr_up.pdf',width=5,height=2.5)
 p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1473,7 +1473,7 @@ p4
 dev.off()
 
 enriched <- enrichr(M2_genes_down, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M2_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M2_enrichr_down.pdf',width=5,height=2.5)
 p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1490,7 +1490,7 @@ dev.off()
 
 
 enriched <- enrichr(M12_genes_down, dbs)
-pdf('~/Downloads/hdWGCNA_TOM/CM_RV_M12_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/CM_RV_M12_enrichr_down.pdf',width=5,height=2.5)
 p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1540,7 +1540,7 @@ dev.off()
 #######################################
 
 
-seurat_ref <- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_all_celltypes.rds')
+seurat_ref <- readRDS('./dependencies/shared/scWGCNA_all_celltypes.rds')
 seurat_ref<-SetActiveWGCNA(seurat_ref, "CM")
 
 # get MEs from seurat object

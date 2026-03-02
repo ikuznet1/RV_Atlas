@@ -181,15 +181,15 @@ nf.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','NF','RVF'), type="ashr")
 prv.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','pRV','RVF'), type="ashr")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRV_vs_RVF_volcano.pdf',width=8,height=10)
+pdf('./output/bulk_pRV_vs_RVF_volcano.pdf',width=8,height=10)
 EnhancedVolcano(prv.vs.rvf,lab = rownames(prv.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-1, 1)) 
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_NF_vs_RVF_volcano.pdf',width=8,height=10)
+pdf('./output/bulk_NF_vs_RVF_volcano.pdf',width=8,height=10)
 EnhancedVolcano(nf.vs.rvf,lab = rownames(nf.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-6, 6)) 
 dev.off()
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_NF_vs_pRV_volcano.pdf',width=8,height=10)
+pdf('./output/bulk_NF_vs_pRV_volcano.pdf',width=8,height=10)
 EnhancedVolcano(nf.vs.prv,lab = rownames(nf.vs.prv),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-6, 6)) 
 dev.off()
 
@@ -205,20 +205,20 @@ rownames(dataset) <- shared
 labs <- rownames(dataset)
 labs[prv.vs.rvf$padj > 0.05 | is.na(prv.vs.rvf$padj) | prv.vs.rvf$log2FoldChange<0.25] = ""
 
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'pRV_vs_RVF_logFC_dot.pdf'), width=4, height=5)
+pdf(paste0('./output/', 'pRV_vs_RVF_logFC_dot.pdf'), width=4, height=5)
 ggplot(dataset, aes(x = pRV, y=RVF)) + geom_point(alpha=0.05) + 
   geom_text_repel(label=labs,max.overlaps=Inf,point.size = NA,force=10) + theme_classic() + xlim(c(-5,5)) + ylim(c(-5,5))
 dev.off()
 
 
 temp <- data.frame(nf.vs.rvf) %>% arrange(desc(log2FoldChange))
-write.csv(temp,'~/Downloads/hdWGCNA_TOM/NF_vs_RVF_deseq.csv')
+write.csv(temp,'./output/NF_vs_RVF_deseq.csv')
 
 temp <- data.frame(prv.vs.rvf) %>% arrange(desc(log2FoldChange))
-write.csv(temp,'~/Downloads/hdWGCNA_TOM/pRV_vs_RVF_deseq.csv')
+write.csv(temp,'./output/pRV_vs_RVF_deseq.csv')
 
 temp <- data.frame(subset(prv.vs.rvf,padj<0.05)) %>% arrange(desc(log2FoldChange))
-write.csv(temp,'~/Downloads/hdWGCNA_TOM/pRV_vs_RVF_deseq_sig.csv')
+write.csv(temp,'./dependencies/shared/pRV_vs_RVF_deseq_sig.csv')
 
 
 #######################################
@@ -242,7 +242,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRVvsRVF_heatmap_tight.pdf',width=10,height=10)
+pdf('./output/bulk_pRVvsRVF_heatmap_tight.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -264,7 +264,7 @@ i <- i[match(nf.vs.rvf.topgenes[order(nf.vs.rvf.filt[1:100,]$log2FoldChange)],ro
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_NFvsRVF_heatmap_tight.pdf',width=10,height=10)
+pdf('./output/bulk_NFvsRVF_heatmap_tight.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -285,7 +285,7 @@ i <- i[match(nf.vs.prv.topgenes[order(nf.vs.prv.filt[1:100,]$log2FoldChange)],ro
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_NFvspRV_heatmap_tight.pdf',width=10,height=10)
+pdf('./output/bulk_NFvspRV_heatmap_tight.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -334,7 +334,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_up.pdf',width=10,height=10)
+pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_up.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -354,7 +354,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_down.pdf',width=10,height=10)
+pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_down.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -374,7 +374,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_down.pdf',width=10,height=10)
+pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_down.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -394,7 +394,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_up.pdf',width=10,height=10)
+pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_up.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -414,7 +414,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_up.pdf',width=10,height=10)
+pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_up.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -434,7 +434,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('~/Downloads/hdWGCNA_TOM/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_down.pdf',width=10,height=10)
+pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_down.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -444,11 +444,11 @@ dev.off()
 #######################################
 ############  FIGURE S1E  #############
 #######################################
-source('~/Downloads/hdWGCNA_TOM/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.R')
 library(hdWGCNA)
 
 
-bulk_modules <- read.csv("~/Downloads/hdWGCNA_TOM/bulk_heart_modules.csv")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
 
 mapping <- labels2colors(1:100)
 bulk_modules$module <- match(bulk_modules$module,mapping)
@@ -516,7 +516,7 @@ percent_df$color <- mapping[c(1:29)]
 percent_df$color <- factor(percent_df$color,levels=mapping[c(1:29)])
 percent_df$label[!is.na(percent_df$label)] = paste0(paste(percent_df$Var1[!is.na(percent_df$label)],round(percent_df$label[!is.na(percent_df$label)],0),sep=': '),'%')
 
-pdf('~/Downloads/hdWGCNA_TOM/Bulk_gene_program.pdf',width=9,height=6)
+pdf('./output/Bulk_gene_program.pdf',width=9,height=6)
 ggplot(percent_df, aes(fill=color, y=Freq, x=type,label=label)) +  
 	geom_bar(position="stack", stat="identity",width=0.6) + 
     scale_fill_manual(values = mapping[c(1:29)]) + 
@@ -555,7 +555,7 @@ wrapText <- function(x, len) {
 library(viridis)
 enriched <- enrichr(genes_int, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('~/Downloads/hdWGCNA_TOM/Bulk_down_down_enrichr.pdf',width=6,height=2.5)
+pdf('./output/Bulk_down_down_enrichr.pdf',width=6,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -579,7 +579,7 @@ keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
 names(keyvals)[keyvals == 'blue'] <- 'high'
 names(keyvals)[keyvals == 'red'] <- 'low'
 
-pdf('~/Downloads/hdWGCNA_TOM/MitoRibo_down_down_bulk_enrichr_nf_prv.pdf',width=5,height=6)
+pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_prv.pdf',width=5,height=6)
 EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
 	pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
 	xlim=c(0,2),colCustom = keyvals,
@@ -593,7 +593,7 @@ keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
 names(keyvals)[keyvals == 'blue'] <- 'high'
 names(keyvals)[keyvals == 'red'] <- 'low'
 
-pdf('~/Downloads/hdWGCNA_TOM/MitoRibo_down_down_bulk_enrichr_nf_rvf.pdf',width=5,height=6)
+pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_rvf.pdf',width=5,height=6)
 EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
 	pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
 	xlim=c(0,2),colCustom = keyvals,
