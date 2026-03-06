@@ -61,6 +61,8 @@ install.packages('matrixStats')
 install.packages('ashr')
 devtools::install_github('immunogenomics/presto')
 install.packages("ClusterR")
+install.packages('VennDiagram')
+
 
 
 devtools::install_github('cole-trapnell-lab/monocle3')

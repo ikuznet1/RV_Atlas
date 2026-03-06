@@ -4,21 +4,28 @@ library(ggeasy)
 library(harmony)
 
 
-source('./output/spatial_functions.R')
+source('./dependencies/shared/spatial_functions.r')
 
 
 
 #######################################
-#############  FIGURE 6A  #############
+#############  FIGURE 7A  #############
 #######################################
-M1 <- readRDS(file = "./dependencies/Figure_6/ec_subclust.rds")
+M1 <- readRDS(file = "./dependencies/shared/EC_hdWGCNA_by_celltype.rds")
+
 
 pdf(paste0('./output/', 'EC_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M1,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
+#n = 3139 nuclei
+
+pdf(paste0('./output/', 'EC_snUMAP_group.pdf'), width=5, height=5)
+PlotEmbedding(M1,group.by='group',point_size=1,plot_under=TRUE,plot_theme=umap_theme(),raster_dpi=400,raster_scale=0.5)
+dev.off()
+
 #######################################
-#############  FIGURE 6B  #############
+#############  FIGURE 7B  #############
 #######################################
 pdf(paste0('./output/', 'EC_dot.pdf'), width=4.5, height=4)
 DotPlot(M1, c("VenousScore1","ArterialScore1","LymphScore1",
@@ -28,7 +35,7 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 6C  #############
+#############  FIGURE 7C  #############
 #######################################
 
 
@@ -95,7 +102,7 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 6D  #############
+#############  FIGURE 7D  #############
 #######################################
 DefaultAssay(M1) <- "RNA"
 
@@ -280,7 +287,7 @@ EnrichrBarPlot(
 )
 
 #######################################
-#############  FIGURE 6E  #############
+#############  FIGURE 7E  #############
 #######################################
 
 
@@ -367,7 +374,7 @@ mapping <- labels2colors(1:100)
 
 color_df <- modules %>% subset(module!='grey') %>%
   select(c(module, color)) %>% distinct %>%
-  rename(c(group=module, colour=color))
+  rename(c(module='group', color='colour'))
 color_df <- subset(color_df,colour %in% mods)
 
 
@@ -410,7 +417,7 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 6F  #############
+#############  FIGURE 7F  #############
 #######################################
 
 
@@ -430,16 +437,16 @@ down_RVF = c('M2','M3','M6')
 
 
 #######################################
-#############  FIGURE 6G  #############
+#############  FIGURE 7G  #############
 #######################################
 
 pdf('./output/EC_feature.pdf',width=4,height=6)
 FeaturePlot(M1,c('M1','M4','M7'),label=T,min.cutoff=0,ncol=1)
 dev.off()
 
-#######################################
-#############  FIGURE 6H  #############
-#######################################
+#######################################$
+############  FIGURE 7H - I ############
+#######################################$
 M1 <- SetIdent(M1, value = "group")
 
 modules <- GetModules(M1)
@@ -576,7 +583,7 @@ VlnPlot(M1,c('AllAngioGenes1','CoronaryAngioGenes1','PositiveAngioGenes1','Negat
 dev.off()
 
 pdf(paste0('./output/', 'EC_MECOM.pdf'), width=3, height=3)
-VlnPlot(subset(M1,Names=='Arterial'),'SMAD1',group.by='group',pt.size=0)
+VlnPlot(subset(M1,Names=='Arterial'),'MECOM',group.by='group',pt.size=0)
 dev.off()
 
 pdf(paste0('./output/', 'EC_MECOM_feat.pdf'), width=4, height=3)
@@ -591,7 +598,7 @@ pdf(paste0('./output/', 'EC_SMAD1_feat.pdf'), width=4, height=3)
 DotPlot(M1,'SMAD1',group.by='Names',col.min=0)
 dev.off()
 
-
+# 
 
 #######################################
 #############  FIGURE 6I  #############
@@ -618,67 +625,67 @@ dev.off()
 
 
 
-DefaultAssay(M1) <- "RNA"
+# DefaultAssay(M1) <- "RNA"
 
 
-M1 <- SetupForWGCNA(
-  M1,
-  gene_select = "fraction", # the gene selection approach
-  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
-  wgcna_name = "ec_group" # the name of the hdWGCNA experiment
-)
+# M1 <- SetupForWGCNA(
+#   M1,
+#   gene_select = "fraction", # the gene selection approach
+#   fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
+#   wgcna_name = "ec_group" # the name of the hdWGCNA experiment
+# )
 
-M1 <- MetacellsByGroups(seurat_obj = M1,
-  group.by = c("group"), # specify the columns in seurat_obj@meta.data to group by
-  reduction = 'harmony', # select the dimensionality reduction to perform KNN on
-  k = 25, # nearest-neighbors parameter
-  max_shared = 10, # maximum number of shared cells between two metacells
-  ident.group = 'group' # set the Idents of the metacell seurat object
-)
+# M1 <- MetacellsByGroups(seurat_obj = M1,
+#   group.by = c("group"), # specify the columns in seurat_obj@meta.data to group by
+#   reduction = 'harmony', # select the dimensionality reduction to perform KNN on
+#   k = 25, # nearest-neighbors parameter
+#   max_shared = 10, # maximum number of shared cells between two metacells
+#   ident.group = 'group' # set the Idents of the metacell seurat object
+# )
 
-M1 <- NormalizeMetacells(M1)
-
-
-M1 <- SetDatExpr(
-  M1,
-  group_name = c("NF","pRV","RVF"), # the name of the group of interest in the group.by column
-  group.by='group', # the metadata column containing the cell type info. This same column should have also been used in MetacellsByGroups
-  assay = 'RNA', # using RNA assay
-  slot = 'data' # using normalized data
-)
-
-M1 <- TestSoftPowers(
-  M1,
-  networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
-)
-
-library(patchwork)
-plot_list <- PlotSoftPowers(M1)
-wrap_plots(plot_list, ncol=2)
-
-M1 <- ConstructNetwork(
-  M1,
-  tom_name = 'ec_net_group' # name of the topoligical overlap matrix written to disk
-)
+# M1 <- NormalizeMetacells(M1)
 
 
-M1 <- ScaleData(M1)
-M1 <- ModuleEigengenes(
- M1,
- group.by.vars="patient"
-)
+# M1 <- SetDatExpr(
+#   M1,
+#   group_name = c("NF","pRV","RVF"), # the name of the group of interest in the group.by column
+#   group.by='group', # the metadata column containing the cell type info. This same column should have also been used in MetacellsByGroups
+#   assay = 'RNA', # using RNA assay
+#   slot = 'data' # using normalized data
+# )
+
+# M1 <- TestSoftPowers(
+#   M1,
+#   networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
+# )
+
+# library(patchwork)
+# plot_list <- PlotSoftPowers(M1)
+# wrap_plots(plot_list, ncol=2)
+
+# M1 <- ConstructNetwork(
+#   M1,
+#   tom_name = 'ec_net_group' # name of the topoligical overlap matrix written to disk
+# )
 
 
-MEs <- GetMEs(M1,harmonized=TRUE)
+# M1 <- ScaleData(M1)
+# M1 <- ModuleEigengenes(
+#  M1,
+#  group.by.vars="patient"
+# )
 
-M1 <- ModuleConnectivity(
-  M1,
-  group.by = 'group', group_name =  c("NF","pRV","RVF")
-)
 
-modules <- GetModules(M1)
-mods <- levels(modules$module); mods <- mods[mods != 'grey']
-saveRDS(M1,'./output/EC_hdWGCNA_by_group.rds')
+# MEs <- GetMEs(M1,harmonized=TRUE)
+
+# M1 <- ModuleConnectivity(
+#   M1,
+#   group.by = 'group', group_name =  c("NF","pRV","RVF")
+# )
+
+# modules <- GetModules(M1)
+# mods <- levels(modules$module); mods <- mods[mods != 'grey']
+# saveRDS(M1,'./output/EC_hdWGCNA_by_group.rds')
 
 
 
