@@ -1,4 +1,3 @@
-
 library(reticulate)
 library(ggfortify)
 library(edgeR)
@@ -7,32 +6,34 @@ library(EnhancedVolcano)
 library(DESeq2)
 library(tximport)
 library(biomaRt)
-library("sva")
+library(sva)
 library(Seurat)
+library(dplyr)
 
 #######################################
 #############  FIGURE S1A  #############
 #######################################
-bulk <- read.csv('/Volumes/RV_RNAseq/RV_snRNAseq/Final_Analysis/BulkRNA/counts.csv')
-meta <- read.csv('/Volumes/RV_RNAseq/RV_snRNAseq/Final_Analysis/BulkRNA/metadata.csv')
+bulk <- read.csv('./dependencies/shared/BulkRNA/counts.csv')
+meta <- read.csv('./dependencies/shared/BulkRNA/metadata.csv')
 toDel <- seq(1,dim(meta)[1],2)
 meta <- meta[-toDel,]
 
 mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
 
-res <- getBM(attributes = c('ensembl_transcript_id_version',                              'ensembl_gene_id',                              
+res <- getBM(attributes = c('ensembl_transcript_id_version','ensembl_gene_id',                              
 'external_transcript_name',                           
 'external_gene_name'),              
 filters = 'ensembl_transcript_id_version',               
 values = bulk[,1],              
 mart = mart)
 tx2gene <- res[,c(1,4)]
+tx2gene <- tx2gene[tx2gene$external_gene_name != '',]
 
 
-path = '/Volumes/RV_RNAseq/RV_RNAseq/30-238740824'
+path = './dependencies/shared/BulkRNA/30-238740824'
 files1 <- list.files(path,pattern = "\\.h5$",recursive=TRUE)
 files1<-paste0(path,'/',files1)
-path = '/Volumes/RV_RNAseq/RV_RNAseq/30-196345105/trimmed'
+path = './dependencies/shared/BulkRNA//30-196345105'
 files2 <- list.files(path,pattern = "\\.h5$",recursive=TRUE)
 files2<-paste0(path,'/',files2)
 files <- c(files1,files2)
@@ -111,7 +112,7 @@ bulk.meta$thyroid[is.na(bulk.meta$thyroid)] <- 'N'
 bulk.meta$pacer[is.na(bulk.meta$pacer)] <- 'N'
 
 
-ddsSE <- DESeqDataSetFromTximport(txi.kallisto,bulk.meta,design=~category+sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+sc+BMI)
+#ddsSE <- DESeqDataSetFromTximport(txi.kallisto,bulk.meta,design=~category+sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+sc+BMI)
 
 ddsSE <- DESeqDataSetFromTximport(txi.kallisto,bulk.meta,design=~category+batch+prep_batch)
 
@@ -218,12 +219,64 @@ temp <- data.frame(prv.vs.rvf) %>% arrange(desc(log2FoldChange))
 write.csv(temp,'./output/pRV_vs_RVF_deseq.csv')
 
 temp <- data.frame(subset(prv.vs.rvf,padj<0.05)) %>% arrange(desc(log2FoldChange))
-write.csv(temp,'./dependencies/shared/pRV_vs_RVF_deseq_sig.csv')
+write.csv(temp,'./output/pRV_vs_RVF_deseq_sig.csv')
 
 
-#######################################
+
+
+########################################
 ############  FIGURE S1C/D  ############
-#######################################
+########################################
+library(DOSE)
+library(enrichR)
+library(tidyverse)
+library(viridis)
+
+websiteLive <- getOption("enrichR.live")
+if (websiteLive) {
+     listEnrichrSites()
+     setEnrichrSite("Enrichr") # Human genes   
+ }
+
+
+
+dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2025")
+
+
+
+####GO BP
+
+#pRV vs RV
+
+enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange > 0.1)), dbs)
+enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.05,]
+pdf('./output/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Up.pdf',width=10,height=3)
+p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + 
+geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + 
+theme_classic()  + ggtitle('GO Biological Process Up') + 
+scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"), `[`, 1))) + 
+theme(axis.text=element_text(colour="black")) +
+scale_color_stepsn(colors=rev(magma(256)))
+p4
+dev.off()
+
+enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange < -0.1)), dbs)
+enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.05,]
+pdf('./output/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Down.pdf',width=10,height=3)
+p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + 
+geom_point() + xlab('Combined Score') + ylab('Term') + 
+labs(color="P value",size="Overlap") + theme_classic()  + 
+ggtitle('GO Biological Process Down') + 
+scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"), `[`, 1))) + 
+theme(axis.text=element_text(colour="black"))  +
+scale_color_stepsn(colors=rev(magma(256)))
+p4
+dev.off()
+
+
+######################################
+#############  FIGURE S1E ############
+######################################
 
 ##########Heatmaps
 library(gplots)
@@ -291,6 +344,33 @@ heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
 dev.off()
+
+
+
+
+sum(prv.vs.rvf$padj < 0.1, na.rm=TRUE)
+resOrdered1 <- prv.vs.rvf[order(prv.vs.rvf$pvalue),]
+resOrdered1$padj[is.na(resOrdered1$padj)]=1
+signif1 <- rownames(subset(resOrdered1, resOrdered1$padj<0.1))
+# write.csv(as.data.frame(resOrdered1), 
+#           file="./output/pRV_vs_RVF.csv")
+
+sum(nf.vs.rvf$padj < 0.1, na.rm=TRUE)
+resOrdered2 <- nf.vs.rvf[order(nf.vs.rvf$pvalue),]
+resOrdered2$padj[is.na(resOrdered2$padj)]=1
+signif2 <- rownames(subset(resOrdered2, resOrdered2$padj<0.1))
+
+# write.csv(as.data.frame(resOrdered2), 
+#           file="./output/NF_vs_RVF.csv")
+
+sum(nf.vs.prv$padj < 0.1, na.rm=TRUE)
+resOrdered3 <- nf.vs.prv[order(nf.vs.prv$pvalue),]
+resOrdered3$padj[is.na(resOrdered3$padj)]=1
+signif3 <- rownames(subset(resOrdered3, resOrdered3$padj<0.1))
+
+# write.csv(as.data.frame(resOrdered3), 
+#           file="./output/NF_vs_pRV.csv")
+
 
 
 RVF.signif <- setdiff(signif2,signif3)
@@ -441,14 +521,92 @@ heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
 dev.off()
 
+
 #######################################
-############  FIGURE S1E  #############
+############  FIGURE S1G  #############
+#######################################
+idx<-match(NF_2_pRV_down_2_RVF_down,bulk_modules$gene_name)
+idx<-idx[!is.na(idx)]
+p2 <- table(bulk_modules[idx,]$module)/sum(table(bulk_modules[idx,]$module))*100
+#table(bulk_modules$module)/sum(table(bulk_modules$module)) * 100
+genes_int <- subset(bulk_modules[idx,],module==1)$gene_name 
+
+dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
+
+library(enrichR)
+library(forcats)
+
+parse_ratio <- function(ratio) {
+    ratio <- sub("^\\s*", "", as.character(ratio))
+    ratio <- sub("\\s*$", "", ratio)
+    numerator <- as.numeric(sub("/\\d+$", "", ratio))
+    denominator <- as.numeric(sub("^\\d+/", "", ratio))
+    return(numerator/denominator)
+}
+
+wrapText <- function(x, len) {
+    sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
+}
+
+library(viridis)
+enriched <- enrichr(genes_int, dbs)
+enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
+pdf('./output/Bulk_down_down_enrichr.pdf',width=6,height=2.5)
+p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
+  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
+  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
+  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
+  ggtitle('GO Biological Process Up') + 
+  scale_y_discrete(labels= fct_inorder(
+    wrapText(sapply(
+      strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
+         `[`, 1),35))) + 
+  theme(axis.text=element_text(colour="black"))+
+  scale_color_stepsn(colors=rev(magma(256)))
+p1
+dev.off()
+
+
+#######################################
+############  FIGURE S1H  #############
+#######################################
+a<-nf.vs.prv[genes_int,]
+translation <- strsplit(enriched[[4]]$Genes[1],";")[[1]]
+keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
+names(keyvals)[keyvals == 'blue'] <- 'high'
+names(keyvals)[keyvals == 'red'] <- 'low'
+
+pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_prv.pdf',width=5,height=6)
+EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
+   pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
+   xlim=c(0,2),colCustom = keyvals,
+   selectLab = rownames(a)[which(names(keyvals) %in% c('high'))])
+dev.off()
+
+
+a<-nf.vs.rvf[genes_int,]
+translation <- strsplit(enriched[[4]]$Genes[1],";")[[1]]
+keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
+names(keyvals)[keyvals == 'blue'] <- 'high'
+names(keyvals)[keyvals == 'red'] <- 'low'
+
+pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_rvf.pdf',width=5,height=6)
+EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
+   pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
+   xlim=c(0,2),colCustom = keyvals,
+   selectLab = rownames(a)[which(names(keyvals) %in% c('high'))])
+dev.off()
+
+
+
+#######################################
+############  FIGURE S1I  #############
 #######################################
 source('./dependencies/shared/spatial_functions.R')
 library(hdWGCNA)
 
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 
 mapping <- labels2colors(1:100)
 bulk_modules$module <- match(bulk_modules$module,mapping)
@@ -524,80 +682,6 @@ ggplot(percent_df, aes(fill=color, y=Freq, x=type,label=label)) +
 	labs(fill="Module",color='black') + 
 	theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + 
 	geom_label_repel(aes(type,sum,label=label),fill='white',nudge_x=0,direction="y")
-dev.off()
-
-#######################################
-############  FIGURE S1F  #############
-#######################################
-idx<-match(NF_2_pRV_down_2_RVF_down,bulk_modules$gene_name)
-idx<-idx[!is.na(idx)]
-p2 <- table(bulk_modules[idx,]$module)/sum(table(bulk_modules[idx,]$module))*100
-#table(bulk_modules$module)/sum(table(bulk_modules$module)) * 100
-genes_int <- subset(bulk_modules[idx,],module==1)$gene_name 
-
-dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-
-library(enrichR)
-library(forcats)
-
-parse_ratio <- function(ratio) {
-    ratio <- sub("^\\s*", "", as.character(ratio))
-    ratio <- sub("\\s*$", "", ratio)
-    numerator <- as.numeric(sub("/\\d+$", "", ratio))
-    denominator <- as.numeric(sub("^\\d+/", "", ratio))
-    return(numerator/denominator)
-}
-
-wrapText <- function(x, len) {
-    sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
-}
-
-library(viridis)
-enriched <- enrichr(genes_int, dbs)
-enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/Bulk_down_down_enrichr.pdf',width=6,height=2.5)
-p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO Biological Process Up') + 
-  scale_y_discrete(labels= fct_inorder(
-    wrapText(sapply(
-      strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
-  scale_color_stepsn(colors=rev(magma(256)))
-p1
-dev.off()
-
-#######################################
-############  FIGURE S1G  #############
-#######################################
-a<-nf.vs.prv[genes_int,]
-translation <- strsplit(enriched[[4]]$Genes[1],";")[[1]]
-keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
-names(keyvals)[keyvals == 'blue'] <- 'high'
-names(keyvals)[keyvals == 'red'] <- 'low'
-
-pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_prv.pdf',width=5,height=6)
-EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
-	pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
-	xlim=c(0,2),colCustom = keyvals,
-	selectLab = rownames(a)[which(names(keyvals) %in% c('high'))])
-dev.off()
-
-
-a<-nf.vs.rvf[genes_int,]
-translation <- strsplit(enriched[[4]]$Genes[1],";")[[1]]
-keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
-names(keyvals)[keyvals == 'blue'] <- 'high'
-names(keyvals)[keyvals == 'red'] <- 'low'
-
-pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_rvf.pdf',width=5,height=6)
-EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
-	pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
-	xlim=c(0,2),colCustom = keyvals,
-	selectLab = rownames(a)[which(names(keyvals) %in% c('high'))])
 dev.off()
 
 

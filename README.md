@@ -6,7 +6,7 @@ Scripts for generating figures for RV atlas paper
 
 First create a conda enviornment:
 
-conda create -n RV_atlas -c conda-forge -c bioconda r-base=4.5 mamba
+conda create -n RV_atlas -c conda-forge -c bioconda r-base=4.4 mamba
 conda activate RV_atlas
 
 mamba install -c conda-forge -c bioconda r-seurat r-hdf5r r-igraph r-tidyverse r-ggraph r-harmony r-enrichr r-devtools 
@@ -50,7 +50,6 @@ install.packages('gplots')
 install.packages('viridis')
 install.packages('stringr')
 install.packages('ggpubr')
-BiocManager::install('JASPAR2020')
 install.packages('reshape2')
 install.packages('readxl')
 install.packages('RColorBrewer')
@@ -62,11 +61,11 @@ install.packages('ashr')
 devtools::install_github('immunogenomics/presto')
 install.packages("ClusterR")
 install.packages('VennDiagram')
+BiocManager::install('glmGamPoi')
 
 
 
 devtools::install_github('cole-trapnell-lab/monocle3')
-BiocManager::install('TFBSTools')
-BiocManager::install('motifmatchr')
+
 
 

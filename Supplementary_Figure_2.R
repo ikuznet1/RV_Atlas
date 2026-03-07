@@ -1,6 +1,14 @@
+library(Seurat)
+library(harmony)
+library(ggplot2)
+library(dplyr)
+library(hdWGCNA)
+
+source('./dependencies/shared/spatial_functions.R')
+
 ##############################################
 ##############################################
-#### Figure S2A
+####### Figure S2A
 ##############################################
 ##############################################
 
@@ -59,9 +67,11 @@ dev.off()
 #saveRDS(RV_data,'./dependencies/shared/cm_new_subclust.rds')
 ##############################################
 ##############################################
-#### Figure S2B
+####### Figure S2B
 ##############################################
 ##############################################
+
+RV_data <- readRDS('./dependencies/shared/cm_new_subclust.rds')
 
 RV_data <- AddModuleScore(RV_data, features=list(c('ACTA1','PLCE1','TNNT1')),assay="SCT",name="Clust0Score")
 RV_data <- AddModuleScore(RV_data, features=list(c('TOGARAM2','CPNE5','CORIN','FGF12','CACNB2','PDE3A')),assay="SCT",name="Clust1Score")
@@ -88,7 +98,7 @@ dev.off()
 
 ##############################################
 ##############################################
-#### Figure S2C
+####### Figure S2C
 ##############################################
 ##############################################
 
@@ -134,7 +144,7 @@ dev.off()
 
 ##############################################
 ##############################################
-#### Figure S2D
+####### Figure S2D
 ##############################################
 ##############################################
 
@@ -297,7 +307,7 @@ dev.off()
 
 ##############################################
 ##############################################
-#### Figure S2E
+######## Figure S2E
 ##############################################
 ##############################################
 
@@ -310,7 +320,7 @@ modules_down <- c('M10','M25','M26')
 mapping <- labels2colors(1:100)
 
 
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -364,13 +374,13 @@ dev.off()
 
 ##############################################
 ##############################################
-#### Figure S2F
+######## Figure S2F
 ##############################################
 ##############################################
 
 
 Xenium.cm <- readRDS(file = "./dependencies/shared/Xenium_cm.rds")
-
+Xenium.cm <- UpdateSeuratObject(Xenium.cm)
 
 Xenium.cm <- SCTransform(Xenium.cm,vst.flavor="v2", assay = "Xenium",vars.to.regress=c('nFeature_Xenium'))
 Xenium.cm <- RunPCA(Xenium.cm, npcs = 30)
@@ -460,7 +470,7 @@ dev.off()
 ##############################################
 ##############################################
 
-meta.data <- read.csv('./dependencies/shared/Xenium_meta.data.csv')
+meta.data <- read.csv('./dependencies/shared/Xenium_metadata.csv')
 niche_manual <- meta.data$niche_manual
 names(niche_manual) <- rownames(meta.data)
 
@@ -473,15 +483,15 @@ feats <- c('Endocardial CMs','Isolated CMs','Peri-immune CMs','Peri-lymphatic/ve
 
 cm.niche <- cm.niche[feats,]
 
-mycol <- colorpanel(1000,"blue","white","red")
+mycol <- gplots::colorpanel(1000,"blue","white","red")
 
 
 #saveRDS(Xenium.cm,'./output/Xenium/cm_minimalist.rds')
+#Xenium.cm <- readRDS('./dependencies/shared/Xenium_cm_minimalist.rds')
 
+pdf('./output/Xenium/xenium_heatmap_niche.pdf',width=4.5,height=5.5)
 
-pdf('./output/Xenium/xenium_heatmap_niche.pdf',width=3.5,height=4.5)
-
-heatmap.2(as.matrix(cm.niche), scale="row",
+gplots::heatmap.2(as.matrix(cm.niche), scale="row",
    labRow=rownames(cm.niche), 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
@@ -506,6 +516,7 @@ dev.off()
 #### Figure S2H
 ##############################################
 ##############################################
+Xenium.cm <- UpdateSeuratObject(Xenium.cm)
 
 Xenium.cm$NPPA <- as.character(Xenium.cm$Subnames)
 Xenium.cm$NPPA[Xenium.cm$NPPA != 'NPPA/NPPB'] = 'Other'
@@ -538,4 +549,30 @@ pdf('./output/Xenium/CM_niche_spatial_all_alt.pdf',width=5,height=5)
 ImageDimPlot(Xenium.cm, 
   group.by = 'NPPA',fov = "fov.7",
   axes = F, dark.background=F,size=1)
+dev.off()
+
+Idents(Xenium.cm) <- 'group'
+
+pdf('./output/Xenium/CM_NPPA.pdf',width=5,height=5)
+VlnPlot(Xenium.cm,'sct_NPPA')
+dev.off()
+
+pdf('./output/Xenium/CM_NPPB.pdf',width=5,height=5)
+VlnPlot(Xenium.cm,'sct_NPPB')
+dev.off()
+
+pdf('./output/Xenium/CM_MYH7.pdf',width=5,height=5)
+VlnPlot(Xenium.cm,'sct_MYH7')
+dev.off()
+
+pdf('./output/Xenium/CM_MYH6.pdf',width=5,height=5)
+VlnPlot(Xenium.cm,'sct_MYH6')
+dev.off()
+
+pdf('./output/Xenium/CM_TNNI3.pdf',width=5,height=5)
+VlnPlot(Xenium.cm,'sct_TNNI3')
+dev.off()
+
+pdf('./output/Xenium/CM_ANKRD1.pdf',width=5,height=5)
+VlnPlot(Xenium.cm,'sct_ANKRD1')
 dev.off()

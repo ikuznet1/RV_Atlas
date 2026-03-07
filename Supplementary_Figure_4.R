@@ -255,7 +255,9 @@ dev.off()
 #############  FIGURE S5E  ############
 #######################################
 
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+seurat_ref <- M1
+
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
@@ -917,7 +919,7 @@ dev.off()
 #M5, M20, M11
 
 
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
 # remove duplicate gene names
