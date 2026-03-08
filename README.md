@@ -73,10 +73,10 @@ install.packages('ashr')
 install.packages("ClusterR")  
 install.packages('VennDiagram')  
 
-devtools::install_github('smorabit/hdWGCNA', ref='dev')
-remotes::install_github('satijalab/seurat-wrappers')
-devtools::install_github('immunogenomics/presto')
-devtools::install_github('cole-trapnell-lab/monocle3')
+devtools::install_github('smorabit/hdWGCNA', ref='dev')  
+remotes::install_github('satijalab/seurat-wrappers')  
+devtools::install_github('immunogenomics/presto')  
+devtools::install_github('cole-trapnell-lab/monocle3')  
 
 
 
