@@ -1,0 +1,375 @@
+/* ── XeniumExp — XeniumExplorer-like theme ─────────────────────────────── */
+
+/* Reset & base */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 13px;
+  background: #eef0f3;
+  color: #1f2937;
+  overflow: hidden;
+}
+
+/* ── Header bar ─────────────────────────────────────────────────────────── */
+#xe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1a2332;
+  color: #e8ecf1;
+  height: 52px;
+  padding: 0 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+}
+
+#xe-header .xe-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #e8ecf1;
+}
+
+#xe-header .xe-brand span.xe-accent {
+  color: #5b9bd5;
+}
+
+#xe-header .xe-patient-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#xe-header .xe-patient-selector label {
+  color: #9bafc4;
+  font-size: 12px;
+  margin: 0;
+}
+
+#xe-header .form-control,
+#xe-header select {
+  background: #253347;
+  border: 1px solid #3a4f66;
+  color: #e8ecf1;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 13px;
+  height: 32px;
+  min-width: 220px;
+}
+
+#xe-header .form-control:focus,
+#xe-header select:focus {
+  outline: none;
+  border-color: #5b9bd5;
+  box-shadow: 0 0 0 2px rgba(91,155,213,0.25);
+}
+
+#xe-header .xe-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#xe-header .btn-header {
+  background: #253347;
+  border: 1px solid #3a4f66;
+  color: #9bafc4;
+  border-radius: 5px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  height: 32px;
+}
+
+#xe-header .btn-header:hover {
+  background: #2f4060;
+  color: #e8ecf1;
+  border-color: #5b9bd5;
+}
+
+/* ── Main layout ────────────────────────────────────────────────────────── */
+#xe-body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding-top: 52px;
+}
+
+#xe-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+#xe-sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: #f0f2f5;
+  border-right: 1px solid #dde1e7;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 12px 14px;
+  gap: 0;
+}
+
+.xe-section-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin: 14px 0 6px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #dde1e7;
+}
+
+.xe-section-header:first-child {
+  margin-top: 4px;
+}
+
+/* Shiny widget overrides in sidebar */
+#xe-sidebar .form-group {
+  margin-bottom: 10px;
+}
+
+#xe-sidebar label {
+  font-size: 12px;
+  color: #374151;
+  margin-bottom: 3px;
+  font-weight: 500;
+}
+
+#xe-sidebar .form-control,
+#xe-sidebar select,
+#xe-sidebar .selectize-input {
+  font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 4px 8px;
+  height: 30px;
+}
+
+#xe-sidebar .selectize-input {
+  height: auto;
+  min-height: 30px;
+  padding: 3px 8px;
+}
+
+#xe-sidebar .form-control:focus,
+#xe-sidebar select:focus {
+  border-color: #5b9bd5;
+  box-shadow: 0 0 0 2px rgba(91,155,213,0.2);
+  outline: none;
+}
+
+/* Radio buttons */
+#xe-sidebar .radio label {
+  font-size: 12px;
+  color: #374151;
+}
+
+/* Slider */
+#xe-sidebar .irs--shiny .irs-bar {
+  background: #5b9bd5;
+  border-color: #5b9bd5;
+}
+
+#xe-sidebar .irs--shiny .irs-handle {
+  border-color: #5b9bd5;
+}
+
+#xe-sidebar .irs--shiny .irs-single {
+  background: #5b9bd5;
+}
+
+/* Download button */
+#xe-sidebar .btn-download {
+  width: 100%;
+  background: #5b9bd5;
+  border: none;
+  color: white;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-top: 4px;
+}
+
+#xe-sidebar .btn-download:hover {
+  background: #4a87c0;
+}
+
+/* Cell count badge */
+.xe-cell-count {
+  background: #e8ecf1;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.xe-cell-count .xe-count-selected {
+  color: #f97316;
+  font-weight: 600;
+}
+
+/* Tool toggle buttons */
+.xe-tool-group {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.xe-tool-btn {
+  flex: 1;
+  text-align: center;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  color: #374151;
+  padding: 5px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.xe-tool-btn.active,
+.xe-tool-btn:active {
+  background: #5b9bd5;
+  color: white;
+  border-color: #5b9bd5;
+}
+
+/* ── Main plot area ──────────────────────────────────────────────────────── */
+#xe-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #f8f9fa;
+}
+
+#xe-plot-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #f8f9fa;
+}
+
+#xe-plot-container .plotly-graph-div,
+#xe-plot-container .js-plotly-plot {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Plotly output fill */
+#spatial_plot.plotly-graph-div,
+.shiny-plot-output {
+  border: none !important;
+}
+
+/* ── Stats strip ────────────────────────────────────────────────────────── */
+#xe-stats {
+  display: flex;
+  height: 250px;
+  min-height: 250px;
+  border-top: 1px solid #dde1e7;
+  background: #ffffff;
+}
+
+.xe-stats-panel {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.xe-stats-panel + .xe-stats-panel {
+  border-left: 1px solid #dde1e7;
+}
+
+.xe-stats-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+.xe-stats-panel .plotly-output,
+.xe-stats-panel .shiny-plot-output,
+.xe-stats-panel .plotly.html-widget {
+  flex: 1;
+  min-height: 0;
+  height: 100% !important;
+}
+
+/* Loading spinner */
+.xe-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* Modal */
+.modal-header {
+  background: #1a2332;
+  color: white;
+  border-bottom: none;
+}
+
+.modal-title {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.modal-content {
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+
+.info-table td {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.info-table td:first-child {
+  color: #6b7280;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Notification */
+.shiny-notification {
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* Scrollbar */
+#xe-sidebar::-webkit-scrollbar { width: 4px; }
+#xe-sidebar::-webkit-scrollbar-track { background: transparent; }
+#xe-sidebar::-webkit-scrollbar-thumb { background: #c9cdd4; border-radius: 4px; }

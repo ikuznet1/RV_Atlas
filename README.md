@@ -81,7 +81,7 @@ devtools::install_github('cole-trapnell-lab/monocle3')
 
 ### VISUALIZATION ###
 
-To quickly visualize gene-expression first make sure you have the dependencies folder downloaded.  
+To quickly visualize single-nuclei gene-expression first make sure you have the dependencies folder downloaded.  
 
 Then open R and run:  
 
@@ -89,3 +89,11 @@ shiny::runApp("shinyViz")
 
 ![PLIN1 UMAP](shinyViz/UMAP_PLIN1.png)
 
+
+To quickly visualize Xenium gene-expression first make sure you have the dependencies folder downloaded.  
+
+Then open R and run:  
+
+shiny::runApp("XeniumExp")
+
+![PLIN1 UMAP](XeniumExp/Xenium_P1697_niche_manual.png)
