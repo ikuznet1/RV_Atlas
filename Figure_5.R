@@ -79,7 +79,7 @@ dev.off()
 #######################################
 #############  FIGURE 5B  #############
 #######################################
-snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/shared/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 snLV<-subset(snLV,Names=="Cardiomyocytes")
 
@@ -135,7 +135,7 @@ dev.off()
 #######################################
 #############  FIGURE 5C  #############
 #######################################
-snLV <- readRDS('./dependencies/Figure_5/Kory_reprocessed_all.rds')
+snLV <- readRDS('./dependencies/shared/Kory_reprocessed_all.rds')
 snLV <- subset(snLV,tech=='SN')
 snLV<-subset(snLV,Names=="Cardiomyocytes")
 snLV <- SetIdent(snLV, value = "condition")
@@ -170,7 +170,9 @@ M1$Subnames <- M1@active.ident
 M1$SubNames_Groups <- paste(M1$Subnames,M1$group,sep='_')
 M1 <- SetIdent(M1, value = "group")
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+mapping <- labels2colors(1:100)
+
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 combined_set_RV <- data.frame()
 mods_idx <- c(2,12,28,10,25,26)
@@ -287,6 +289,12 @@ ggplot(dataset, aes(x = RV, y=LV)) + geom_point() +
   geom_text_repel(label=rownames(dataset)) + theme_classic()
 dev.off()
 
+
+
+#######################################
+#############  FIGURE 5D  #############
+#######################################
+
 a<-subset(combined_set,module=='All')
 b <- subset(combined_set_RV,module=='All')
 shared <- intersect(rownames(a),rownames(b))
@@ -295,10 +303,6 @@ rownames(dataset) <- shared
 labs <- rownames(dataset)
 labs[abs(dataset$LV - dataset$RV)<0.1] <- NA
 
-
-#######################################
-#############  FIGURE 5D  #############
-#######################################
 
 pdf(paste0('./output/', 'LV_vs_RV_CM_module_All_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point() + 

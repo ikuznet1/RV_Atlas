@@ -247,15 +247,14 @@ ReadXenium <- function (data.dir, outs = c("matrix", "microns"), type = "centroi
 #' c_hull_include = TRUE,
 #' BPPARAM = BiocParallel::MulticoreParam(5, tasks = 10L,force.GC = FALSE, progressbar = TRUE))
 #'
-Crop_custom <- 
-  function(x = NULL, 
+Crop_custom <- function(x = NULL, 
            object = NULL,
            col_id = c("cell"),
            xy_pts = NULL,
            c_hull_include = TRUE,
            crop_molecules = TRUE,
            BPPARAM = BiocParallel::SerialParam()) {
-    
+
     # check packages
     pkgs <- c("data.table", "sf", "BiocParallel", 
               "tidyverse", "magrittr")
@@ -368,8 +367,7 @@ Crop_custom <-
       
       # crop molecules ----
       fov <- object[[Images(object)[1]]]
-      if (crop_molecules && 
-          grep("molecules", names(fov)) != 0) {
+      if (crop_molecules && grep("molecules", names(fov)) != 0) {
         message(">>> Cropping molecule coordinates - might take time!")
         # using previously made convex hull
         sf_df_mols <- st_as_sf(fov[["molecule"]] %>% GetTissueCoordinates(), 
@@ -389,7 +387,7 @@ Crop_custom <-
                     join = st_disjoint,
                     left = FALSE,
                     y = st_sf(geometry = c_hull))
-          }
+        }
         genes <- mols$molecule %>% unique()
         mols <-
           bplapply(genes %>% seq(), function(i) {
@@ -419,6 +417,7 @@ Crop_custom <-
       return(object)
     }
   }
+
 
 
 ########################################################
@@ -1304,6 +1303,7 @@ dev.off()
 
 M1<-readRDS('./dependencies/Figure_3/collated_xenium_data_FINAL.rds')
 
+
 pdf(paste0('./output/Xenium/', 'Xenium_1697_celltype.pdf'), width=4, height=5)
 ImageDimPlot(M1, fov = "fov.2",split.by='names',cols = "polychrome", size =0.35,
 	axes = FALSE, dark.background = FALSE) + NoLegend()
@@ -1316,6 +1316,8 @@ dev.off()
 #### Figure 3C
 ##############################################
 ##############################################
+
+M1 <- UpdateSeuratObject(M1)
 
 
 M1_list <- SplitObject(M1, split.by = "patient")
@@ -1365,7 +1367,7 @@ DefaultAssay(M1) <- 'niche_broad'
 
 niches.k.range = 2:30
 
-res.clusters = data.frame(row.names = rownames(DAT.scale.data))
+res.clusters = data.frame(rownames = rownames(DAT.scale.data))
 
 for ( k in niches.k.range ){ message("k=", k)
     # new column name
@@ -1400,14 +1402,19 @@ for ( k in niches.k.range ){ message("k=", k)
 
 # Update object
 res.clusters.ordered <- res.clusters[colnames(M1),]
-for(i in colnames(res.clusters.ordered))
-	{
-		M1[[i]] = 0
-		M1[[i]][rownames(res.clusters.ordered),] = res.clusters.ordered[,i]
 
-	}
 
 write.table(res.clusters.ordered,'./output/Xenium/Niche_bulk_clusters.csv',sep=',')
+
+
+res.clusters.ordered <- read.table('./dependencies/shared/Niche_bulk_clusters.csv',sep=',',header=T,row.names = 1)
+
+for(i in colnames(res.clusters.ordered))
+  {
+    M1[[i]] = 0
+    M1[[i]][rownames(res.clusters.ordered),] = res.clusters.ordered[,i]
+
+  }
 
 niche.patient <- table(M1$kmeans_15,M1$patient)
 niche.patient <- t(t(niche.patient) / colSums(niche.patient))
@@ -1630,6 +1637,11 @@ dev.off()
 
 
 write.table(M1@meta.data,'./output/Xenium/metadata.csv',sep=',')
+
+
+niche.celltype <- table(M1$niche_manual,M1$names)
+write.table(niche.celltype,'./output/Xenium/niche_celltype.csv',sep=',')
+
 
 ##############################################
 ##############################################
