@@ -79,4 +79,13 @@ devtools::install_github('immunogenomics/presto')
 devtools::install_github('cole-trapnell-lab/monocle3')  
 
 
+### VISUALIZATION ###
+
+To quickly visualize gene-expression first make sure you have the dependencies folder downloaded.  
+
+Then open R and run:  
+
+shiny::runApp("shinyViz")
+
+
 
