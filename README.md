@@ -87,5 +87,5 @@ Then open R and run:
 
 shiny::runApp("shinyViz")
 
-![PLIN1 UMAP](shinyViz/UMAP_PLIN1.pdf)
+![PLIN1 UMAP](shinyViz/UMAP_PLIN1.png)
 
