@@ -1,0 +1,21 @@
+# Large data — mounted as volumes at runtime, not baked into the image
+dependencies/
+output/
+TOM/
+in_proc/
+
+# Git history
+.git/
+
+# macOS clutter
+.DS_Store
+**/.DS_Store
+
+# Generated outputs
+*.pdf
+*.png
+
+# R session artifacts
+.Rhistory
+.RData
+.Rproj.user/

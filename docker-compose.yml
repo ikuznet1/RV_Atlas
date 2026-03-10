@@ -1,0 +1,23 @@
+services:
+  rv_atlas:
+    build: .
+    image: rv_atlas:latest
+    container_name: rv_atlas
+    ports:
+      - "8787:8787"     # RStudio Server
+    environment:
+      - PASSWORD=rvAtlas          # change this
+      - ROOT=TRUE
+    volumes:
+      # Project data (RDS objects, metadata CSVs) — read-only inside container.
+      # Relative paths are resolved from this file's location (project root).
+      - ./dependencies:/home/rstudio/RV_Atlas/dependencies:ro
+
+      # Output: PDF figures written to ./output in scripts.
+      # Bind-mount ./output/ so files appear on the host after a run.
+      - ./output:/home/rstudio/output
+
+      # External data drives (mount your actual drives here).
+      # Comment out lines for drives that are not attached.
+
+    restart: unless-stopped
