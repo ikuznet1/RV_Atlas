@@ -1,10 +1,60 @@
+###############################################################################
+## Figure 8 (v52 draft) — Cross-species, cross-age, and cross-etiology comparisons
+##
+## Panels (from RV_snRNASeq_v52_draft.md figure legends):
+##   (A) Pediatric snRNA-seq: cell types across ped-NF, ped-HLHS, ped-RVF
+##   (B) Cell type proportions across pediatric disease states
+##   (C) WGCNA module concordance adult vs pediatric RV
+##   (D) Overall transcriptional concordance adult vs pediatric RVF
+##   (E) Mito module expression: induction in pediatric RVF vs suppression in adult
+##   (F) Global induction of mitochondrial pathways in pediatric RVF
+##   (G-I) LVF/DCM comparison: WGCNA module conservation RV vs LV
+##   (J) LV vs RV CM log2FC correlation for module genes
+##   (K) Shared enrichment for mito and contractile programs across ventricles
+##   (L-M) Cross-chamber pseudobulk DESeq2 PCA and volcano (DCM vs RVF)
+##
+## Source: copied from v51 Figure_8.R on 2026-04-10
+## Status: SKELETON — v52 porting pending
+##
+## Output: ./output/Figure_8/v52_figures/Figure_8.pdf
+###############################################################################
+
+source('./helper_scripts/_shared_helpers.R')
+
+## Per-figure output directory (introduced for consistent output paths)
+V52_FIG_DIR <- './output/Figure_8'
+dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+
+## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
+## that's outside an explicit pdf() ... dev.off() envelope.
+pdf(NULL)
+## Composite figure dimensions (inches) — used by theme_v52() scaling
+COMP_W <- 12
+COMP_H <- 5
+
+## Publication scales (geom widths, point sizes, text sizes) scaled to COMP_W.
+PS <- pub_scales(COMP_W)
+
+## ── No dedicated cartoon in Figure_8 (Panel A is a full UMAP of all cell types).
+## If a species/chamber cross-comparison schematic is later commissioned, save as
+## ./new_scripts/assets/Figure_8_panel_A_schematic.png and compose via:
+##   insert_asset('Figure_8_panel_A_schematic.png')
+## Example re-crop from the published Figure_8.pdf (top-left UMAP label), if ever needed:
+##   library(magick)
+##   img  <- image_read_pdf('~/Downloads/hdWGCNA_TOM/Manuscripts/Figure_8.pdf',
+##                          pages = 1, density = 300)
+##   cart <- image_crop(img, '400x400+40+20')   # 17 cm composite ≈ 2008 px wide
+##   image_write(cart, './new_scripts/assets/Figure_8_panel_A_schematic.png',
+##               format = 'png', density = 300)
+
 library(Seurat)
 library(hdWGCNA)
 library(ggeasy)
 library(dplyr)
 
 
-source('./dependencies/shared/spatial_functions.R')
+source('./helper_scripts/spatial_functions.R')
 
 
 
@@ -39,13 +89,13 @@ for(i in 1:13) {
 }
 
 
-pdf(paste0('./output/', 'snPeds_Vln.pdf'), width=4, height=20)
-p
+pdf(paste0('./output/Figure_8/', 'snPeds_Vln.pdf'), width=4, height=20)
+print(p)
 dev.off()
 
 
 
-M2 <- readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
+M2 <- readRDS('./dependencies/shared/RV_data.rds')
 
 
 M2 <- merge(M1,M2)
@@ -53,36 +103,50 @@ VariableFeatures(M2[["SCT"]]) <- rownames(M2[["SCT"]]@scale.data)
 M2$origin <- M2$orig.ident == "SeuratProject"
 M2$patient[is.na(M2$patient)] = M2$sample[is.na(M2$patient)]
 
-M2 <- RunPCA(M2)
+## Free M1 (peds, ~6 GB) — already merged into M2; downstream uses M2 only
+## until line ~135 where M1 is restored from the subset. Saves enough RAM
+## to keep RunHarmony + RunUMAP + DotPlot calls under the 48 GB system cap.
+rm(M1); invisible(gc(verbose = FALSE))
 
-M2 <- RunHarmony(M2,'patient')
+.cache_M2_integrated <- './output/Figure_8/fig8_M2_integrated_cache.rds'
+if (file.exists(.cache_M2_integrated)) {
+  message('Loading cached M2 integrated (PCA/Harmony/UMAP/clusters)...')
+  M2 <- readRDS(.cache_M2_integrated)
+} else {
+  M2 <- RunPCA(M2)
 
-M2 <- M2%>% 
-  RunUMAP(reduction = "harmony", dims = 1:50, verbose = F) %>% 
-  FindNeighbors(reduction = "harmony", dims = 1:50) %>% 
-  FindClusters(resolution=0.5) %>% 
-  identity()
+  M2 <- RunHarmony(M2,'patient')
+
+  M2 <- M2%>%
+    RunUMAP(reduction = "harmony", dims = 1:50, verbose = F) %>%
+    FindNeighbors(reduction = "harmony", dims = 1:50) %>%
+    FindClusters(resolution=0.5) %>%
+    identity()
+  saveRDS(M2, .cache_M2_integrated)
+}
 
 M2$CombinedNames <- M2$NewNames
 M2$CombinedNames[is.na(M2$NewNames)] <- M2$Names[is.na(M2$NewNames)]
-#saveRDS(M2,'./output/RV_Peds_merge.rds')
-#M2 <- readRDS('./output/RV_Peds_merge.rds')
+#saveRDS(M2,'./output/Figure_8/RV_Peds_merge.rds')
+#M2 <- readRDS('./output/Figure_8/RV_Peds_merge.rds')
 #M1 <- subset(M2,origin==TRUE)
-#saveRDS(M1,'./output/Peds_clean.rds')
+#saveRDS(M1,'./output/Figure_8/Peds_clean.rds')
 #M2 <- readRDS('./dependencies/Figure_8/RV_Peds_merge.rds')
 
 
-pdf(paste0('./output/', 'sn_RV_Peds_UMAP.pdf'), width=5, height=5)
-PlotEmbedding(M2,group.by='CombinedNames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
+pdf(paste0('./output/Figure_8/', 'sn_RV_Peds_UMAP.pdf'), width=5, height=5)
+p_8A <- PlotEmbedding(M2,group.by='CombinedNames',point_size=PS$umap_pt,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
+print(p_8A)
+dev.off()
+save_figure(p_8A, 'Figure_8_panel_A.pdf', width = 5, height = 5)
+
+pdf(paste0('./output/Figure_8/', 'sn_RV_Peds_UMAP_origin.pdf'), width=5, height=5)
+print(PlotEmbedding(M2,group.by='origin',point_size=PS$umap_pt,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5))
 dev.off()
 
-pdf(paste0('./output/', 'sn_RV_Peds_UMAP_origin.pdf'), width=5, height=5)
-PlotEmbedding(M2,group.by='origin',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
-dev.off()
 
-
-pdf(paste0('./output/', 'sn_Peds_UMAP_reprojected.pdf'), width=5, height=5)
-PlotEmbedding(M1,group.by='NewNames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
+pdf(paste0('./output/Figure_8/', 'sn_Peds_UMAP_reprojected.pdf'), width=5, height=5)
+print(PlotEmbedding(M1,group.by='NewNames',point_size=PS$umap_pt,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5))
 dev.off()
 
 M2$condition[M2$condition == "NF"] = "pRV" 
@@ -116,10 +180,15 @@ RVF_percent_cell$sum <- (rev(cumsum(rev(RVF_percent_cell$Freq))) - RVF_percent_c
 RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
 
 percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
-pdf('./output/RV_Peds_prev_stacked.pdf',width=6,height=2.5)
-ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  
-geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + coord_flip()+
-xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + scale_y_continuous(expand=c(0,0)) + geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y")
+pdf('./output/Figure_8/RV_Peds_prev_stacked.pdf',width=6,height=2.5)
+print(
+ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +
+geom_bar(position="stack", stat="identity",width=0.6, linewidth = PS$geom_lw) + theme_v52(COMP_W) + coord_flip()+
+scale_fill_lineage(name = "Cell type") +
+xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + scale_y_continuous(expand=c(0,0)) +
+geom_label_repel(aes(type,sum,label=scales::percent(round(Freq,2))),fill=NA,nudge_x=0.5,direction="y",
+                 size = PS$text_mm, family = FONT_FAMILY)
+)
 dev.off()
 
 cells <- table(M2$CombinedNames,M2$patient)
@@ -132,22 +201,17 @@ cells$group<-M2$group[match(cells$Var2,M2$patient)]
 cells$group<-as.factor(cells$group)
 
 library(ggpubr)
-pdf('./output/Peds_RV_clust_freq.pdf',width=8,height=5)
-p <- ggboxplot(cells[length(cells$group):1,],x="group",y="Freq",fill="group",group="group")+
-  theme_classic() + 
-  theme(axis.text.x=element_text(size=16),
-  axis.text.y=element_text(size=16),
-  axis.title.x=element_text(size=16),
-  axis.title.y=element_text(size=16),
-  legend.title=element_text(size=16),
-  legend.text=element_text(size=16),
-  text=element_text(color='black'),
-  axis.text=element_text(color='black')) + 
-  labs(color='Group',x="Disease",y='Frequency') + 
-  facet_wrap(~Var1,ncol=7) + 
-  stat_compare_means(aes(group=group),method="anova")
-p
+pdf('./output/Figure_8/Peds_RV_clust_freq.pdf',width=8,height=5)
+p_8B <- ggboxplot(cells[length(cells$group):1,],x="group",y="Freq",fill="group",group="group", size = PS$geom_lw)+
+  theme_v52(COMP_W) +
+  scale_fill_disease() +
+  labs(color='Group',x="Disease",y='Frequency') +
+  facet_wrap(~Var1,ncol=7) +
+  scale_y_touch() +
+  stat_compare_means(aes(group=group),method="anova", size = PS$text_mm, symnum.args = pub_signif_args)
+print(p_8B)
 dev.off()
+save_figure(p_8B, 'Figure_8_panel_B.pdf', width = 8, height = 5)
 
 cells <- table(M2$NewNames,M2$patient)
 cells <- cells[,12:25]
@@ -160,21 +224,15 @@ cells$group<-M2$group[match(cells$Var2,M2$patient)]
 cells$group<-as.factor(cells$group)
 
 library(ggpubr)
-pdf('./output/Peds_clust_freq.pdf',width=8,height=5)
-p <- ggboxplot(cells[length(cells$group):1,],x="group",y="Freq",fill="group",group="group")+
-  theme_classic() + 
-  theme(axis.text.x=element_text(size=16),
-  axis.text.y=element_text(size=16),
-  axis.title.x=element_text(size=16),
-  axis.title.y=element_text(size=16),
-  legend.title=element_text(size=16),
-  legend.text=element_text(size=16),
-  text=element_text(color='black'),
-  axis.text=element_text(color='black')) + 
-  labs(color='Group',x="Disease",y='Frequency') + 
-  facet_wrap(~Var1,ncol=7) + 
-  stat_compare_means(aes(group=group),method="anova")
-p
+pdf('./output/Figure_8/Peds_clust_freq.pdf',width=8,height=5)
+p <- ggboxplot(cells[length(cells$group):1,],x="group",y="Freq",fill="group",group="group", size = PS$geom_lw)+
+  theme_v52(COMP_W) +
+  scale_fill_disease() +
+  labs(color='Group',x="Disease",y='Frequency') +
+  facet_wrap(~Var1,ncol=7) +
+  scale_y_touch() +
+  stat_compare_means(aes(group=group),method="anova", size = PS$text_mm, symnum.args = pub_signif_args)
+print(p)
 dev.off()
 
 #######################################
@@ -208,20 +266,34 @@ M2 <- SetupForWGCNA(
 )
 
 
-M2 <- ProjectModules(
-  M2,
-  modules = consensus_modules,
-  group.by.vars = "patient",
-  seurat_ref = M2,
-  wgcna_name = "Cardiomyocyte",
-  wgcna_name_proj = 'bulk2sn'
-)
+.cache_M2_projected <- './output/Figure_8/fig8_M2_projected_cache.rds'
+if (file.exists(.cache_M2_projected)) {
+  message('Loading cached M2 ProjectModules result...')
+  M2 <- readRDS(.cache_M2_projected)
+} else {
+  M2 <- ProjectModules(
+    M2,
+    modules = consensus_modules,
+    group.by.vars = "patient",
+    seurat_ref = M2,
+    wgcna_name = "Cardiomyocyte",
+    wgcna_name_proj = 'bulk2sn'
+  )
+  saveRDS(M2, .cache_M2_projected)
+}
 
 
 
 M2 <- SetActiveWGCNA(M2, 'bulk2sn')
 mapping <- labels2colors(1:100)
-MEs <- GetMEs(M2, harmonized=TRUE)
+.cache_MEs_bulk2sn <- './output/Figure_8/fig8_MEs_bulk2sn_cache.rds'
+if (file.exists(.cache_MEs_bulk2sn)) {
+  message('Loading cached GetMEs (bulk2sn harmonized)...')
+  MEs <- readRDS(.cache_MEs_bulk2sn)
+} else {
+  MEs <- GetMEs(M2, harmonized=TRUE)
+  saveRDS(MEs, .cache_MEs_bulk2sn)
+}
 mods <- colnames(MEs); mods <- mods[mods != 'grey']
 mods_num <- paste0('M',match(mods,mapping))
 prv_vs_rv_signif <- c('M3','M4','M5','M10','M11','M12','M14')
@@ -233,7 +305,7 @@ M2@meta.data <- cbind(M2@meta.data, MEs)
 M2 <- SetIdent(M2, value = "CombinedNames")
 
 
-#consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+#consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 #consensus_modules <- consensus_modules[,1:3]
 #consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
 # remove duplicate gene names
@@ -244,8 +316,8 @@ library(dplyr)
 score_calc <- consensus_modules %>% group_by(module) %>% group_split()
 module_colors <- unique(unlist(lapply(score_calc,'[[','module')))
 module_colors <- paste0('M',match(module_colors,mapping))
-#saveRDS(M2, './output/scWGCNA_RV_Peds_bulk2sn_projection.rds')
-#M2<- readRDS('./output/scWGCNA_RV_Peds_bulk2sn_projection.rds')
+#saveRDS(M2, './output/Figure_8/scWGCNA_RV_Peds_bulk2sn_projection.rds')
+#M2<- readRDS('./output/Figure_8/scWGCNA_RV_Peds_bulk2sn_projection.rds')
 
 DefaultAssay(M2) <- 'SCT'
 
@@ -253,25 +325,33 @@ DefaultAssay(M2) <- 'SCT'
 
 #rm(seurat_ref)
 #gc()
-#seurat_ref<-readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
+#seurat_ref<-readRDS('./dependencies/shared/RV_data.rds')
 #seurat_ref <- SetIdent(seurat_ref, value = "Names")
 #seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs)
 
 
 
-M2 <- AddModuleScore(M2,lapply(score_calc,'[[','gene_name'),name="module_score")
-
-
-cols_current <- colnames(M2@meta.data)
-cols_current[startsWith(colnames(M2@meta.data),'module_score')] <- paste0('module_',module_colors)
-colnames(M2@meta.data) <- cols_current
+.cache_M2_modulescore <- './output/Figure_8/fig8_M2_modulescore_cache.rds'
+if (file.exists(.cache_M2_modulescore)) {
+  message('Loading cached AddModuleScore columns (M2)...')
+  .ms_cols <- readRDS(.cache_M2_modulescore)
+  M2@meta.data[, colnames(.ms_cols)] <- .ms_cols
+} else {
+  M2 <- AddModuleScore(M2,lapply(score_calc,'[[','gene_name'),name="module_score")
+  cols_current <- colnames(M2@meta.data)
+  cols_current[startsWith(colnames(M2@meta.data),'module_score')] <- paste0('module_',module_colors)
+  colnames(M2@meta.data) <- cols_current
+  .ms_col_names <- paste0('module_', module_colors)
+  .ms_cols <- M2@meta.data[, .ms_col_names, drop = FALSE]
+  saveRDS(.ms_cols, .cache_M2_modulescore)
+}
 
 M2$origin[M2$origin] = 'Peds'
 M2$origin[M2$origin == FALSE] = 'RV'
 
 M2$CombinedNamesSplit <- paste0(M2$CombinedNames,'_',M2$origin)
 
-pdf(paste0('./output/', 'RV_Peds_Dot.pdf'), width=7, height=5)
+pdf(paste0('./output/Figure_8/', 'RV_Peds_Dot.pdf'), width=7, height=5)
 p <- DotPlot(M2,paste0('module_',all_signif),group.by='CombinedNamesSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -280,13 +360,13 @@ p <- DotPlot(M2,paste0('module_',all_signif),group.by='CombinedNamesSplit',dot.m
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p)
 dev.off()
 
 
-pdf(paste0('./output/', 'RV_Peds_Dot_ordered.pdf'), width=7, height=5)
+pdf(paste0('./output/Figure_8/', 'RV_Peds_Dot_ordered.pdf'), width=7, height=5)
 
-p <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),group.by='CombinedNamesSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
+p_8C_top <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),group.by='CombinedNamesSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
   theme(
@@ -294,15 +374,15 @@ p <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M2
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p_8C_top)
 dev.off()
 
 M2$groupSplit <- paste0(M2$group,'_',M2$origin)
 
 
-pdf(paste0('./output/', 'RV_Peds_Dot_disease_ordered.pdf'), width=7, height=4)
+pdf(paste0('./output/Figure_8/', 'RV_Peds_Dot_disease_ordered.pdf'), width=7, height=4)
 
-p <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),group.by='groupSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
+p_8C_bot <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),group.by='groupSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
   theme(
@@ -310,15 +390,17 @@ p <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M2
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p_8C_bot)
 dev.off()
+p_8C <- p_8C_top / p_8C_bot
+save_figure(p_8C, 'Figure_8_panel_C.pdf', width = 7, height = 9)
 
 
 
 M2$group_split <- paste0(M2$group,'_',M2$origin)
 M2$group_split <- factor(M2$group_split,levels=c('NF_RV','pRV_RV','RVF_RV','NF_Peds','pRV_Peds','RVF_Peds'))
 
-pdf(paste0('./output/', 'RV_Peds_Dot_CM_Peds.pdf'), width=7, height=3)
+pdf(paste0('./output/Figure_8/', 'RV_Peds_Dot_CM_Peds.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='Peds'),paste0('module_',c('M2','M12','M28','M10','M25','M26')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -327,10 +409,10 @@ p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='Peds'),paste0('module_',c(
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p)
 dev.off()
 
-pdf(paste0('./output/', 'RV_Peds_Dot_CM_RV.pdf'), width=7, height=3)
+pdf(paste0('./output/Figure_8/', 'RV_Peds_Dot_CM_RV.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='RV'),paste0('module_',c('M2','M12','M28','M10','M25','M26')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -339,10 +421,10 @@ p <- DotPlot(subset(M2,CombinedNames=='CM' & origin=='RV'),paste0('module_',c('M
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p)
 dev.off()
 
-pdf(paste0('./output/', 'RV_Peds_Dot_Myeloid_Peds.pdf'), width=7, height=3)
+pdf(paste0('./output/Figure_8/', 'RV_Peds_Dot_Myeloid_Peds.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='Myeloid' & origin=='Peds'),paste0('module_',c('M1','M3','M4','M8')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -351,10 +433,10 @@ p <- DotPlot(subset(M2,CombinedNames=='Myeloid' & origin=='Peds'),paste0('module
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p)
 dev.off()
 
-pdf(paste0('./output/', 'RV_Peds_Dot_Myeloid_RV.pdf'), width=7, height=3)
+pdf(paste0('./output/Figure_8/', 'RV_Peds_Dot_Myeloid_RV.pdf'), width=7, height=3)
 p <- DotPlot(subset(M2,CombinedNames=='Myeloid' & origin=='RV'),paste0('module_',c('M1','M3','M4','M8')),group.by='group_split',dot.min=0,col.min=-2,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -363,7 +445,7 @@ p <- DotPlot(subset(M2,CombinedNames=='Myeloid' & origin=='RV'),paste0('module_'
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p)
 dev.off()
 
 
@@ -374,8 +456,23 @@ dev.off()
 M2 <- SetIdent(M2, value = "groupSplit")
 slot(M2$SCT@SCTModel.list[[1]], 'median_umi') = median(M2$SCT@SCTModel.list[[1]]@cell.attributes$umi)
 
-gene_set_RV <- FindMarkers(M2, ident.1 = "RVF_RV", ident.2 = "NF_RV",recorrect_umi=F)
-gene_set_Peds <- FindMarkers(M2, ident.1 = "RVF_Peds", ident.2 = "NF_Peds",recorrect_umi=F)
+.cache_gene_set_RV <- './output/Figure_8/fig8_gene_set_RV_cache.rds'
+if (file.exists(.cache_gene_set_RV)) {
+  message('Loading cached FindMarkers gene_set_RV...')
+  gene_set_RV <- readRDS(.cache_gene_set_RV)
+} else {
+  gene_set_RV <- FindMarkers(M2, ident.1 = "RVF_RV", ident.2 = "NF_RV",recorrect_umi=F)
+  saveRDS(gene_set_RV, .cache_gene_set_RV)
+}
+
+.cache_gene_set_Peds <- './output/Figure_8/fig8_gene_set_Peds_cache.rds'
+if (file.exists(.cache_gene_set_Peds)) {
+  message('Loading cached FindMarkers gene_set_Peds...')
+  gene_set_Peds <- readRDS(.cache_gene_set_Peds)
+} else {
+  gene_set_Peds <- FindMarkers(M2, ident.1 = "RVF_Peds", ident.2 = "NF_Peds",recorrect_umi=F)
+  saveRDS(gene_set_Peds, .cache_gene_set_Peds)
+}
 
 
 
@@ -385,10 +482,12 @@ dataset <- data.frame(Peds=gene_set_Peds[shared,]$avg_log2FC,RV=gene_set_RV[shar
 rownames(dataset) <- shared
 #Cor 0.5288722
 
-pdf(paste0('./output/', 'Peds_vs_RV.pdf'), width=8, height=8)
-ggplot(dataset, aes(x = RV, y=Peds)) + geom_point() + 
-  geom_text_repel(label=rownames(dataset),max.overlaps = 50) + theme_classic()
+pdf(paste0('./output/Figure_8/', 'Peds_vs_RV.pdf'), width=8, height=8)
+p_8D <- ggplot(dataset, aes(x = RV, y=Peds)) + geom_point(size = PS$scatter_pt) +
+  geom_text_repel(label=rownames(dataset),max.overlaps = 50, size = PS$text_mm, family = FONT_FAMILY, fontface = "italic") + theme_v52(COMP_W)
+print(p_8D)
 dev.off()
+save_figure(p_8D, 'Figure_8_panel_D.pdf', width = 8, height = 8)
 
 shared <- intersect(rownames(subset(gene_set_RV,pct.1>0.05 & pct.2>0.05)),
   rownames(subset(gene_set_Peds,pct.1>0.05 & pct.2>0.05)))
@@ -397,9 +496,11 @@ dataset <- data.frame(Peds=gene_set_Peds[shared,]$avg_log2FC,RV=gene_set_RV[shar
 rownames(dataset) <- shared
 
 
-pdf(paste0('./output/', 'Peds_vs_RV_5percent.pdf'), width=8, height=8)
-ggplot(dataset, aes(x = RV, y=Peds)) + geom_point() + 
-  geom_text_repel(label=rownames(dataset),max.overlaps = 20) + theme_classic()
+pdf(paste0('./output/Figure_8/', 'Peds_vs_RV_5percent.pdf'), width=8, height=8)
+print(
+ggplot(dataset, aes(x = RV, y=Peds)) + geom_point(size = PS$scatter_pt) +
+  geom_text_repel(label=rownames(dataset),max.overlaps = 20, size = PS$text_mm, family = FONT_FAMILY, fontface = "italic") + theme_v52(COMP_W)
+)
 dev.off()
 #Cor 0.4706919
 
@@ -407,7 +508,7 @@ dev.off()
 #############  FIGURE 8E  #############
 #######################################
 
-M1 <- readRDS('./dependencies/Figure_8/cardiomyocyte annotated.rds')
+M1 <- readRDS('./dependencies/Figure_8/cardiomyocyte_annotated.rds')
 M1$Names <- M1$cell.type
 M1$NewNames <- M1$Names
 M1$Subnames <- M1$sub.type
@@ -426,19 +527,29 @@ score_calc <- consensus_modules %>% group_by(module) %>% group_split()
 module_colors <- unique(unlist(lapply(score_calc,'[[','module')))
 mapping <- labels2colors(1:100)
 module_colors <- paste0('M',match(module_colors,mapping))
-M1 <- AddModuleScore(M1,lapply(score_calc,'[[','gene_name'),name="module_score")
-cols_current <- colnames(M1@meta.data)
-cols_current[startsWith(colnames(M1@meta.data),'module_score')] <- paste0('module_',module_colors)
-colnames(M1@meta.data) <- cols_current
+.cache_M1_modulescore <- './output/Figure_8/fig8_M1_modulescore_cache.rds'
+if (file.exists(.cache_M1_modulescore)) {
+  message('Loading cached AddModuleScore columns (M1)...')
+  .ms1_cols <- readRDS(.cache_M1_modulescore)
+  M1@meta.data[, colnames(.ms1_cols)] <- .ms1_cols
+} else {
+  M1 <- AddModuleScore(M1,lapply(score_calc,'[[','gene_name'),name="module_score")
+  cols_current <- colnames(M1@meta.data)
+  cols_current[startsWith(colnames(M1@meta.data),'module_score')] <- paste0('module_',module_colors)
+  colnames(M1@meta.data) <- cols_current
+  .ms1_col_names <- paste0('module_', module_colors)
+  .ms1_cols <- M1@meta.data[, .ms1_col_names, drop = FALSE]
+  saveRDS(.ms1_cols, .cache_M1_modulescore)
+}
 
 Idents(M1) <- factor(x = Idents(M1), levels = sort(levels(M1)))
 
 
 #Dot Plot of enrichment cell type of CM enriched modules
 
-pdf(paste0('./output/', 'peds_mod_trend_subcluster_CM.pdf'), width=4.5, height=3)
+pdf(paste0('./output/Figure_8/', 'peds_mod_trend_subcluster_CM.pdf'), width=4.5, height=3)
 
-p <- DotPlot(M1,paste0('module_',
+p_8E_top <- DotPlot(M1,paste0('module_',
   c('M2','M12','M25','M26','M10','M28')),dot.min=0,col.min=0,col.max=2) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -447,7 +558,7 @@ p <- DotPlot(M1,paste0('module_',
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p_8E_top)
 dev.off()
 
 
@@ -455,9 +566,9 @@ M1 <- SetIdent(M1, value = "condition")
 Idents(M1) <- factor(x = Idents(M1), levels = c('Donor','NF','SystolicHF'))
 
 
-pdf(paste0('./output/', 'peds_mod_trend_condition_CM.pdf'), width=5, height=2.5)
+pdf(paste0('./output/Figure_8/', 'peds_mod_trend_condition_CM.pdf'), width=5, height=2.5)
 
-p <- DotPlot(M1,paste0('module_',
+p_8E_bot <- DotPlot(M1,paste0('module_',
   c('M2','M12','M25','M26','M10','M28')),dot.min=0,col.min=0,col.max=2) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
@@ -466,8 +577,10 @@ p <- DotPlot(M1,paste0('module_',
     axis.line.x = element_blank(),
     axis.line.y = element_blank()
 ) 
-p
+print(p_8E_bot)
 dev.off()
+p_8E <- p_8E_top / p_8E_bot
+save_figure(p_8E, 'Figure_8_panel_E.pdf', width = 5, height = 5.5)
 
 
 
@@ -483,68 +596,78 @@ dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_
 
 library(enrichR)
 #Run enrichment by cell type
-combined_set <- data.frame()
-combined_output <- data.frame()
-bulk_modules <- consensus_modules
-bulk_modules$module <- match(consensus_modules$module,mapping)
-mods_idx <- list(2,12,10,25,26,28)
-cell_types <- unique(M1$NewNames)
-comparison <- list(c("SystolicHF","Donor"),c("SystolicHF","NF"))
-for (i in mods_idx){
-  for (j in cell_types){
-    for (k in comparison){
-      key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
-      key_genes <- key_genes[key_genes %in% rownames(M1)]
+.cache_fig8f_combined_set    <- './output/Figure_8/fig8_fig8F_combined_set_cache.rds'
+.cache_fig8f_combined_output <- './output/Figure_8/fig8_fig8F_combined_output_cache.rds'
+if (file.exists(.cache_fig8f_combined_set) && file.exists(.cache_fig8f_combined_output)) {
+  message('Loading cached Figure 8F FindMarkers + enrichR loop results...')
+  combined_set    <- readRDS(.cache_fig8f_combined_set)
+  combined_output <- readRDS(.cache_fig8f_combined_output)
+} else {
+  combined_set <- data.frame()
+  combined_output <- data.frame()
+  bulk_modules <- consensus_modules
+  bulk_modules$module <- match(consensus_modules$module,mapping)
+  mods_idx <- list(2,12,10,25,26,28)
+  cell_types <- unique(M1$NewNames)
+  comparison <- list(c("SystolicHF","Donor"),c("SystolicHF","NF"))
+  for (i in mods_idx){
+    for (j in cell_types){
+      for (k in comparison){
+        key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
+        key_genes <- key_genes[key_genes %in% rownames(M1)]
 
-      gene_set <- FindMarkers(M1, ident.1 = paste0(k[1]), ident.2 = paste0(k[2]),features=key_genes)
-      
-      gene_set<-subset(gene_set,p_val_adj<0.05)
-      if (length(rownames(gene_set))==0){next}
-      gene_set$module <- paste0('M',i)
-      gene_set$color <- mapping[i]
-      gene_set$comparison <- paste0(k[1],'_',k[2])
-      gene_set$celltype <- j
+        gene_set <- FindMarkers(M1, ident.1 = paste0(k[1]), ident.2 = paste0(k[2]),features=key_genes)
 
-      if (length(combined_set) == 0){
-        combined_set <- gene_set
-      }
-      else {
-        combined_set <- rbind(combined_set,gene_set)
-      }
+        gene_set<-subset(gene_set,p_val_adj<0.05)
+        if (length(rownames(gene_set))==0){next}
+        gene_set$module <- paste0('M',i)
+        gene_set$color <- mapping[i]
+        gene_set$comparison <- paste0(k[1],'_',k[2])
+        gene_set$celltype <- j
 
-      gene_enrich <- subset(gene_set,avg_log2FC<0)
-      enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-      Sys.sleep(5)
-      for(db in names(enriched)){
-          cur_df <- enriched[[db]]
-          if (nrow(cur_df) > 1){
-            cur_df$db <- db
-            cur_df$module <- paste0('M',i)
-            cur_df$celltype <- j
-            cur_df$comparison <- paste0(k[1],'_',k[2])
-            cur_df$color <- mapping[i]
-            cur_df$direction <- 'down'
-            combined_output <- rbind(combined_output, cur_df)
-          }
-      }
+        if (length(combined_set) == 0){
+          combined_set <- gene_set
+        }
+        else {
+          combined_set <- rbind(combined_set,gene_set)
+        }
 
-      gene_enrich <- subset(gene_set,avg_log2FC>0)
-      enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-      Sys.sleep(5)
-      for(db in names(enriched)){
-          cur_df <- enriched[[db]]
-          if (nrow(cur_df) > 1){
-            cur_df$db <- db
-            cur_df$module <- paste0('M',i)
-            cur_df$celltype <- j
-            cur_df$comparison <- paste0(k[1],'_',k[2])
-            cur_df$color <- mapping[i]
-            cur_df$direction <- 'up'
-            combined_output <- rbind(combined_output, cur_df)
-          }
+        gene_enrich <- subset(gene_set,avg_log2FC<0)
+        enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
+        Sys.sleep(5)
+        for(db in names(enriched)){
+            cur_df <- enriched[[db]]
+            if (nrow(cur_df) > 1){
+              cur_df$db <- db
+              cur_df$module <- paste0('M',i)
+              cur_df$celltype <- j
+              cur_df$comparison <- paste0(k[1],'_',k[2])
+              cur_df$color <- mapping[i]
+              cur_df$direction <- 'down'
+              combined_output <- rbind(combined_output, cur_df)
+            }
+        }
+
+        gene_enrich <- subset(gene_set,avg_log2FC>0)
+        enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
+        Sys.sleep(5)
+        for(db in names(enriched)){
+            cur_df <- enriched[[db]]
+            if (nrow(cur_df) > 1){
+              cur_df$db <- db
+              cur_df$module <- paste0('M',i)
+              cur_df$celltype <- j
+              cur_df$comparison <- paste0(k[1],'_',k[2])
+              cur_df$color <- mapping[i]
+              cur_df$direction <- 'up'
+              combined_output <- rbind(combined_output, cur_df)
+            }
+        }
       }
     }
   }
+  saveRDS(combined_set,    .cache_fig8f_combined_set)
+  saveRDS(combined_output, .cache_fig8f_combined_output)
 }
 
 wrapText <- function(x, len) {
@@ -660,8 +783,8 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/', 'peds_CM_by_cluster_terms_cell_type_up_SystolicHF_vs_Donor.pdf'), width=6, height=4)
-p / colorbar 
+pdf(paste0('./output/Figure_8/', 'peds_CM_by_cluster_terms_cell_type_up_SystolicHF_vs_Donor.pdf'), width=6, height=4)
+print(p / colorbar)
 dev.off()
 
 
@@ -774,8 +897,8 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/', 'peds_CM_by_cluster_terms_cell_type_down_SystolicHF_vs_Donor.pdf'), width=6, height=4)
-p / colorbar 
+pdf(paste0('./output/Figure_8/', 'peds_CM_by_cluster_terms_cell_type_down_SystolicHF_vs_Donor.pdf'), width=6, height=4)
+print(p / colorbar)
 dev.off()
 
 
@@ -886,8 +1009,8 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/', 'peds_CM_by_cluster_terms_cell_type_both_SystolicHF_vs_Donor.pdf'), width=6, height=9)
-p / colorbar 
+pdf(paste0('./output/Figure_8/', 'peds_CM_by_cluster_terms_cell_type_both_SystolicHF_vs_Donor.pdf'), width=6, height=9)
+print(p / colorbar)
 dev.off()
 
 
@@ -898,21 +1021,28 @@ bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
-combined_set <- data.frame()
-mods_idx <- c(2,12,28,10,25,26)
-for (i in mods_idx){
-  key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
-  key_genes <- key_genes[key_genes %in% rownames(M1)]
-  gene_set <- FindMarkers(M1, ident.1 = "SystolicHF", ident.2 = "Donor",features=key_genes)
-  gene_set<-subset(gene_set,p_val_adj<0.05)
-  gene_set$module <- paste0('M',i)
-  gene_set$color <- mapping[i]
-  if (length(combined_set) == 0){
-    combined_set <- gene_set
+.cache_deep_SvD_markers <- './output/Figure_8/fig8_deep_SystolicHF_vs_Donor_markers_cache.rds'
+if (file.exists(.cache_deep_SvD_markers)) {
+  message('Loading cached FindMarkers SystolicHF vs Donor (deep dive)...')
+  combined_set <- readRDS(.cache_deep_SvD_markers)
+} else {
+  combined_set <- data.frame()
+  mods_idx <- c(2,12,28,10,25,26)
+  for (i in mods_idx){
+    key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
+    key_genes <- key_genes[key_genes %in% rownames(M1)]
+    gene_set <- FindMarkers(M1, ident.1 = "SystolicHF", ident.2 = "Donor",features=key_genes)
+    gene_set<-subset(gene_set,p_val_adj<0.05)
+    gene_set$module <- paste0('M',i)
+    gene_set$color <- mapping[i]
+    if (length(combined_set) == 0){
+      combined_set <- gene_set
+    }
+    else {
+      combined_set <- rbind(combined_set,gene_set)
+    }
   }
-  else {
-    combined_set <- rbind(combined_set,gene_set)
-  }
+  saveRDS(combined_set, .cache_deep_SvD_markers)
 }
 
 #cat(rownames(subset(combined_set,module=='M2' & avg_log2FC>0)),sep='\n')
@@ -946,9 +1076,16 @@ wrapText <- function(x, len) {
     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-enriched <- enrichr(M2_genes_up, dbs)
+.cache_enrichr_SvD_M2_up <- './output/Figure_8/fig8_enrichr_SystolicHF_vs_Donor_M2_up_cache.rds'
+if (file.exists(.cache_enrichr_SvD_M2_up)) {
+  message('Loading cached enrichr SystolicHF vs Donor M2 up...')
+  enriched <- readRDS(.cache_enrichr_SvD_M2_up)
+} else {
+  enriched <- enrichr(M2_genes_up, dbs)
+  saveRDS(enriched, .cache_enrichr_SvD_M2_up)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_up.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -960,12 +1097,19 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p1
+print(p1)
 dev.off()
 
-enriched <- enrichr(M2_genes_down, dbs)
+.cache_enrichr_SvD_M2_down <- './output/Figure_8/fig8_enrichr_SystolicHF_vs_Donor_M2_down_cache.rds'
+if (file.exists(.cache_enrichr_SvD_M2_down)) {
+  message('Loading cached enrichr SystolicHF vs Donor M2 down...')
+  enriched <- readRDS(.cache_enrichr_SvD_M2_down)
+} else {
+  enriched <- enrichr(M2_genes_down, dbs)
+  saveRDS(enriched, .cache_enrichr_SvD_M2_down)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_M2_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_down.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -977,18 +1121,25 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p2
+print(p2)
 dev.off()
 
-pdf('./output/CM_Peds_M2_enrichr_up_down.pdf',width=6,height=4)
-p1/p2
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_up_down.pdf',width=6,height=4)
+print(p1/p2)
 dev.off()
 
 
 
-enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
+.cache_enrichr_SvD_mito_up <- './output/Figure_8/fig8_enrichr_SystolicHF_vs_Donor_mito_up_cache.rds'
+if (file.exists(.cache_enrichr_SvD_mito_up)) {
+  message('Loading cached enrichr SystolicHF vs Donor mito up...')
+  enriched <- readRDS(.cache_enrichr_SvD_mito_up)
+} else {
+  enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
+  saveRDS(enriched, .cache_enrichr_SvD_mito_up)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_mito_enrichr_up.pdf',width=6,height=3)
+pdf('./output/Figure_8/CM_Peds_mito_enrichr_up.pdf',width=6,height=3)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1000,7 +1151,7 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p1
+print(p1)
 dev.off()
 
 
@@ -1009,25 +1160,32 @@ dev.off()
 ###PRV
 
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
-combined_set <- data.frame()
-mods_idx <- c(2,12,28,10,25,26)
-for (i in mods_idx){
-  key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
-  key_genes <- key_genes[key_genes %in% rownames(M1)]
-  gene_set <- FindMarkers(M1, ident.1 = "SystolicHF", ident.2 = "NF",features=key_genes)
-  gene_set<-subset(gene_set,p_val_adj<0.05)
-  gene_set$module <- paste0('M',i)
-  gene_set$color <- mapping[i]
-  if (length(combined_set) == 0){
-    combined_set <- gene_set
+.cache_deep_SvN_markers <- './output/Figure_8/fig8_deep_SystolicHF_vs_NF_markers_cache.rds'
+if (file.exists(.cache_deep_SvN_markers)) {
+  message('Loading cached FindMarkers SystolicHF vs NF (deep dive)...')
+  combined_set <- readRDS(.cache_deep_SvN_markers)
+} else {
+  combined_set <- data.frame()
+  mods_idx <- c(2,12,28,10,25,26)
+  for (i in mods_idx){
+    key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
+    key_genes <- key_genes[key_genes %in% rownames(M1)]
+    gene_set <- FindMarkers(M1, ident.1 = "SystolicHF", ident.2 = "NF",features=key_genes)
+    gene_set<-subset(gene_set,p_val_adj<0.05)
+    gene_set$module <- paste0('M',i)
+    gene_set$color <- mapping[i]
+    if (length(combined_set) == 0){
+      combined_set <- gene_set
+    }
+    else {
+      combined_set <- rbind(combined_set,gene_set)
+    }
   }
-  else {
-    combined_set <- rbind(combined_set,gene_set)
-  }
+  saveRDS(combined_set, .cache_deep_SvN_markers)
 }
 
 #cat(rownames(subset(combined_set,module=='M2' & avg_log2FC>0)),sep='\n')
@@ -1061,9 +1219,16 @@ wrapText <- function(x, len) {
     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-enriched <- enrichr(M2_genes_up, dbs)
+.cache_enrichr_SvN_M2_up <- './output/Figure_8/fig8_enrichr_SystolicHF_vs_NF_M2_up_cache.rds'
+if (file.exists(.cache_enrichr_SvN_M2_up)) {
+  message('Loading cached enrichr SystolicHF vs NF M2 up...')
+  enriched <- readRDS(.cache_enrichr_SvN_M2_up)
+} else {
+  enriched <- enrichr(M2_genes_up, dbs)
+  saveRDS(enriched, .cache_enrichr_SvN_M2_up)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_M2_enrichr_up_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_up_RVF_vs_pRV.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1075,12 +1240,19 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p1
+print(p1)
 dev.off()
 
-enriched <- enrichr(M2_genes_down, dbs)
+.cache_enrichr_SvN_M2_down <- './output/Figure_8/fig8_enrichr_SystolicHF_vs_NF_M2_down_cache.rds'
+if (file.exists(.cache_enrichr_SvN_M2_down)) {
+  message('Loading cached enrichr SystolicHF vs NF M2 down...')
+  enriched <- readRDS(.cache_enrichr_SvN_M2_down)
+} else {
+  enriched <- enrichr(M2_genes_down, dbs)
+  saveRDS(enriched, .cache_enrichr_SvN_M2_down)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_M2_enrichr_down_RVF_vs_pRV.pdf.pdf',width=5,height=2.5)
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_down_RVF_vs_pRV.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1092,18 +1264,26 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p2
+print(p2)
 dev.off()
 
-pdf('./output/CM_Peds_M2_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
-p1/p2
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_up_down_RVF_vs_pRV.pdf',width=6,height=4)
+p_8F_top <- p1/p2
+print(p_8F_top)
 dev.off()
 
 
 
-enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
+.cache_enrichr_SvN_mito_up <- './output/Figure_8/fig8_enrichr_SystolicHF_vs_NF_mito_up_cache.rds'
+if (file.exists(.cache_enrichr_SvN_mito_up)) {
+  message('Loading cached enrichr SystolicHF vs NF mito up...')
+  enriched <- readRDS(.cache_enrichr_SvN_mito_up)
+} else {
+  enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
+  saveRDS(enriched, .cache_enrichr_SvN_mito_up)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_mito_enrichr_up_RVF_vs_pRV.pdf.pdf',width=6,height=3)
+pdf('./output/Figure_8/CM_Peds_mito_enrichr_up_RVF_vs_pRV.pdf',width=6,height=3)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1115,7 +1295,7 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p1
+print(p1)
 dev.off()
 
 
@@ -1123,25 +1303,32 @@ dev.off()
 ###SV vs NF
 
 
-bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 bulk_modules$module <- match(bulk_modules$module,mapping)
 
 
-combined_set <- data.frame()
-mods_idx <- c(2,12,28,10,25,26)
-for (i in mods_idx){
-  key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
-  key_genes <- key_genes[key_genes %in% rownames(M1)]
-  gene_set <- FindMarkers(M1, ident.1 = "NF", ident.2 = "Donor",features=key_genes)
-  gene_set<-subset(gene_set,p_val_adj<0.05)
-  gene_set$module <- paste0('M',i)
-  gene_set$color <- mapping[i]
-  if (length(combined_set) == 0){
-    combined_set <- gene_set
+.cache_deep_NvD_markers <- './output/Figure_8/fig8_deep_NF_vs_Donor_markers_cache.rds'
+if (file.exists(.cache_deep_NvD_markers)) {
+  message('Loading cached FindMarkers NF vs Donor (deep dive)...')
+  combined_set <- readRDS(.cache_deep_NvD_markers)
+} else {
+  combined_set <- data.frame()
+  mods_idx <- c(2,12,28,10,25,26)
+  for (i in mods_idx){
+    key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
+    key_genes <- key_genes[key_genes %in% rownames(M1)]
+    gene_set <- FindMarkers(M1, ident.1 = "NF", ident.2 = "Donor",features=key_genes)
+    gene_set<-subset(gene_set,p_val_adj<0.05)
+    gene_set$module <- paste0('M',i)
+    gene_set$color <- mapping[i]
+    if (length(combined_set) == 0){
+      combined_set <- gene_set
+    }
+    else {
+      combined_set <- rbind(combined_set,gene_set)
+    }
   }
-  else {
-    combined_set <- rbind(combined_set,gene_set)
-  }
+  saveRDS(combined_set, .cache_deep_NvD_markers)
 }
 
 #cat(rownames(subset(combined_set,module=='M2' & avg_log2FC>0)),sep='\n')
@@ -1175,9 +1362,16 @@ wrapText <- function(x, len) {
     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-enriched <- enrichr(M2_genes_up, dbs)
+.cache_enrichr_NvD_M2_up <- './output/Figure_8/fig8_enrichr_NF_vs_Donor_M2_up_cache.rds'
+if (file.exists(.cache_enrichr_NvD_M2_up)) {
+  message('Loading cached enrichr NF vs Donor M2 up...')
+  enriched <- readRDS(.cache_enrichr_NvD_M2_up)
+} else {
+  enriched <- enrichr(M2_genes_up, dbs)
+  saveRDS(enriched, .cache_enrichr_NvD_M2_up)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_M2_enrichr_up_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_up_pRV_vs_NF.pdf',width=5,height=2.5)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1189,12 +1383,19 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p1
+print(p1)
 dev.off()
 
-enriched <- enrichr(M2_genes_down, dbs)
+.cache_enrichr_NvD_M2_down <- './output/Figure_8/fig8_enrichr_NF_vs_Donor_M2_down_cache.rds'
+if (file.exists(.cache_enrichr_NvD_M2_down)) {
+  message('Loading cached enrichr NF vs Donor M2 down...')
+  enriched <- readRDS(.cache_enrichr_NvD_M2_down)
+} else {
+  enriched <- enrichr(M2_genes_down, dbs)
+  saveRDS(enriched, .cache_enrichr_NvD_M2_down)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_M2_enrichr_down_pRV_vs_NF.pdf.pdf',width=5,height=2.5)
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_down_pRV_vs_NF.pdf',width=5,height=2.5)
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1206,18 +1407,28 @@ p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p2
+print(p2)
 dev.off()
 
-pdf('./output/CM_Peds_M2_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
-p1/p2
+pdf('./output/Figure_8/CM_Peds_M2_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
+p_8F_bot <- p1/p2
+print(p_8F_bot)
 dev.off()
+p_8F <- p_8F_top / p_8F_bot
+save_figure(p_8F, 'Figure_8_panel_F.pdf', width = 6, height = 8)
 
 
 
-enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
+.cache_enrichr_NvD_mito_up <- './output/Figure_8/fig8_enrichr_NF_vs_Donor_mito_up_cache.rds'
+if (file.exists(.cache_enrichr_NvD_mito_up)) {
+  message('Loading cached enrichr NF vs Donor mito up...')
+  enriched <- readRDS(.cache_enrichr_NvD_mito_up)
+} else {
+  enriched <- enrichr(c(M10_genes_up,M25_genes_up,M26_genes_up,M28_genes_up), dbs)
+  saveRDS(enriched, .cache_enrichr_NvD_mito_up)
+}
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Peds_mito_enrichr_up_pRV_vs_NF.pdf.pdf',width=6,height=3)
+pdf('./output/Figure_8/CM_Peds_mito_enrichr_up_pRV_vs_NF.pdf',width=6,height=3)
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
@@ -1229,7 +1440,7 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
          `[`, 1),35))) + 
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
-p1
+print(p1)
 dev.off()
 
 
@@ -1280,7 +1491,7 @@ dev.off()
 # )
 
 
-# pdf(paste0('./output/', 'sn_RV_Peds_CM_Harmonized_UMAP.pdf'), width=5, height=5)
+# pdf(paste0('./output/Figure_8/', 'sn_RV_Peds_CM_Harmonized_UMAP.pdf'), width=5, height=5)
 # PlotEmbedding(M3,group.by='origin',reduction="umap.cca",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -1314,7 +1525,7 @@ dev.off()
 # )
 
 
-# pdf(paste0('./output/', 'sn_RV_Peds_Myeloid_Harmonized_UMAP.pdf'), width=5, height=5)
+# pdf(paste0('./output/Figure_8/', 'sn_RV_Peds_Myeloid_Harmonized_UMAP.pdf'), width=5, height=5)
 # PlotEmbedding(M3,group.by='origin',reduction="umap.cca",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -1353,7 +1564,7 @@ dev.off()
 # cm_compare <- FindMarkers(M3,ident.1='RV',ident.2='Peds')
 
 
-# write.csv(cm_compare,'./output/cm_RV_vs_Peds_DEG.csv')
+# write.csv(cm_compare,'./output/Figure_8/cm_RV_vs_Peds_DEG.csv')
 
 
 
@@ -1370,7 +1581,7 @@ dev.off()
 
 
 
-# RefMerge<-readRDS('./output/Kory_with_RV_modules_projected.rds')
+# RefMerge<-readRDS('./output/Figure_8/Kory_with_RV_modules_projected.rds')
 
 
 
@@ -1434,12 +1645,12 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', 'RV2LV_LV_CM_modules_dot.pdf'), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', 'RV2LV_LV_CM_modules_dot.pdf'), width=7.5, height=5)
 # p1
 # dev.off()
 
 
-# seurat_ref <- readRDS('./output/scWGCNA_all_celltypes.rds')
+# seurat_ref <- readRDS('./output/Figure_8/scWGCNA_all_celltypes.rds')
 # seurat_ref<-SetActiveWGCNA(seurat_ref, "CM")
 # seurat_ref <- ModuleConnectivity(seurat_ref,group.by = 'Names', group_name = 'CM')
 
@@ -1469,11 +1680,11 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', "LV_CM_modules_dot.pdf"), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', "LV_CM_modules_dot.pdf"), width=7.5, height=5)
 # p2
 # dev.off()
 
-# pdf(paste0('./output/', "LV_CM_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+# pdf(paste0('./output/Figure_8/', "LV_CM_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 # wrap_plots(list(p1,p2),ncol=1)
 # dev.off()
 
@@ -1537,7 +1748,7 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', 'RV2LV_LV_EC_modules_dot.pdf'), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', 'RV2LV_LV_EC_modules_dot.pdf'), width=7.5, height=5)
 # p1
 # dev.off()
 
@@ -1571,11 +1782,11 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', "LV_EC_modules_dot.pdf"), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', "LV_EC_modules_dot.pdf"), width=7.5, height=5)
 # p2
 # dev.off()
 
-# pdf(paste0('./output/', "LV_EC_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+# pdf(paste0('./output/Figure_8/', "LV_EC_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 # wrap_plots(list(p1,p2),ncol=1)
 # dev.off()
 
@@ -1641,7 +1852,7 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', 'RV2LV_LV_FB_modules_dot.pdf'), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', 'RV2LV_LV_FB_modules_dot.pdf'), width=7.5, height=5)
 # p1
 # dev.off()
 
@@ -1675,11 +1886,11 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', "LV_FB_modules_dot.pdf"), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', "LV_FB_modules_dot.pdf"), width=7.5, height=5)
 # p2
 # dev.off()
 
-# pdf(paste0('./output/', "LV_FB_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+# pdf(paste0('./output/Figure_8/', "LV_FB_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 # wrap_plots(list(p1,p2),ncol=1)
 # dev.off()
 
@@ -1745,7 +1956,7 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', 'RV2LV_LV_Myeloid_modules_dot.pdf'), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', 'RV2LV_LV_Myeloid_modules_dot.pdf'), width=7.5, height=5)
 # p1
 # dev.off()
 
@@ -1779,11 +1990,11 @@ dev.off()
 #   xlab('') + ylab('')
 
 
-# pdf(paste0('./output/', "LV_Myeloid_modules_dot.pdf"), width=7.5, height=5)
+# pdf(paste0('./output/Figure_8/', "LV_Myeloid_modules_dot.pdf"), width=7.5, height=5)
 # p2
 # dev.off()
 
-# pdf(paste0('./output/', "LV_Myeloid_LV2RM_modules_dot.pdf"), width=7.5, height=8)
+# pdf(paste0('./output/Figure_8/', "LV_Myeloid_LV2RM_modules_dot.pdf"), width=7.5, height=8)
 # wrap_plots(list(p1,p2),ncol=1)
 # dev.off()
 
@@ -1794,7 +2005,7 @@ dev.off()
 # #######################################
 
 
-# RefMerge<-readRDS('./output/Kory_with_RV_modules_projected.rds')
+# RefMerge<-readRDS('./output/Figure_8/Kory_with_RV_modules_projected.rds')
 
 # RefMerge<-SetActiveWGCNA(RefMerge, "CM_RV2LV")
 
@@ -1805,13 +2016,196 @@ dev.off()
 #   statistics = "summary"
 # )
 
-# pdf(paste0('./output/', 'RV2LV_CM_pres.pdf'), width=5, height=5)
+# pdf(paste0('./output/Figure_8/', 'RV2LV_CM_pres.pdf'), width=5, height=5)
 # wrap_plots(plot_list, ncol=2)
 # dev.off()
 
-#######################################
-#############  FIGURE 7C  #############
-#######################################
+###############################################################################
+## FIGURE 8 PANELS G-J — LV (Koenig 2022) re-analysis
+###############################################################################
+
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(ggplot2)
+  library(dplyr)
+  library(patchwork)
+  library(ggrepel)
+  library(ggrastr)
+  library(gtools)
+})
+
+lv_obj_path <- './dependencies/shared/Koenig_LV_with_RV_modules.rds'
+
+lv_modules_to_show <- paste0('module_', c('M2','M10','M12','M25','M26','M28'))
+lv_cm_mito_modules <- c('M10','M25','M26','M28')
+
+# Panel G
+if (file.exists(lv_obj_path)) {
+  message('Loading Koenig LV object with projected RV modules...')
+  RefLV <- readRDS(lv_obj_path)
+
+  if (!'group' %in% colnames(RefLV@meta.data) && 'condition' %in% colnames(RefLV@meta.data)) {
+    RefLV$group <- RefLV$condition
+  }
+
+  mod_score_cols <- grep('^module_M', colnames(RefLV@meta.data), value = TRUE)
+  if (length(mod_score_cols) == 0) {
+    mod_score_cols <- lv_modules_to_show
+  }
+  mod_score_cols <- intersect(mod_score_cols, colnames(RefLV@meta.data))
+  mod_score_cols <- gtools::mixedsort(mod_score_cols)
+
+  p_8G_top <- DotPlot(RefLV, features = mod_score_cols, group.by = 'Names',
+                       dot.min = 0, col.min = 0, col.max = 2) +
+    RotatedAxis() + ylab('') + xlab('') +
+    scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
+    theme_v52(COMP_W) +
+    theme(panel.border = element_rect(size = 1, fill = NA, color = 'black'),
+          axis.line.x = element_blank(),
+          axis.line.y = element_blank())
+
+  p_8G_bot <- DotPlot(RefLV, features = mod_score_cols, group.by = 'group',
+                       dot.min = 0, col.min = 0, col.max = 2) +
+    RotatedAxis() + ylab('') + xlab('') +
+    scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
+    theme_v52(COMP_W) +
+    theme(panel.border = element_rect(size = 1, fill = NA, color = 'black'),
+          axis.line.x = element_blank(),
+          axis.line.y = element_blank())
+
+  p_8G <- p_8G_top / p_8G_bot
+
+  pdf('./output/Figure_8/LV_modules_celltype_and_disease.pdf', width = 7.5, height = 6)
+  print(p_8G)
+  dev.off()
+  save_figure(p_8G, 'Figure_8_panel_G.pdf', width = 7.5, height = 6)
+
+  # Panel H
+  lv_cm <- subset(RefLV, Names == 'Cardiomyocytes' | Names == 'CM')
+  pooled_cols <- intersect(paste0('module_', lv_cm_mito_modules), colnames(lv_cm@meta.data))
+  if (length(pooled_cols) > 0) {
+    lv_cm$pooled_mito <- rowMeans(as.matrix(lv_cm@meta.data[, pooled_cols, drop = FALSE]))
+  } else {
+    lv_cm$pooled_mito <- NA_real_
+  }
+  m2_col <- 'module_M2'
+  if (!m2_col %in% colnames(lv_cm@meta.data)) {
+    lv_cm$module_M2 <- NA_real_
+  }
+
+  vio_df <- data.frame(
+    group       = as.character(lv_cm$group),
+    M2          = as.numeric(lv_cm@meta.data[[m2_col]]),
+    pooled_mito = as.numeric(lv_cm$pooled_mito)
+  )
+  vio_df <- vio_df[vio_df$group %in% c('Donor', 'NF', 'DCM'), , drop = FALSE]
+  vio_df$group <- factor(ifelse(vio_df$group == 'Donor', 'NF', vio_df$group), levels = c('NF', 'DCM'))
+
+  p_8H_M2 <- ggplot(vio_df, aes(x = group, y = M2, fill = group)) +
+    geom_violin(scale = 'width', trim = TRUE, linewidth = PS$geom_lw) +
+    scale_fill_manual(values = c(NF = 'grey70', DCM = '#984EA3'), guide = 'none') +
+    ylab('M2 score') + xlab('') +
+    theme_v52(COMP_W)
+
+  p_8H_mito <- ggplot(vio_df, aes(x = group, y = pooled_mito, fill = group)) +
+    geom_violin(scale = 'width', trim = TRUE, linewidth = PS$geom_lw) +
+    scale_fill_manual(values = c(NF = 'grey70', DCM = '#984EA3'), guide = 'none') +
+    ylab('Pooled M10/M25/M26/M28') + xlab('') +
+    theme_v52(COMP_W)
+
+  p_8H <- p_8H_M2 | p_8H_mito
+
+  pdf('./output/Figure_8/LV_CM_M2_mito_violins.pdf', width = 5, height = 3)
+  print(p_8H)
+  dev.off()
+  save_figure(p_8H, 'Figure_8_panel_H.pdf', width = 5, height = 3)
+
+  # Panel I
+  p_8I <- DotPlot(lv_cm, features = mod_score_cols, group.by = 'group',
+                    dot.min = 0, col.min = 0, col.max = 2) +
+    RotatedAxis() + ylab('') + xlab('') +
+    scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
+    theme_v52(COMP_W) +
+    theme(panel.border = element_rect(size = 1, fill = NA, color = 'black'),
+          axis.line.x = element_blank(),
+          axis.line.y = element_blank())
+
+  pdf('./output/Figure_8/LV_CM_modules_dot_disease.pdf', width = 6, height = 3)
+  print(p_8I)
+  dev.off()
+  save_figure(p_8I, 'Figure_8_panel_I.pdf', width = 6, height = 3)
+
+  rm(RefLV, lv_cm); gc()
+} else {
+  message('Koenig LV RDS not found: ', lv_obj_path, ' -- emitting placeholder panels G/H/I.')
+  .ph8gj <- function(label)
+    ggplot() +
+      annotate('text', x = 0.5, y = 0.5, label = label,
+               size = PS$text_mm, family = FONT_FAMILY, colour = 'grey50', hjust = 0.5, vjust = 0.5) +
+      theme_void() +
+      theme(panel.border = element_rect(colour = 'grey80', fill = NA, linewidth = PS$geom_lw))
+
+  p_8G <- .ph8gj('[Panel G: LV module dot plots\n(Koenig_LV_with_RV_modules.rds pending)]')
+  p_8H <- .ph8gj('[Panel H: LV CM M2 + pooled mito violins\n(Koenig_LV_with_RV_modules.rds pending)]')
+  p_8I <- .ph8gj('[Panel I: LV CM module dot by disease\n(Koenig_LV_with_RV_modules.rds pending)]')
+
+  save_figure(p_8G, 'Figure_8_panel_G.pdf', width = 7.5, height = 6)
+  save_figure(p_8H, 'Figure_8_panel_H.pdf', width = 5, height = 3)
+  save_figure(p_8I, 'Figure_8_panel_I.pdf', width = 6, height = 3)
+}
+
+# Panel J
+lv_deg_csv <- './output/Figure_8/CM_LV_DCM_vs_NF_DEG.csv'
+rv_deg_csv <- './output/Figure_8/CM_RV_RVF_vs_NF_DEG.csv'
+
+if (file.exists(lv_deg_csv) && file.exists(rv_deg_csv)) {
+  lv_deg <- read.csv(lv_deg_csv, row.names = 1)
+  rv_deg <- read.csv(rv_deg_csv, row.names = 1)
+
+  lv_lfc_col <- intersect(c('avg_log2FC', 'log2FoldChange', 'logFC'), colnames(lv_deg))[1]
+  rv_lfc_col <- intersect(c('avg_log2FC', 'log2FoldChange', 'logFC'), colnames(rv_deg))[1]
+
+  shared <- intersect(rownames(lv_deg), rownames(rv_deg))
+  scatter_df <- data.frame(
+    gene = shared,
+    LV   = lv_deg[shared, lv_lfc_col],
+    RV   = rv_deg[shared, rv_lfc_col]
+  )
+  scatter_df <- scatter_df[is.finite(scatter_df$LV) & is.finite(scatter_df$RV), , drop = FALSE]
+
+  fit <- lm(LV ~ RV, data = scatter_df)
+  r2 <- summary(fit)$r.squared
+
+  scatter_df$resid_abs <- abs(resid(fit))
+  outliers <- scatter_df[order(-scatter_df$resid_abs), ][seq_len(min(25, nrow(scatter_df))), , drop = FALSE]
+
+  p_8J <- ggplot(scatter_df, aes(x = RV, y = LV)) +
+    ggrastr::rasterise(geom_point(size = PS$scatter_pt, alpha = 0.4, color = 'grey50'), dpi = 200) +
+    geom_smooth(method = 'lm', se = FALSE, color = 'firebrick', linewidth = PS$geom_lw) +
+    geom_text_repel(data = outliers, aes(label = gene), size = PS$text_mm,
+                     family = FONT_FAMILY, fontface = 'italic', max.overlaps = 30) +
+    annotate('text', x = -Inf, y = Inf,
+             label = paste0('r^2 = ', round(r2, 3)),
+             hjust = -0.1, vjust = 1.5,
+             size = PS$text_mm, family = FONT_FAMILY) +
+    labs(x = 'RV: RVF vs NF log2FC', y = 'LV: DCM vs NF log2FC') +
+    theme_v52(COMP_W)
+
+  pdf('./output/Figure_8/LV_vs_RV_log2FC_scatter.pdf', width = 7, height = 7)
+  print(p_8J)
+  dev.off()
+  save_figure(p_8J, 'Figure_8_panel_J.pdf', width = 7, height = 7)
+} else {
+  message('LV/RV DEG CSV(s) missing -- emitting placeholder Panel J.')
+  p_8J <- ggplot() +
+    annotate('text', x = 0.5, y = 0.5,
+             label = '[Panel J: LV vs RV CM log2FC scatter\n(CM_LV_DCM_vs_NF + CM_RV_RVF_vs_NF DEG CSVs pending)]',
+             size = PS$text_mm, family = FONT_FAMILY, colour = 'grey50') +
+    theme_void() +
+    theme(panel.border = element_rect(colour = 'grey80', fill = NA, linewidth = PS$geom_lw))
+  save_figure(p_8J, 'Figure_8_panel_J.pdf', width = 7, height = 7)
+}
+
 #Library EnrichR
 
 #CM not preserved - M1, M5
@@ -1820,7 +2214,7 @@ dev.off()
 #EC not preserved - M1, M2, M4, M5, M10, M11, M12
 #EC preserved - M8
 
-# seurat_ref <- readRDS('./output/scWGCNA_all_celltypes.rds')
+# seurat_ref <- readRDS('./output/Figure_8/scWGCNA_all_celltypes.rds')
 # seurat_ref<-SetActiveWGCNA(seurat_ref, "CM")
 
 
@@ -1838,7 +2232,7 @@ dev.off()
 
 # EnrichrBarPlot(
 #   seurat_ref,
-#   outdir = "./output/sc_enrichr_plot_CM", 
+#   outdir = "./output/Figure_8/sc_enrichr_plot_CM", 
 #   n_terms = 5,
 #   plot_size = c(5,4), # width, height of the output .pdfs
 #   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -1862,7 +2256,7 @@ dev.off()
 
 # EnrichrBarPlot(
 #   seurat_ref,
-#   outdir = "./output/sc_enrichr_plot_EC", 
+#   outdir = "./output/Figure_8/sc_enrichr_plot_EC", 
 #   n_terms = 5,
 #   plot_size = c(5,4), # width, height of the output .pdfs
 #   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -1874,11 +2268,11 @@ dev.off()
 # #######################################
 # library(GeneOverlap)
 
-# seurat_ref <- readRDS('./output/scWGCNA_all_celltypes.rds')
+# seurat_ref <- readRDS('./output/Figure_8/scWGCNA_all_celltypes.rds')
 # seurat_ref<-SetActiveWGCNA(seurat_ref, "CM")
 
 
-# bulk_rv_vs_lv <- read.csv(paste0('./output/', 'RV_LV_align_NRVM_NRMV_ARVM.csv'))
+# bulk_rv_vs_lv <- read.csv(paste0('./output/Figure_8/', 'RV_LV_align_NRVM_NRMV_ARVM.csv'))
 # genes <- toupper(bulk_rv_vs_lv[,2])
 # #nrvm <- bulk_rv_vs_lv[2:348,14]
 # arvm <- bulk_rv_vs_lv[,20]
@@ -1999,7 +2393,7 @@ dev.off()
 #     plot.title = element_text(hjust=0.5, face='plain')
 #   )
 
-# pdf(paste0('./output/', 'RVbulk_R2LV_CM_overlap.pdf'), width=4.5, height=5)
+# pdf(paste0('./output/Figure_8/', 'RVbulk_R2LV_CM_overlap.pdf'), width=4.5, height=5)
 # p
 # dev.off()
 
@@ -2009,11 +2403,11 @@ dev.off()
 # #######################################
 # rm(RefMerge)
 # rm(seurat_ref)
-# seurat_ref <- readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
-# load('./output/GSE183852_DCM_Integrated.Robj')
+# seurat_ref <- readRDS('./dependencies/shared/RV_data.rds')
+# load('./output/Figure_8/GSE183852_DCM_Integrated.Robj')
 
 
-# sc_modules <- read.csv(paste0('./output/', 'sc_heart_modules.csv'))
+# sc_modules <- read.csv(paste0('./output/Figure_8/', 'sc_heart_modules.csv'))
 # seurat_ref <- AddModuleScore(seurat_ref,list(
 #   subset(sc_modules,module=="CM-M1")$gene_name,
 #   subset(sc_modules,module=="CM-M2")$gene_name,
@@ -2053,6 +2447,143 @@ dev.off()
 
 # DimPlot(seurat_ref, cells.highlight=cellsofint,raster=T)
 # FindMarkers(seurat_ref,ident.1=cellsofint,ident.2=cellstocomp)
+
+###############################################################################
+## v52 NEW PANELS — L and M
+## Cross-chamber pseudobulk DESeq2: DCM vs RVF
+###############################################################################
+suppressPackageStartupMessages({
+  library(DESeq2)
+  library(dplyr)
+  library(ggrepel)
+  library(ggrastr)
+  library(patchwork)
+})
+
+## DCM vs RVF requires a merged RV (RVF patients) + LV DCM Seurat object.
+## Expected path: ./dependencies/shared/rv_dcm_merged.rds
+## Metadata columns expected: ventricle ('RV'/'LV'), condition ('RVF'/'DCM'),
+##   Names (lineage), patient
+dcm_path <- './dependencies/shared/rv_dcm_merged.rds'
+
+if (file.exists(dcm_path)) {
+  dcm_obj <- readRDS(dcm_path)
+
+  ## ── Panel L — PCA of pseudobulk samples (RVF vs DCM, CM lineage) ─────
+  cm_dcm  <- subset(dcm_obj, Names == 'CM')
+  .cache_dds_dcm <- './output/Figure_8/fig8_dds_dcm_cache.rds'
+  if (file.exists(.cache_dds_dcm)) {
+    message('Loading cached DESeq2 dds_dcm (DCM vs RVF pseudobulk)...')
+    dds_dcm <- readRDS(.cache_dds_dcm)
+    agg_dcm <- counts(dds_dcm)
+    meta_dcm <- as.data.frame(colData(dds_dcm))
+  } else {
+    agg_dcm <- AggregateExpression(cm_dcm,
+                                    assays   = 'RNA',
+                                    group.by = c('patient', 'condition'),
+                                    return.seurat = FALSE)[['RNA']]
+    meta_dcm <- data.frame(sample = colnames(agg_dcm))
+    meta_dcm$condition <- sub('^.*_', '', meta_dcm$sample)
+    meta_dcm$patient   <- sub('_.*$', '', meta_dcm$sample)
+    rownames(meta_dcm) <- meta_dcm$sample
+
+    dds_dcm <- DESeqDataSetFromMatrix(
+      countData = round(agg_dcm),
+      colData   = meta_dcm,
+      design    = ~ condition)
+    dds_dcm <- DESeq(dds_dcm, quiet = TRUE)
+    saveRDS(dds_dcm, .cache_dds_dcm)
+  }
+
+  ## PCA on VST counts
+  vsd_dcm <- vst(dds_dcm, blind = TRUE)
+  pca_dcm <- prcomp(t(assay(vsd_dcm)), scale. = FALSE)
+  pca_df  <- as.data.frame(pca_dcm$x[, 1:2])
+  pca_df$sample    <- rownames(pca_df)
+  pca_df$condition <- meta_dcm$condition[match(pca_df$sample, meta_dcm$sample)]
+
+  pct_var <- round(100 * pca_dcm$sdev^2 / sum(pca_dcm$sdev^2), 1)
+
+  p_8L <- ggplot(pca_df, aes(x = PC1, y = PC2,
+                              colour = condition, label = sample)) +
+    geom_point(size = PS$scatter_pt * 3) +
+    ggrepel::geom_label_repel(size = PS$text_mm, family = FONT_FAMILY, max.overlaps = 20, show.legend = FALSE) +
+    scale_colour_manual(values = c(RVF = disease_pal['RVF'], DCM = '#984EA3'),
+                        name = NULL) +
+    labs(x = paste0('PC1 (', pct_var[1], '%)'),
+         y = paste0('PC2 (', pct_var[2], '%)'),
+         title = 'PCA: CM pseudobulk — RVF vs DCM') +
+    theme_v52(COMP_W) +
+    theme(legend.key.size = PS$legend_key)
+
+  ## ── Panel M — Volcano: DCM vs RVF CM (shared vs divergent programs) ──
+  .cache_res_dcm <- './output/Figure_8/fig8_res_dcm_cache.rds'
+  if (file.exists(.cache_res_dcm)) {
+    message('Loading cached DESeq2 results res_dcm (DCM vs RVF)...')
+    res_dcm <- readRDS(.cache_res_dcm)
+  } else {
+    res_dcm  <- as.data.frame(results(dds_dcm, contrast = c('condition', 'DCM', 'RVF')))
+    res_dcm$gene <- rownames(res_dcm)
+    res_dcm      <- res_dcm[!is.na(res_dcm$padj), ]
+    saveRDS(res_dcm, .cache_res_dcm)
+  }
+
+  ## Label contractile / mito programs
+  contractile_genes <- c('MYH7','MYH6','TNNI3','TNNT2','MYBPC3','TPM1','ACTC1')
+  mito_genes        <- c('ESRRA','ESRRG','PPARA','PPARGC1A','NRF1','NFE2L2',
+                          'NDUFB5','COX5A','UQCRC1','ATP5F1A')
+  res_dcm$category <- 'Other'
+  res_dcm$category[res_dcm$gene %in% contractile_genes] <- 'Contractile'
+  res_dcm$category[res_dcm$gene %in% mito_genes]        <- 'Mito TF/complex'
+
+  cat_pal_M <- c(Contractile = '#377EB8', `Mito TF/complex` = '#FF7F00', Other = 'grey75')
+
+  p_8M <- ggplot(res_dcm, aes(x = log2FoldChange,
+                               y = -log10(padj + 1e-300),
+                               colour = category,
+                               size   = category != 'Other')) +
+    ggrastr::rasterise(
+      geom_point(data = subset(res_dcm, category == 'Other'), alpha = 0.35),
+      dpi = 200) +
+    geom_point(data = subset(res_dcm, category != 'Other'), alpha = 0.9) +
+    ggrepel::geom_label_repel(
+      data = subset(res_dcm, category != 'Other' & padj < 0.05),
+      aes(label = gene), size = PS$text_mm, family = FONT_FAMILY, fontface = "italic", max.overlaps = 20, show.legend = FALSE) +
+    scale_colour_manual(values = cat_pal_M, name = NULL) +
+    scale_size_manual(values = c(`TRUE` = PS$scatter_pt * 2.2, `FALSE` = PS$scatter_pt * 0.7), guide = 'none') +
+    geom_vline(xintercept = c(-0.5, 0.5), linetype = 'dashed',
+               linewidth = PS$geom_lw, colour = 'grey60') +
+    labs(x = 'log\u2082FC (DCM vs RVF)',
+         y = '-log\u2081\u2080(FDR)',
+         title = 'CM: DCM vs RVF (contractile & mito programs)') +
+    theme_v52(COMP_W) +
+    theme(legend.position = 'top', legend.key.size = PS$legend_key)
+
+  rm(dcm_obj, cm_dcm, agg_dcm, dds_dcm, vsd_dcm, res_dcm); gc()
+
+} else {
+  ## Placeholders
+  .ph8 <- function(label)
+    ggplot() +
+      annotate('text', x = 0.5, y = 0.5, label = label,
+               size = PS$text_mm, family = FONT_FAMILY, colour = 'grey50', hjust = 0.5, vjust = 0.5) +
+      theme_void() +
+      theme(panel.border = element_rect(colour = 'grey80', fill = NA, linewidth = PS$geom_lw))
+
+  p_8L <- .ph8('[Panel L: DCM vs RVF pseudobulk PCA\n(rv_dcm_merged.rds pending)]')
+  p_8M <- .ph8('[Panel M: DCM vs RVF volcano\n(rv_dcm_merged.rds pending)]')
+}
+
+save_figure(p_8L, 'Figure_8_panel_L.pdf', width = 5, height = 4.5)
+save_figure(p_8M, 'Figure_8_panel_M.pdf', width = 6, height = 5)
+
+## ── Assemble panels L-M ──────────────────────────────────────────────────
+fig8_lm <- p_8L | p_8M +
+  plot_annotation(tag_levels = list(c('L', 'M')),
+    theme = theme(plot.tag = element_text(family = FONT_FAMILY, size = 16 * COMP_W / FINAL_WIDTH_IN, face = "bold")))
+
+save_figure(fig8_lm, 'Figure_8_panels_L-M.pdf', width = COMP_W, height = COMP_H)
+message('Figure 8 panels L-M complete.')
 
 
 

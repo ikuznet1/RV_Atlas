@@ -1,9 +1,66 @@
+# ───────────────────────────────────────────────────────────────────────────
+# Data + generated outputs (downloaded from Zenodo, not stored in git)
+# ───────────────────────────────────────────────────────────────────────────
 ./resources
-snRV_ref.rds
 dependencies/
-index.txt
 output/
-CLAUDE.md
 TOM/
-shinyXenium/
+snRV_ref.rds
+index.txt
+
+# ───────────────────────────────────────────────────────────────────────────
+# R / Rscript runtime artifacts
+# ───────────────────────────────────────────────────────────────────────────
+Rplots.pdf
+.Rhistory
+.Rapp.history
+.RData
+.Rproj.user/
+.Renviron
+
+# WGCNA per-block cache files written next to scripts
+.blockConsModsCached*
+
+# ───────────────────────────────────────────────────────────────────────────
+# Figure-run scaffolding (local development, not source)
+# ───────────────────────────────────────────────────────────────────────────
+.figure_run_backup/
+.figure_run_logs/
+omnipathr-log/
+
+# ───────────────────────────────────────────────────────────────────────────
+# Manuscript drafts and binaries
+# Source manuscripts live in ./paper/; not tracked because of size + churn.
+# Word lock files and editor backups also caught here.
+# ───────────────────────────────────────────────────────────────────────────
+paper/
 RV_snRNASeq_v51/
+RV_snRNASeq_v*.docx
+RV_snRNASeq_v*.md
+RV_snRNASeq_v*.pdf
+RV_paper_revisions_responses.docx
+*.docx.bak
+*.docx.before_*
+*.md.before_*
+*.md.b*
+~$*
+
+# ───────────────────────────────────────────────────────────────────────────
+# macOS / IDE / tooling
+# ───────────────────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+CLAUDE.md
+.claude/
+
+# ───────────────────────────────────────────────────────────────────────────
+# Companion app scaffolding kept out of figure-repro tree
+# ───────────────────────────────────────────────────────────────────────────
+shinyXenium/
+
+# ───────────────────────────────────────────────────────────────────────────
+# Conda/build lock files (machine-specific, not the source manifest)
+# environment.yml and requirements.txt themselves should stay tracked.
+# ───────────────────────────────────────────────────────────────────────────
+*.osx_arm64_lock
+*.linux_64_lock

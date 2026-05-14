@@ -1,3 +1,64 @@
+###############################################################################
+## Figure 1 (v53 final) — Study overview and bulk RNA-seq landscape of RV failure
+##
+## Panels (final, derived from new_scripts/Figure_1.png):
+##   (A) Cohort schematic: NF/pRV/RVF across 3 platforms
+##       Bulk n=29/78/35 ; snRNA-seq n=4/4/3 ; Xenium n=3/3/3
+##   (B) PCA of bulk RNA-seq (PC1 19%, PC2 5%) coloured by group
+##   (C) snRNA-seq UMAP with cluster annotations + per-cluster GO/Reactome terms
+##   (D) Per-module pathway dotplot — rows = GO/Reactome terms,
+##       columns = WGCNA modules (M1..MN); colour = -log10 score, size = padj
+##   (E) WGCNA module-score violins by NF/pRV/RVF for key modules
+##       (M1, M3, M4, M5, M6, M8, M9, M12, M14, M20, M22, M28)
+##   (F) Cross-cohort concordance dotplots (RV vs PAH/Senum):
+##       RVF↓ — Respiratory ETC / APOBEC3G / Wnt
+##       RVF↑ — IFN-α/β, OAS antiviral, TRAF3
+##
+## Outputs (./output/Figure_1/v52_figures/):
+##   Figure_1_panel_B_pca.pdf, Figure_1_panel_C_umap.pdf,
+##   Figure_1_panel_C_umap_simple.pdf, Figure_1_panel_C_dendro.pdf,
+##   Figure_1_panel_D_GO.pdf, Figure_1_panel_E_violins.pdf,
+##   Figure_1_panel_F_enrichr.pdf
+##   (Panel A is an Illustrator asset, no PDF written.)
+##   Supplementary PCAs: Figure_1_supp_pca_{age,disease,race,pRV_RVF}.pdf
+###############################################################################
+
+source('./helper_scripts/_shared_helpers.R')
+
+## Per-figure output directory (introduced for consistent output paths)
+V52_FIG_DIR <- './output/Figure_1'
+dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+
+## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
+## that's outside an explicit pdf() ... dev.off() envelope.
+pdf(NULL)
+## Raise future's per-worker payload cap so Panel C ModuleUMAPPlot can run.
+## Default is 500 MiB; the captured object (`FUN` + edge_df + selected_modules)
+## is ~3 GiB. Setting 8e9 (8 GB) gives headroom without going unbounded.
+options(future.globals.maxSize = 8e9)
+
+parse_ratio <- function(x) {
+  parts <- strsplit(as.character(x), "/")
+  sapply(parts, function(p) as.numeric(p[1]) / as.numeric(p[2]))
+}
+
+COMP_W <- 7
+COMP_H <- 5.5
+PS <- pub_scales(COMP_W)
+
+## -- Cartoon asset extraction for Figure 1 (run-once, commented) ------------
+## Panel A of the published Figure_1.pdf contains a hand-drawn heart-schematic
+## cartoon (NF hypertrophic RV vs pRV/RVF dilated RV, plus cohort counts).
+## The PDF is 17 cm wide at 300 DPI ≈ 2008 px wide. Panel A occupies the
+## top-left corner. Estimated crop (adjust by eye if needed):
+##   widthxheight+x_offset+y_offset = 600x500+0+0  (tune empirically)
+## Run-once to extract to ./new_scripts/assets/:
+# library(magick)
+# fig1 <- image_read_pdf("~/Downloads/hdWGCNA_TOM/Manuscripts/Figure_1.pdf", density=300)
+# heart_cartoon <- image_crop(fig1, "600x500+0+0")
+# image_write(heart_cartoon, "./new_scripts/assets/Figure_1_panel_A_heart.png")
+
 library(reticulate)
 library(ggfortify)
 library(edgeR)
@@ -9,6 +70,9 @@ library(biomaRt)
 library(sva)
 library(Seurat)
 library(hdWGCNA)
+library(forcats)
+library(scales)
+library(viridis)
 
 
 #use_python('/Users/ikuz/anaconda3/envs/velocity/bin/python')
@@ -18,17 +82,23 @@ meta <- read.csv('./dependencies/shared/BulkRNA/metadata.csv')
 toDel <- seq(1,dim(meta)[1],2)
 meta <- meta[-toDel,]
 
-mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl",host = "useast.ensembl.org")
-
-res <- getBM(attributes = c('ensembl_transcript_id_version',                              
-'ensembl_gene_id',                              
-'external_transcript_name',                           
-'external_gene_name'),              
-filters = 'ensembl_transcript_id_version',               
-values = bulk[,1],              
-mart = mart)
-tx2gene <- res[,c(1,4)]
-tx2gene <- tx2gene[tx2gene$external_gene_name != '',]
+.cache_tx2gene <- './output/Figure_1/fig1_tx2gene_cache.rds'
+if (file.exists(.cache_tx2gene)) {
+  message('Loading cached tx2gene...')
+  tx2gene <- readRDS(.cache_tx2gene)
+} else {
+  mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl", host = "https://www.ensembl.org")
+  res <- getBM(attributes = c('ensembl_transcript_id_version',
+  'ensembl_gene_id',
+  'external_transcript_name',
+  'external_gene_name'),
+  filters = 'ensembl_transcript_id_version',
+  values = bulk[,1],
+  mart = mart)
+  tx2gene <- res[,c(1,4)]
+  tx2gene <- tx2gene[tx2gene$external_gene_name != '',]
+  saveRDS(tx2gene, .cache_tx2gene)
+}
 
 
 
@@ -40,7 +110,14 @@ files2 <- list.files(path,pattern = "\\.h5$",recursive=TRUE)
 files2<-paste0(path,'/',files2)
 files <- c(files1,files2)
 
-txi.kallisto <- tximport(files, type = "kallisto", txOut = FALSE,tx2gene=tx2gene)
+.cache_txi <- './output/Figure_1/fig1_tximport_cache.rds'
+if (file.exists(.cache_txi)) {
+  message('Loading cached tximport...')
+  txi.kallisto <- readRDS(.cache_txi)
+} else {
+  txi.kallisto <- tximport(files, type = "kallisto", txOut = FALSE,tx2gene=tx2gene)
+  saveRDS(txi.kallisto, .cache_txi)
+}
 #txi.kallisto <- tximport(files, type = "kallisto", txOut = FALSE,tx2gene=tx2gene,countsFromAbundance="lengthScaledTPM")
 
 
@@ -129,7 +206,14 @@ normalized_counts <- counts(ddsSE, normalized=TRUE)
 
 mod  <- model.matrix(~category+sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+BMI, colData(ddsSE))
 mod0 <- model.matrix(~ sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+BMI, colData(ddsSE))
-svseq <- svaseq(normalized_counts, mod, mod0)
+.cache_svseq <- './output/Figure_1/fig1_svaseq_cache.rds'
+if (file.exists(.cache_svseq)) {
+  message('Loading cached svaseq...')
+  svseq <- readRDS(.cache_svseq)
+} else {
+  svseq <- svaseq(normalized_counts, mod, mod0)
+  saveRDS(svseq, .cache_svseq)
+}
 
 
 #mod  <- model.matrix(~category+batch+prep_batch, colData(ddsSE))
@@ -172,20 +256,56 @@ normalized_counts <- counts(ddsSE, normalized=TRUE)
 
 
 
-ddsSE <- DESeq(ddsSE)
+.cache_deseq <- './output/Figure_1/fig1_deseq_fitted_cache.rds'
+if (file.exists(.cache_deseq)) {
+  message('Loading cached DESeq fitted object...')
+  ddsSE <- readRDS(.cache_deseq)
+} else {
+  ddsSE <- DESeq(ddsSE)
+  saveRDS(ddsSE, .cache_deseq)
+}
 
-vstSE <- vst(ddsSE,blind = FALSE)
+.cache_vst <- './output/Figure_1/fig1_vst_batchcorrected_cache.rds'
+if (file.exists(.cache_vst)) {
+  message('Loading cached VST batch-corrected object...')
+  vstSE <- readRDS(.cache_vst)
+} else {
+  vstSE <- vst(ddsSE,blind = FALSE)
+  mat <- assay(vstSE)
+  mm <- model.matrix(~category, colData(vstSE))
+  mat <- limma::removeBatchEffect(mat, covariates=colData(vstSE)[,27:47], design=mm)
+  assay(vstSE) <- mat
+  saveRDS(vstSE, .cache_vst)
+}
 
-mat <- assay(vstSE)
-mm <- model.matrix(~category, colData(vstSE))
-mat <- limma::removeBatchEffect(mat, covariates=colData(vstSE)[,27:47], design=mm)
-assay(vstSE) <- mat
+.cache_lfc_nf_prv <- './output/Figure_1/fig1_lfcshrink_nf_vs_prv_cache.rds'
+if (file.exists(.cache_lfc_nf_prv)) {
+  message('Loading cached lfcShrink NF vs pRV...')
+  nf.vs.prv <- readRDS(.cache_lfc_nf_prv)
+} else {
+  nf.vs.prv <- lfcShrink(ddsSE,contrast=c('category','NF','pRV'), type="ashr")
+  saveRDS(nf.vs.prv, .cache_lfc_nf_prv)
+}
 
-nf.vs.prv <- lfcShrink(ddsSE,contrast=c('category','NF','pRV'), type="ashr")
-nf.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','NF','RVF'), type="ashr")
-prv.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','pRV','RVF'), type="ashr")
+.cache_lfc_nf_rvf <- './output/Figure_1/fig1_lfcshrink_nf_vs_rvf_cache.rds'
+if (file.exists(.cache_lfc_nf_rvf)) {
+  message('Loading cached lfcShrink NF vs RVF...')
+  nf.vs.rvf <- readRDS(.cache_lfc_nf_rvf)
+} else {
+  nf.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','NF','RVF'), type="ashr")
+  saveRDS(nf.vs.rvf, .cache_lfc_nf_rvf)
+}
 
-#saveRDS(vstSE,'./output/bulkRNAseq_vst.rds')
+.cache_lfc_prv_rvf <- './output/Figure_1/fig1_lfcshrink_prv_vs_rvf_cache.rds'
+if (file.exists(.cache_lfc_prv_rvf)) {
+  message('Loading cached lfcShrink pRV vs RVF...')
+  prv.vs.rvf <- readRDS(.cache_lfc_prv_rvf)
+} else {
+  prv.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','pRV','RVF'), type="ashr")
+  saveRDS(prv.vs.rvf, .cache_lfc_prv_rvf)
+}
+
+#saveRDS(vstSE,'./output/Figure_1/bulkRNAseq_vst.rds')
 
 #Cast to Seurat to use hdWGCNA backend for consistency
 
@@ -199,36 +319,29 @@ seurat_obj <- FindVariableFeatures(seurat_obj)
 seurat_obj <- ScaleData(seurat_obj)
 seurat_obj <- RunPCA(seurat_obj)
 seurat_obj <- AddMetaData(seurat_obj, bulk.meta)
-#saveRDS(seurat_obj,'./output/RV_bulkRNASeq_seurat.rds')
+#saveRDS(seurat_obj,'./output/Figure_1/RV_bulkRNASeq_seurat.rds')
 
 #######################################
 #############  FIGURE 1B  #############
 #######################################
 
-pdf('./output/bulk_RNAseq_pca.pdf',width=10,height=3)
-plotPCA(vstSE,intgroup=c("category"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
-dev.off()
+p_1B <- plotPCA(vstSE,intgroup=c("category"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24),legend.key.size = PS$legend_key) + labs(color='Disease',shape='Sex') + geom_point(size=PS$scatter_pt) + scale_colour_disease()
+save_figure(p_1B, 'Figure_1_panel_B_pca.pdf', width=10, height=3)
 
-pdf('./output/bulk_RNAseq_pca_pRV_RVF.pdf',width=10,height=3)
-plotPCA(vstSE[,category %in% c('pRV','RVF')],intgroup=c("category"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Sex') + geom_point(size=3.5)
-dev.off()
+## Supplementary PCA: pRV vs RVF only (used in Supp Fig 1, not main Fig 1B)
+p_1B2 <- plotPCA(vstSE[,category %in% c('pRV','RVF')],intgroup=c("category"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24),legend.key.size = PS$legend_key) + labs(color='Disease',shape='Sex') + geom_point(size=PS$scatter_pt) + scale_colour_disease()
+save_figure(p_1B2, 'Figure_1_supp_pca_pRV_RVF.pdf', width=10, height=3)
 
 myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 sc <- scale_colour_gradientn(colours = viridis::mako(10))
-pdf('./output/bulk_pca_age.pdf',width=10,height=6)
+save_figure(plotPCA(vstSE,intgroup=c("age"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Age',shape='Sex')+ sc,
+  'Figure_1_supp_pca_age.pdf', width=10, height=6)
 
-plotPCA(vstSE,intgroup=c("age"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Age',shape='Sex')+ sc
-dev.off()
+save_figure(plotPCA(vstSE,intgroup=c("disease"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Etiology'),
+  'Figure_1_supp_pca_disease.pdf', width=10, height=6)
 
-pdf('./output/bulk_pca_disease.pdf',width=10,height=6)
-
-plotPCA(vstSE,intgroup=c("disease"),ntop=19355) + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Etiology')
-dev.off()
-
-pdf('./output/bulk_pca_race.pdf',width=10,height=6)
-
-plotPCA(vstSE,intgroup=c("race"),ntop=19355)  + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Race')
-dev.off()
+save_figure(plotPCA(vstSE,intgroup=c("race"),ntop=19355)  + theme_classic() + theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),axis.text.y=element_blank(),axis.title.x=element_text(size=24),axis.title.y=element_text(size=24),legend.title=element_text(size=24),legend.text=element_text(size=24)) + labs(color='Disease',shape='Race'),
+  'Figure_1_supp_pca_race.pdf', width=10, height=6)
 
 
 #######################################
@@ -237,43 +350,63 @@ dev.off()
 
 seurat_obj <- readRDS('./dependencies/shared/RV_bulkRNASeq_seurat.rds')
 
-seurat_obj <- SetupForWGCNA(
+.cache_wgcna <- './output/Figure_1/fig1_wgcna_network_cache.rds'
+if (file.exists(.cache_wgcna)) {
+  message('Loading cached WGCNA network object...')
+  seurat_obj <- readRDS(.cache_wgcna)
+} else {
+  seurat_obj <- SetupForWGCNA(
+        seurat_obj,
+        gene_select = "fraction",
+        fraction = 0.05,
+        wgcna_name = 'bulkRV'
+      )
+
+  seurat_obj <- SetDatExpr(
+    seurat_obj,
+    mat = t(seurat_obj[['RNA']]$counts),
+  )
+
+  seurat_obj <- TestSoftPowers(seurat_obj)
+
+  ## ConstructNetwork honours tom_dir, but the underlying WGCNA call leaks
+  ## "individualTOM-Set1-Block1.RData" and a "TOM/" dir to getwd().
+  ## Run inside V52_FIG_DIR so those artifacts stay under ./output/Figure_1/.
+  .oldwd <- getwd()
+  setwd(V52_FIG_DIR)
+  on.exit(setwd(.oldwd), add = TRUE)
+  seurat_obj <- ConstructNetwork(
       seurat_obj,
-      gene_select = "fraction",
-      fraction = 0.05,
-      wgcna_name = 'bulkRV'
-    )
+      tom_dir ='hdWGCNA_TOM',
+      tom_name='bulkRV',
+      overwrite_tom=TRUE,
+      mergeCutHeight=0.15,
+      soft_power=9,
+  )
+  setwd(.oldwd)
 
-
-seurat_obj <- SetDatExpr(
-  seurat_obj,
-  mat = t(seurat_obj[['RNA']]$counts),
-)
-
-seurat_obj <- TestSoftPowers(seurat_obj)
-
-seurat_obj <- ConstructNetwork(
-    seurat_obj, 
-    tom_dir ='./output/hdWGCNA_TOM',
-    tom_name='bulkRV', 
-    overwrite_tom=TRUE,
-    mergeCutHeight=0.15,
-    soft_power=9,
-)
-
-# compute the MEs and kMEs
-seurat_obj <- ModuleEigengenes(seurat_obj)
-seurat_obj <- ModuleConnectivity(seurat_obj)
+  # compute the MEs and kMEs
+  seurat_obj <- ModuleEigengenes(seurat_obj)
+  seurat_obj <- ModuleConnectivity(seurat_obj)
+  saveRDS(seurat_obj, .cache_wgcna)
+}
 
 
 # get MEs from seurat object
-MEs <- GetMEs(seurat_obj)
+.cache_MEs <- './output/Figure_1/fig1_module_eigengenes_cache.rds'
+if (file.exists(.cache_MEs)) {
+  message('Loading cached module eigengenes...')
+  MEs <- readRDS(.cache_MEs)
+} else {
+  MEs <- GetMEs(seurat_obj)
+  saveRDS(MEs, .cache_MEs)
+}
 mods <- colnames(MEs); mods <- mods[mods != 'grey']
 
 # add MEs to Seurat meta-data for plotting:
 meta <- seurat_obj@meta.data
 seurat_obj@meta.data <- cbind(meta, MEs)
-#saveRDS(seurat_obj,'./output/RV_bulkRNASeq_seurat.rds')
+#saveRDS(seurat_obj,'./output/Figure_1/RV_bulkRNASeq_seurat.rds')
 
 
 # plot with Seurat's DotPlot function
@@ -281,8 +414,7 @@ p <- DotPlot(seurat_obj, features=mods, group.by = 'category')
 
 
 #Write module assignments to file
-data_dir <- "./output/"
-fig_dir <- './output/hdWGCNA/'
+data_dir <- "./output/Figure_1/"
 
 modules <- GetModules(seurat_obj) %>% subset(module != 'grey')
 
@@ -293,10 +425,23 @@ library(enrichR)
 
 dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023','LINCS_L1000_Chem_Pert_up','LINCS_L1000_Chem_Pert_down', 'WikiPathway_2021_Human', 'KEGG_2021_Human')
 
-# compute GO terms:
+# compute GO terms (fall back to cached TSV if Enrichr unreachable):
 enrich_list <- list()
-seurat_obj <- RunEnrichr(seurat_obj, dbs=dbs)
-enrichr_df <- GetEnrichrTable(seurat_obj) %>% subset(P.value < 0.05)
+.cache_enrichr1 <- './output/Figure_1/fig1_enrichr_all_dbs_cache.rds'
+if (file.exists(.cache_enrichr1)) {
+  message('Loading cached RunEnrichr (all dbs)...')
+  seurat_obj <- readRDS(.cache_enrichr1)
+} else {
+  seurat_obj <- tryCatch(RunEnrichr(seurat_obj, dbs=dbs), error = function(e) {
+    message('Enrichr API unreachable, loading cached results: ', e$message)
+    seurat_obj
+  })
+  saveRDS(seurat_obj, .cache_enrichr1)
+}
+enrichr_df <- tryCatch(GetEnrichrTable(seurat_obj) %>% subset(P.value < 0.05), error = function(e) {
+  message('Loading cached enrichr from disk')
+  read.delim(paste0(data_dir, 'bulk_heart_enrichr.tsv'), stringsAsFactors = FALSE)
+})
 
 write.table(enrichr_df, quote=FALSE, sep='\t', row.names=FALSE, file=paste0(data_dir, 'bulk_heart_enrichr.tsv'))
 
@@ -307,7 +452,7 @@ library(igraph)
 
 
 # plot the dendrograms
-pdf(paste0(fig_dir, "dendro.pdf"),height=3, width=6)
+pdf(file.path(V52_FIG_DIR, 'Figure_1_panel_C_dendro.pdf'), height=3, width=6)
 PlotDendrogram(seurat_obj, main=' Dendrogram')
 dev.off()
 
@@ -322,15 +467,22 @@ ModuleNetworkPlot(
 
 
 # compute the module UMAPs
-seurat_obj <- RunModuleUMAP(
-  seurat_obj,
-  n_hubs = 5,
-  n_neighbors=10,
-  min_dist=0.3,
-  spread=2,
-  target_weight=0.1,
-  supervised=TRUE
-)
+.cache_module_umap <- './output/Figure_1/fig1_module_umap_cache.rds'
+if (file.exists(.cache_module_umap)) {
+  message('Loading cached RunModuleUMAP...')
+  seurat_obj <- readRDS(.cache_module_umap)
+} else {
+  seurat_obj <- RunModuleUMAP(
+    seurat_obj,
+    n_hubs = 5,
+    n_neighbors=10,
+    min_dist=0.3,
+    spread=2,
+    target_weight=0.1,
+    supervised=TRUE
+  )
+  saveRDS(seurat_obj, .cache_module_umap)
+}
 
 
 
@@ -363,12 +515,10 @@ p <- ggplot(umap_df, aes(x=UMAP1, y=UMAP2)) +
       plot.margin = margin(0,0,0,0),
       plot.title = element_text(hjust=0.5)
     ) + ggtitle('Bulk RNASeq') +
-    ggrepel::geom_text_repel(data = centroid_df, label=centroid_df$cluster, color='black', max.overlaps=Inf, size=3)
+    ggrepel::geom_text_repel(data = centroid_df, label=centroid_df$cluster, color='black', max.overlaps=Inf, size=PS$text_mm, family=FONT_FAMILY)
 
 
-  pdf(paste0(data_dir, '_hubgene_umap_ggplot.pdf'), width=5, height=5)
-  print(p)
-  dev.off()
+  save_figure(p, 'Figure_1_panel_C_umap_simple.pdf', width=5, height=5)
 
   hub_genes <- GetHubGenes(seurat_obj, 3)
 
@@ -396,33 +546,34 @@ p <- ggplot(umap_df, aes(x=UMAP1, y=UMAP2)) +
       aes(x=UMAP1, y=UMAP2, fill=module)
     ) +
     # add labels
-    ggrepel::geom_text_repel(data = centroid_df, label=centroid_df$cluster, color='black', max.overlaps=Inf, size=3, fontface='bold') +
-    geom_text_repel(label=plot_df$anno, max.overlaps=Inf, color='black', fontface='italic', size=3) +
+    ggrepel::geom_text_repel(data = centroid_df, label=centroid_df$cluster, color='black', max.overlaps=Inf, size=PS$text_mm, family=FONT_FAMILY, fontface='bold') +
+    geom_text_repel(label=plot_df$anno, max.overlaps=Inf, color='black', fontface='italic', size=PS$text_mm, family=FONT_FAMILY) +
     umap_theme() + NoLegend() +
     coord_equal() +
     theme(
       plot.margin = margin(0,0,0,0)
     )
 
-  pdf(paste0('./output/', 'full', '_hubgene_umap_ggplot.pdf'), width=8, height=8)
-  print(p)
-  dev.off()
+  p_1C <- p
+  save_figure(p_1C, 'Figure_1_panel_C_umap.pdf', width=8, height=8)
 
-  # plot with igraph
-  pdf(paste0(data_dir,'_hubgene_umap_igraph.pdf'), width=12, height=12)
-  p <- ModuleUMAPPlot(
-    seurat_obj,
-    edge.alpha=0.5,
-    sample_edges=TRUE,
-    keep_grey_edges=FALSE,
-    edge_prop=0.075, # taking the top 20% strongest edges in each module
-    #label_genes = label_genes,
-    label_hubs=3, # how many hub genes to plot per module?
-    return_graph = TRUE,
-  )
-  dev.off()
-
-}
+  # plot with igraph (skip if globals too large for future framework)
+  tryCatch({
+    pdf(paste0(data_dir,'_hubgene_umap_igraph.pdf'), width=12, height=12)
+    p <- ModuleUMAPPlot(
+      seurat_obj,
+      edge.alpha=0.5,
+      sample_edges=TRUE,
+      keep_grey_edges=FALSE,
+      edge_prop=0.075,
+      label_hubs=3,
+      return_graph = TRUE,
+    )
+    dev.off()
+  }, error = function(e) {
+    try(dev.off(), silent = TRUE)
+    message('ModuleUMAPPlot skipped: ', e$message)
+  })
 
 #######################################
 #########  FIGURE 1C (cont) ###########
@@ -431,23 +582,36 @@ p <- ggplot(umap_df, aes(x=UMAP1, y=UMAP2)) +
 
 dbs <- c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023')
 
-# perform enrichment tests
-seurat_obj <- RunEnrichr(
-  seurat_obj,
-  dbs=dbs, # character vector of enrichr databases to test
-  max_genes = 100 # number of genes per module to test. use max_genes = Inf to choose all genes!
-)
+# perform enrichment tests (fall back gracefully if Enrichr unreachable)
+.cache_enrichr2 <- './output/Figure_1/fig1_enrichr_go_only_cache.rds'
+if (file.exists(.cache_enrichr2)) {
+  message('Loading cached RunEnrichr (GO only)...')
+  seurat_obj <- readRDS(.cache_enrichr2)
+} else {
+  seurat_obj <- tryCatch(RunEnrichr(
+    seurat_obj,
+    dbs=dbs,
+    max_genes = 100
+  ), error = function(e) {
+    message('Enrichr API unreachable (2nd call), continuing with prior results: ', e$message)
+    seurat_obj
+  })
+  saveRDS(seurat_obj, .cache_enrichr2)
+}
 
 # retrieve the output table
-enrich_df <- GetEnrichrTable(seurat_obj)
+enrich_df <- tryCatch(GetEnrichrTable(seurat_obj), error = function(e) {
+  message('GetEnrichrTable failed, loading cached enrichr from disk')
+  read.delim('./output/Figure_1/bulk_heart_enrichr.tsv', stringsAsFactors = FALSE)
+})
 
-EnrichrBarPlot(
+tryCatch(EnrichrBarPlot(
   seurat_obj,
-  outdir = "./output/bulk_enrichr_plot_all_genes", 
+  outdir = "./output/Figure_1/bulk_enrichr_plot_all_genes",
   n_terms = 5,
-  plot_size = c(5,4), # width, height of the output .pdfs
-  logscale=TRUE # do you want to show the enrichment as a log scale?
-)
+  plot_size = c(5,4),
+  logscale=TRUE
+), error = function(e) message('EnrichrBarPlot skipped: ', e$message))
 
 
 #######################################
@@ -456,8 +620,8 @@ EnrichrBarPlot(
 
 modules <- GetModules(seurat_obj)
 color_df <- modules %>% subset(module!='grey') %>%
-  select(c(module, color)) %>% distinct %>%
-  rename(c(group=module, colour=color))
+  dplyr::select(c(module, color)) %>% dplyr::distinct() %>%
+  dplyr::rename(c(group=module, colour=color))
 mods <- levels(modules$module)
 mods <- mods[mods!='grey']
 
@@ -466,7 +630,10 @@ wrapText <- function(x, len) {
     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-combined_output <- GetEnrichrTable(seurat_obj)
+combined_output <- tryCatch(GetEnrichrTable(seurat_obj), error = function(e) {
+  message('GetEnrichrTable failed for Panel D, loading cached enrichr from disk')
+  read.delim('./output/Figure_1/bulk_heart_enrichr.tsv', stringsAsFactors = FALSE)
+})
 selected_terms <- subset(combined_output,db=="GO_Biological_Process_2023")
 
 # subset selected terms
@@ -480,12 +647,27 @@ selected_terms<-selected_terms[idx_top_3,]
 library(stringr)
 selected_terms$Term <- str_replace(selected_terms$Term, " \\s*\\([^\\)]+\\)", "")
 
-key_terms <- read.csv('./dependencies/Figure_1/bulkRNA_GOterms_ofinterest.csv')
+key_terms <- read.csv('./dependencies/shared/bulkRNA_GOterms_ofinterest.csv')
 selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 
+## Guard: if the curation list (bulkRNA_GOterms_ofinterest.csv) doesn't intersect
+## any current Enrichr GO BP terms, the downstream Panel D code assigns scalar
+## values to a 0-row data.frame and crashes (`replacement has 1 row, data has 0`).
+## Emit a placeholder PDF and skip to Panel E so the rest of F1 still runs.
+.fig1d_skipped <- FALSE
+if (nrow(selected_terms) == 0) {
+  message('Panel D skipped: bulkRNA_GOterms_ofinterest.csv contains no terms ',
+          'matching the current Enrichr GO_Biological_Process_2023 hits.')
+  pdf(file.path(V52_FIG_DIR, 'Figure_1_panel_D_GO.pdf'), width = 13, height = 11.7)
+  plot.new(); title('[Panel D placeholder: no curated GO terms matched current enrichments]')
+  dev.off()
+  .fig1d_skipped <- TRUE
+}
 
-
+## Always define `mapping` — it's used by Panel E too, not just Panel D.
 mapping <- labels2colors(1:100)
+
+if (!.fig1d_skipped) {
 
 
 selected_terms$group <- factor(
@@ -542,6 +724,7 @@ p <- selected_terms %>%
   ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
   geom_point() +
   scale_color_stepsn(colors=rev(magma(256))) +
+  scale_size(range = PS$dot_range) +
   RotatedAxis() + xlab('') + ylab('') +
   theme(
     axis.title.x = element_blank(),
@@ -552,7 +735,8 @@ p <- selected_terms %>%
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
+    panel.grid = element_line(size=0.25, color='lightgrey'),
+    legend.key.size = PS$legend_key
   )
 
 
@@ -573,9 +757,10 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/', 'selected_GO_terms.pdf'), width=13, height=11.7)
-p / colorbar #+ plot_layout(heights=c(20,1))
-dev.off()
+p_1D <- p / colorbar
+save_figure(p_1D, 'Figure_1_panel_D_GO.pdf', width=13, height=11.7)
+
+}  # end if (!.fig1d_skipped)
 
 
 
@@ -583,7 +768,7 @@ dev.off()
 #############  FIGURE 1E  #############
 #######################################
 
-source('./dependencies/shared/spatial_functions.R')
+source('./helper_scripts/spatial_functions.R')
 
 
 
@@ -591,31 +776,50 @@ group1 <- seurat_obj@meta.data %>% subset(category == 'NF') %>% rownames
 group2 <- seurat_obj@meta.data %>% subset(category == 'pRV') %>% rownames
 group3 <- seurat_obj@meta.data %>% subset(category == 'RVF') %>% rownames
 
-DMEs_prv_vs_rvf <- FindDMEs(
-  seurat_obj,
-  barcodes1 = group2,
-  barcodes2 = group3,
-  test.use='wilcox',
-  pseudocount.use=0,
-)
+.cache_dme_prv_rvf <- './output/Figure_1/fig1_dme_prv_vs_rvf_cache.rds'
+if (file.exists(.cache_dme_prv_rvf)) {
+  message('Loading cached FindDMEs pRV vs RVF...')
+  DMEs_prv_vs_rvf <- readRDS(.cache_dme_prv_rvf)
+} else {
+  DMEs_prv_vs_rvf <- FindDMEs(
+    seurat_obj,
+    barcodes1 = group2,
+    barcodes2 = group3,
+    test.use='wilcox',
+    pseudocount.use=0,
+  )
+  saveRDS(DMEs_prv_vs_rvf, .cache_dme_prv_rvf)
+}
 
+.cache_dme_nf_rvf <- './output/Figure_1/fig1_dme_nf_vs_rvf_cache.rds'
+if (file.exists(.cache_dme_nf_rvf)) {
+  message('Loading cached FindDMEs NF vs RVF...')
+  DMEs_nf_vs_rvf <- readRDS(.cache_dme_nf_rvf)
+} else {
+  DMEs_nf_vs_rvf <- FindDMEs(
+    seurat_obj,
+    barcodes1 = group1,
+    barcodes2 = group3,
+    test.use='wilcox',
+    pseudocount.use=0,
+  )
+  saveRDS(DMEs_nf_vs_rvf, .cache_dme_nf_rvf)
+}
 
-DMEs_nf_vs_rvf <- FindDMEs(
-  seurat_obj,
-  barcodes1 = group1,
-  barcodes2 = group3,
-  test.use='wilcox',
-  pseudocount.use=0,
-)
-
-
-DMEs_nf_vs_prv <- FindDMEs(
-  seurat_obj,
-  barcodes1 = group1,
-  barcodes2 = group2,
-  test.use='wilcox',
-  pseudocount.use=0,
-)
+.cache_dme_nf_prv <- './output/Figure_1/fig1_dme_nf_vs_prv_cache.rds'
+if (file.exists(.cache_dme_nf_prv)) {
+  message('Loading cached FindDMEs NF vs pRV...')
+  DMEs_nf_vs_prv <- readRDS(.cache_dme_nf_prv)
+} else {
+  DMEs_nf_vs_prv <- FindDMEs(
+    seurat_obj,
+    barcodes1 = group1,
+    barcodes2 = group2,
+    test.use='wilcox',
+    pseudocount.use=0,
+  )
+  saveRDS(DMEs_nf_vs_prv, .cache_dme_nf_prv)
+}
 
 mods_use <- unique(c(rownames(
   subset(DMEs_prv_vs_rvf,p_val_adj<0.05)),
@@ -624,7 +828,14 @@ rownames(subset(DMEs_nf_vs_rvf,p_val_adj<0.05))))
 
 
 # seurat_obj@meta.data <- cbind(seurat_obj@meta.data, MEs)
-MEs <- GetMEs(seurat_obj)
+.cache_MEs2 <- './output/Figure_1/fig1_module_eigengenes_renamed_cache.rds'
+if (file.exists(.cache_MEs2)) {
+  message('Loading cached module eigengenes (Fig 1E)...')
+  MEs <- readRDS(.cache_MEs2)
+} else {
+  MEs <- GetMEs(seurat_obj)
+  saveRDS(MEs, .cache_MEs2)
+}
 mods <- colnames(MEs); mods <- mods[mods != 'grey']
 
 
@@ -658,1260 +869,152 @@ p <- custom_vln(
   )
 
 
-pdf(paste0('./output/', 'bulk_hME_vln_stack.pdf'), width=5, height=10)
-p
-dev.off()
+p_1E <- p
+save_figure(p_1E, 'Figure_1_panel_E_violins.pdf', width=5, height=10)
 
 
 #######################################
 #############  FIGURE 1F  #############
 #######################################
-
-
-# Generated by code for FIGURE S1E
-
-
-#######################################
-#############  FIGURE 1G  #############
-#######################################
-
-dbs <- c("Human_Gene_Atlas","WikiPathway_2023_Human","Reactome_Pathways_2024","GO_Biological_Process_2023")
-
-
-nf.vs.rvf.up <- rownames(subset(nf.vs.rvf,padj<0.1 & log2FoldChange>0))
-nf.vs.rvf.down <- rownames(subset(nf.vs.rvf,padj<0.1 & log2FoldChange<0))
-nf.vs.prv.up <- rownames(subset(nf.vs.prv,padj<0.1 & log2FoldChange>0))
-nf.vs.prv.down <- rownames(subset(nf.vs.prv,padj<0.1 & log2FoldChange<0))
-prv.vs.rvf.up <- rownames(subset(prv.vs.rvf,padj<0.1 & log2FoldChange>0))
-prv.vs.rvf.down <- rownames(subset(prv.vs.rvf,padj<0.1 & log2FoldChange<0))
-
-#Gene expression gradients
-NF_2_pRV_up_2_RVF_up <- intersect(intersect(nf.vs.prv.down, nf.vs.rvf.down), prv.vs.rvf.down)
-NF_2_pRV_down_2_RVF_down <- intersect(intersect(nf.vs.prv.up, nf.vs.rvf.up), prv.vs.rvf.up)
-NF_2_pRV_up_2_RVF_down <- setdiff(intersect(nf.vs.prv.down, prv.vs.rvf.up), nf.vs.rvf.down)
-NF_2_pRV_down_2_RVF_up <- setdiff(intersect(nf.vs.prv.up, prv.vs.rvf.down), nf.vs.rvf.up)
-NF_2_pRV_flat_2_RVF_up <- setdiff(intersect(nf.vs.rvf.up, prv.vs.rvf.up), nf.vs.prv.up)
-NF_2_pRV_flat_2_RVF_down <- setdiff(intersect(nf.vs.rvf.down, prv.vs.rvf.down), nf.vs.prv.down)
-
-#NF_2_pRV_down_2_RVF_up <- read.csv(file="./dependencies/shared/NF_2_pRV_down_2_RVF_up.csv")[,2]
-
-
-enriched <- enrichr(NF_2_pRV_down_2_RVF_up, dbs)
-enriched[[1]] <- subset(enriched[[1]],Adjusted.P.value<0.2)
-p1<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:3),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO Biological Process Up') + 
-  scale_y_discrete(labels= fct_inorder(
-    wrapText(sapply(
-      strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
-  scale_color_stepsn(colors=rev(magma(256)))
-p1
-
-enriched[[3]] <- subset(enriched[[3]],Adjusted.P.value<.2)
-p2<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:3),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO Biological Process Up') + 
-  scale_y_discrete(labels= fct_inorder(
-    wrapText(sapply(
-      strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
-  scale_color_stepsn(colors=rev(magma(256)))
-p2
-
-pdf('./output/Bulk_down_up_enrichr.pdf',width=5,height=2.5)
-p2
-dev.off()
-
-
-
-
-
-
-
-
-
-# library(JASPAR2020)
-# library(motifmatchr)
-# library(TFBSTools)
-# library(EnsDb.Hsapiens.v86)
-# library(GenomicRanges)
-# library(cowplot)
-# library(GeneOverlap)
-
-# theme_set(theme_cowplot())
-# set.seed(12345)
-
-# # get the pfm from JASPAR2020 using TFBSTools
-# pfm_core <- TFBSTools::getMatrixSet(
-#   x = JASPAR2020,
-#   opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE)
-# )
-
-# seurat_obj <- MotifScan(
-#   seurat_obj,
-#   species_genome = 'hg38',
-#   pfm = pfm_core,
-#   EnsDb = EnsDb.Hsapiens.v86
-# )
-# dim(GetMotifMatrix(seurat_obj))
-
-
-# # TF target genes
-# target_genes <- GetMotifTargets(seurat_obj)
-
-# # overlap between modules & TF target genes:
-# seurat_obj<- OverlapModulesMotifs(seurat_obj)
-
-# # look at the overlap data
-# head(GetMotifOverlap(seurat_obj))
-
-
-# # plot the top TFs overlapping with
-
-
-# n_tfs = 10
-# plot_size = c(5, 6)
-# outdir = './output/bulk_motifs/MotifOverlaps/'
-# motif_font = "helvetica_regular"
-
-# if (!dir.exists(outdir)) {
-#          dir.create(outdir)
-#      }
-
-# wgcna_name <- seurat_obj@misc$active_wgcna
-# modules <- GetModules(seurat_obj)
-
-# mods <- levels(modules$module)
-#      mods <- mods[mods != "grey"]
-#      if (is.null(module_names)) {
-#          module_names <- mods
-#      }
-#      overlap_df <- GetMotifOverlap(seurat_obj, wgcna_name)
-#      motif_df <- GetMotifs(seurat_obj)
-#      pfm <- GetPFMList(seurat_obj)
-#      overlap_df$motif_ID <- motif_df$motif_ID[match(overlap_df$tf, 
-#          motif_df$motif_name)]
-#      overlap_df <- overlap_df %>% subset(module %in% module_names)
-#      for (cur_mod in module_names) {
-#          print(cur_mod)
-#          plot_df <- overlap_df %>% subset(module == cur_mod) %>% 
-#              top_n(n_tfs, wt = odds_ratio) %>% arrange(desc(odds_ratio))
-#          p1 <- plot_df %>% ggplot(aes(y = reorder(tf, odds_ratio), 
-#              fill = odds_ratio, x = odds_ratio)) + geom_bar(stat = "identity", 
-#              width = 0.7) + NoLegend() + scale_fill_gradient(high = unique(plot_df$color), 
-#              low = "grey90") + ylab("") + theme(axis.line.y = element_blank(), 
-#              axis.text.y = element_blank(), plot.margin = margin(t = 0, 
-#                  r = 0, b = 0, l = 0))
-#          plot_list <- list()
-#          for (i in 1:nrow(plot_df)) {
-#              cur_id <- plot_df[i, "motif_ID"]
-#              cur_name <- plot_df[i, "tf"]
-#              plot_list[[cur_id]] <- ggplot() + ggseqlogo::geom_logo(as.matrix(pfm[[cur_id]]), 
-#                  font = motif_font) + ggseqlogo::theme_logo() + 
-#                  xlab("") + ylab(cur_name) + theme(axis.text.x = element_blank(), 
-#                  axis.text.y = element_blank(), axis.title.y = element_text(angle = 0), 
-#                  plot.margin = margin(t = 0, r = 0, b = 0, l = 0))
-#          }
-#          patch1 <- wrap_plots(plot_list, ncol = 1)
-#          outplot <- (patch1 | p1) + plot_layout(ncol = 2, widths = c(1, 
-#              2)) + plot_annotation(title = paste0("Motif overlaps with ", 
-#              cur_mod), theme = theme(plot.title = element_text(hjust = 0.5)))
-#          pdf(paste0(outdir, "/", cur_mod, "_motif_overlaps.pdf"), 
-#              width = plot_size[1], height = plot_size[2], useDingbats = FALSE)
-#          print(outplot)
-#          dev.off()
-#      }
-
-
-
-# TF_of_interest <- c('SMAD3','SMAD4','OVOL1','OVOL2','FOXA2',
-#   'FOXA3','E2F1','TFCP2','ETV3','SOX12','MITF','IRF4','IRF8',
-#   'YY2','KLF2','KLF4','KLF5','SP1','SP3','SP4','NR2F1','Arid3a')
-# #store_motif_targets <- seurat_obj@misc$motifs$motif_targets
-
-# subset_motif_targets <- store_motif_targets[names(store_motif_targets) %in% TF_of_interest]
-# seurat_obj@misc$motifs$motif_targets <- subset_motif_targets
-
-
-# seurat_obj <- MotifTargetScore(
-#   seurat_obj,
-#   method='UCell',
-#   maxRank = 15000
-# )
-
-
-
-# df <- GetMotifOverlap(seurat_obj)
-
-# for (i in TF_of_interest){
-#   print(i)
-# tf_name = i
-# cur_df <- df %>% subset(tf == tf_name)
-# if (length(rownames(cur_df)) == 0) {next}
-# cur_df$module <- paste0('M',match(cur_df$module,mapping))
-# cur_df <- cur_df %>% subset(module %in% mods_use)
-
-# plot_var <- 'odds_ratio'
-# p <- cur_df %>%
-#   ggplot(aes(y=reorder(module, odds_ratio), x=odds_ratio)) +
-#   geom_bar(stat='identity', fill=cur_df$color) +
-#   geom_vline(xintercept = 1, linetype='dashed', color='gray') +
-#   geom_text(aes(label=Significance), color='black', size=10, hjust='center') +
-#   ylab('') +
-#   xlab("Odds Ratio") +
-#   ggtitle(i) +
-#   theme(
-#     plot.title = element_text(hjust = 0.5),
-#     text = element_text(size=30),
-#     axis.text.x = element_text(size=30),
-#     axis.text.y = element_text(size=30)
-#   )
-# pdf(paste0('./output/', tf_name,'_TF_odds.pdf'), width=5, height=10)
-
-# print(p)
-
-# dev.off()
-# }
-
-
-# dbs <- c("Human_Gene_Atlas","WikiPathway_2023_Human","Reactome_2022","GO_Biological_Process_2023")
-
-# enriched <- enrichr(NF_2_pRV_down_2_RVF_up, dbs)
-# enriched[[1]] <- subset(enriched[[1]],Adjusted.P.value<0.2)
-# p1<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO Biological Process Up') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p1
-
-# enriched[[3]] <- subset(enriched[[3]],Adjusted.P.value<0.2)
-# #pdf('./output/Bulk_down_down_enrichr.pdf',width=6,height=2.5)
-# p2<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO Biological Process Up') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p2
-
-# pdf('./output/Bulk_down_up_enrichr.pdf',width=5,height=2.5)
-# p2
-# dev.off()
-
-
-
-
-
-
-
-
-
-# #########SCRATCH PAPER OLD STUFF
-
-
-
-
-# ####
-# ddsSE <- estimateSizeFactors(ddsSE)
-
-# alt.mat <- mat
-# norm.mat <- (alt.mat - rowMeans(alt.mat))/rowSds(alt.mat)
-# disease <- colData(vstSE)$category
-# #bulk.seurat <- CreateSeuratObject(counts=mat, meta.data=colData(vstSE), assay = "RNA")
-
-# #in.c <- rownames(subset(g5,p_val_adj<0.05))
-# in.c <- g2
-# in.bulk<-in.c[in.c %in% rownames(vstSE)]
-
-# out <- colMeans(norm.mat[in.bulk,])
-# out <- data.frame(disease=disease,score=out)
-
-# ggplot(out,aes(factor(disease),score,fill=factor(disease))) + geom_violin() +
-#   geom_point(position = position_jitter(seed = 1, width = 0.2))
-
-
-
-# NF_2_pRV_up_2_RVF_up <- read.csv(file="./output/NF_2_pRV_up_2_RVF_up.csv")[,2]
-# NF_2_pRV_down_2_RVF_down <- read.csv(file="./output/NF_2_pRV_down_2_RVF_down.csv")[,2]
-# NF_2_pRV_flat_2_RVF_up <- read.csv(file="./output/NF_2_pRV_flat_2_RVF_up.csv")[,2]
-# NF_2_pRV_flat_2_RVF_down <- read.csv(file="./output/NF_2_pRV_flat_2_RVF_down.csv")[,2]
-# NF_2_pRV_down_2_RVF_up <- read.csv(file="./output/NF_2_pRV_down_2_RVF_up.csv")[,2]
-# NF_2_pRV_up_2_RVF_down <- read.csv(file="./output/NF_2_pRV_up_2_RVF_down.csv")[,2]
-
-
-
-# pool = rownames(alt.mat)
-# nbin = 24
-# ctrl = 100
-# k = FALSE
-# name = "RV"
-# seed = 1
-# features = list()
-# features[[1]] = g1[g1 %in% rownames(vstSE)]
-# features[[2]] = g2[g2 %in% rownames(vstSE)]
-# features[[3]] = g3[g3 %in% rownames(vstSE)]
-# features[[4]] = g4[g4 %in% rownames(vstSE)]
-# features[[5]] = g5[g5 %in% rownames(vstSE)]
-# features[[6]] = g6[g6 %in% rownames(vstSE)]
-# top.nf <- rownames(head(c1,250))
-# top.rvf <- rownames(head(c2,250))
-# top.prv <- rownames(head(c3,250))
-# features[[7]] = top.nf[top.nf %in% rownames(vstSE)]
-# features[[8]] = top.rvf[top.rvf %in% rownames(vstSE)]
-# features[[9]] = top.prv[top.prv %in% rownames(vstSE)]
-
-# features[[10]] = intersect(a1,d1)[intersect(a1,d1) %in% rownames(vstSE)]
-# features[[11]] = intersect(a2,d2)[intersect(a2,d2) %in% rownames(vstSE)]
-# features[[12]] = intersect(a3,d3)[intersect(a3,d3) %in% rownames(vstSE)]
-# features[[13]] = intersect(a4,d4)[intersect(a4,d4) %in% rownames(vstSE)]
-# features[[14]] = intersect(a5,d5)[intersect(a5,d5) %in% rownames(vstSE)]
-# features[[15]] = intersect(a6,d6)[intersect(a6,d6) %in% rownames(vstSE)]
-# features[[16]] = NF_2_pRV_up_2_RVF_up
-# features[[17]] = NF_2_pRV_down_2_RVF_down
-# features[[18]] = NF_2_pRV_up_2_RVF_down
-# features[[19]] = NF_2_pRV_down_2_RVF_up
-# features[[20]] = NF_2_pRV_flat_2_RVF_up
-# features[[21]] =
-
-# intersect.all <- intersect(c(g1,g2,g3,g4,g5,g6),c(NF_2_pRV_up_2_RVF_up, NF_2_pRV_down_2_RVF_down, NF_2_pRV_up_2_RVF_down, NF_2_pRV_down_2_RVF_up, NF_2_pRV_flat_2_RVF_up, NF_2_pRV_flat_2_RVF_down))
-
-
-
-# cluster.length <- length(x = features)
-# assay.data <- t(as.data.frame(alt.mat))
-
-# pool = rownames(assay.data)
-
-
-# data.avg <- colMeans(x = assay.data[pool, ],na.rm=T)
-# data.avg <- data.avg[order(data.avg)]
-# data.cut <- ggplot2::cut_number(x = data.avg + rnorm(n = length(data.avg))/1e+30,
-#                                 n = nbin,
-#                                 labels = FALSE,
-#                                 right = FALSE)
-# names(x = data.cut) <- names(x = data.avg)
-# ctrl.use <- vector(mode = "list", length = cluster.length)
-
-# # For each of the input gene lists:
-# for (i in 1:cluster.length) {
-#   features.use <- features[[i]]
-#   for (j in 1:length(x = features.use)) {
-#         ctrl.use[[i]] <- c(ctrl.use[[i]],names(x = sample(x = data.cut[which(x = data.cut == data.cut[features.use[j]])],size = ctrl,replace = FALSE)))
-#     }
-# }
-
-# ctrl.use <- lapply(X = ctrl.use, FUN = unique)
-# ctrl.scores <- matrix(data = numeric(length = 1L), nrow = length(x = ctrl.use), ncol = nrow(x = assay.data))
-
-# for (i in 1:length(ctrl.use)) {
-#   # Get control gene names as a vector  
-#   features.use <- setdiff(ctrl.use[[i]],"")
-#   # For each cell, calculate the mean expression of *all* of the control genes 
-#   ctrl.scores[i, ] <- rowMeans(x = assay.data[,features.use])
-# }
-
-# # Similar to the above, create an empty matrix
-# features.scores <- matrix(data = numeric(length = 1L),nrow = cluster.length,ncol = nrow(x = assay.data))
-
-# for (i in 1:cluster.length) {
-#     features.use <- setdiff(features[[i]],"")
-#     data.use <- assay.data[, features.use, drop = FALSE]
-#     features.scores[i, ] <- rowMeans(x = data.use)
-# }
-
-# features.scores.use <- features.scores - ctrl.scores
-# rownames(x = features.scores.use) <- paste0(name, 1:cluster.length)
-# features.scores.use <- as.data.frame(x = t(x = features.scores.use))
-
-# rownames(x = features.scores.use) <- rownames(x = assay.data)
-# features.scores.use$disease <- disease
-
-# names = c("1343", "1392", "1467", "1561", "1567", "1618", "1632", "1681", "1691", "1692", "1697")
-
-# sn <- colData(vstSE)$subject %in% names
-# features.scores.use$sn <- sn
-
-# ggplot(features.scores.use,aes(factor(disease),RV5,fill=factor(disease))) + geom_violin() +
-#   geom_point(data= features.scores.use[sn,],position = position_jitter(seed = 1, width = 0.2))
-
-
-
-
-# #############DEGs
-
-# sum(prv.vs.rvf$padj < 0.1, na.rm=TRUE)
-# resOrdered1 <- prv.vs.rvf[order(prv.vs.rvf$pvalue),]
-# resOrdered1$padj[is.na(resOrdered1$padj)]=1
-# signif1 <- rownames(subset(resOrdered1, resOrdered1$padj<0.1))
-# write.csv(as.data.frame(resOrdered1), 
-#           file="./output/pRV_vs_RVF.csv")
-
-# sum(nf.vs.rvf$padj < 0.1, na.rm=TRUE)
-# resOrdered2 <- nf.vs.rvf[order(nf.vs.rvf$pvalue),]
-# resOrdered2$padj[is.na(resOrdered2$padj)]=1
-# signif2 <- rownames(subset(resOrdered2, resOrdered2$padj<0.1))
-
-# write.csv(as.data.frame(resOrdered2), 
-#           file="./output/NF_vs_RVF.csv")
-
-# sum(nf.vs.prv$padj < 0.1, na.rm=TRUE)
-# resOrdered3 <- nf.vs.prv[order(nf.vs.prv$pvalue),]
-# resOrdered3$padj[is.na(resOrdered3$padj)]=1
-# signif3 <- rownames(subset(resOrdered3, resOrdered3$padj<0.1))
-
-# write.csv(as.data.frame(resOrdered3), 
-#           file="./output/NF_vs_pRV.csv")
-
-
-
-# #####Venn Diagrams
-# library(VennDiagram)
-# library(RColorBrewer)
-# myCol <- brewer.pal(3, "Pastel2")
-
-
-# x <- list(signif3, signif2,signif1)
-# pdf('./output/bulk_venn.pdf',width=6,height=6)
-
-# grid.newpage()
-# venn_object <- venn.diagram(x=x, category.names=c('pRV vs NF','RVF vs NF','pRV vs RVF'),filename = NULL,lwd = 2,lty = 'blank',fill = myCol,fontfamily = "sans",cat.fontfamily = "sans",cat.default.pos = "outer")
-# grid.draw(venn_object)
-# dev.off()
-
-
-# x <- list(nf.vs.prv.up, nf.vs.prv.down, nf.vs.rvf.up, nf.vs.rvf.down)
-# myCol <- brewer.pal(4, "Pastel2")
-# pdf('./output/bulk_venn_up_down_concordance.pdf',width=6,height=6)
-
-# grid.newpage()
-
-# venn_object <- venn.diagram(x=x, category.names=c('pRV vs NF up','pRV vs NF down','RVF vs NF up','RVF vs NF down'),filename = NULL,lwd = 2,lty = 'blank',fill = myCol,fontfamily = "sans",cat.fontfamily = "sans",cat.default.pos = "outer")
-# grid.draw(venn_object)
-# dev.off()
-
-# x <- list(nf.vs.prv.up, nf.vs.prv.down, nf.vs.rvf.up, nf.vs.rvf.down, prv.vs.rvf.up)
-# myCol <- brewer.pal(5, "Pastel2")
-# pdf('./output/bulk_venn_prv_rvf_up_concordance.pdf',width=6,height=6)
-
-# grid.newpage()
-
-# venn_object <- venn.diagram(x=x, category.names=c('pRV vs NF up','pRV vs NF down','RVF vs NF up','RVF vs NF down','pRV vs RVF up'),filename = NULL,lwd = 2,lty = 'blank',fill = myCol,fontfamily = "sans",cat.fontfamily = "sans",cat.default.pos = "outer")
-# grid.draw(venn_object)
-# dev.off()
-
-# #
-# x <- list(nf.vs.prv.up, nf.vs.prv.down, nf.vs.rvf.up, nf.vs.rvf.down, prv.vs.rvf.down)
-# myCol <- brewer.pal(5, "Pastel2")
-# pdf('./output/bulk_venn_prv_rvf_down_concordance.pdf',width=6,height=6)
-
-# grid.newpage()
-
-# venn_object <- venn.diagram(x=x, category.names=c('pRV vs NF up','pRV vs NF down','RVF vs NF up','RVF vs NF down','pRV vs RVF down'),filename = NULL,lwd = 2,lty = 'blank',fill = myCol,fontfamily = "sans",cat.fontfamily = "sans",cat.default.pos = "outer")
-# grid.draw(venn_object)
-# dev.off()
-
-
-
-
-
-
-
-
-
-
-# #Enrichments
-# library(DOSE)
-# library(enrichR)
-# library(tidyverse)
-
-# websiteLive <- getOption("enrichR.live")
-# if (websiteLive) {
-#     listEnrichrSites()
-#     setEnrichrSite("Enrichr") # Human genes   
-# }
-
-
-
-# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-
-
-
-# ####GO BP
-
-# #pRV vs RV
-
-# enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange > 0.1)), dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange < -0.1)), dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Down.pdf',width=10,height=3)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:8),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# #NF vs pRV
-
-# enriched <- enrichr(rownames(subset(nf.vs.prv,padj<0.05 & log2FoldChange > 0.1)), dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_vs_pRV_Up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(rownames(subset(nf.vs.prv,padj<0.05 & log2FoldChange < -0.1)), dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_vs_pRV_Down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# #NF vs RVF
-
-# enriched <- enrichr(rownames(subset(nf.vs.rvf,padj<0.05 & log2FoldChange > 0.1)), dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_vs_RVF_Up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(rownames(subset(nf.vs.rvf,padj<0.05 & log2FoldChange < -0.1)), dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_vs_RVF_Down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-
-# ###CHeA
-
-# #pRV vs RV
-
-# enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange > 0.1)), dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_pRV_vs_RVF_Up.pdf',width=5,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange < -0.1)), dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_pRV_vs_RVF_Down.pdf',width=5,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# #NF vs pRV
-
-# enriched <- enrichr(rownames(subset(nf.vs.prv,padj<0.05 & log2FoldChange > 0.1)), dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_vs_pRV_Up.pdf',width=5,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(rownames(subset(nf.vs.prv,padj<0.05 & log2FoldChange < -0.1)), dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_vs_pRV_Down.pdf',width=5,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# #NF vs RVF
-
-# enriched <- enrichr(rownames(subset(nf.vs.rvf,padj<0.05 & log2FoldChange > 0.1)), dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_vs_RVF_Up.pdf',width=5,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(rownames(subset(nf.vs.rvf,padj<0.05 & log2FoldChange < -0.1)), dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_vs_RVF_Down.pdf',width=5,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-
-
-
-
-# ####GENE ENRICHMENT FOR DIRECTIONAL ANALYSIS
-# ####
-# #NF_2_pRV_up_2_RVF_up
-# #NF_2_pRV_down_2_RVF_down 
-# #NF_2_pRV_up_2_RVF_down 
-# #NF_2_pRV_down_2_RVF_up
-# #NF_2_pRV_flat_2_RVF_up
-# #NF_2_pRV_flat_2_RVF_down
-
-# enriched <- enrichr(NF_2_pRV_up_2_RVF_up, dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_2_pRV_up_2_RVF_up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_down_2_RVF_down, dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_2_pRV_down_2_RVF_down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_up_2_RVF_down, dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_2_pRV_up_2_RVF_down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_down_2_RVF_up, dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_2_pRV_down_2_RVF_up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-
-# enriched <- enrichr(NF_2_pRV_flat_2_RVF_up, dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_2_pRV_flat_2_RVF_up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_flat_2_RVF_down, dbs)
-# enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 1,]
-# pdf('./output/bulkRNAseq_DEG_GO_BP_NF_2_pRV_flat_2_RVF_down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-
-# ##TF
-# enriched <- enrichr(NF_2_pRV_up_2_RVF_up, dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_2_pRV_up_2_RVF_up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_down_2_RVF_down, dbs)
-# enriched[[1]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_2_pRV_down_2_RVF_down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_up_2_RVF_down, dbs)
-# enriched[[4]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_2_pRV_up_2_RVF_down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_down_2_RVF_up, dbs)
-# enriched[[4]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_2_pRV_down_2_RVF_up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-
-# enriched <- enrichr(NF_2_pRV_flat_2_RVF_up, dbs)
-# enriched[[4]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_2_pRV_flat_2_RVF_up.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-# enriched <- enrichr(NF_2_pRV_flat_2_RVF_down, dbs)
-# enriched[[4]] <- enriched[[1]][enriched[[1]]$Adjusted.P.value < 0.1,]
-# pdf('./output/bulkRNAseq_DEG_TF_NF_2_pRV_flat_2_RVF_down.pdf',width=10,height=5.5)
-# p4<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1))) + theme(axis.text=element_text(colour="black"))
-# p4
-# dev.off()
-
-
-# #Save gene lists
-# #NF_2_pRV_up_2_RVF_up
-# #NF_2_pRV_down_2_RVF_down 
-# #NF_2_pRV_up_2_RVF_down 
-# #NF_2_pRV_down_2_RVF_up
-# #NF_2_pRV_flat_2_RVF_up
-# #NF_2_pRV_flat_2_RVF_down
-# write.csv(as.data.frame(NF_2_pRV_up_2_RVF_up),file="./output/NF_2_pRV_up_2_RVF_up.csv")
-# write.csv(as.data.frame(NF_2_pRV_down_2_RVF_down),file="./output/NF_2_pRV_down_2_RVF_down.csv")
-# write.csv(as.data.frame(NF_2_pRV_up_2_RVF_down),file="./output/NF_2_pRV_up_2_RVF_down.csv")
-# write.csv(as.data.frame(NF_2_pRV_down_2_RVF_up),file="./output/NF_2_pRV_down_2_RVF_up.csv")
-# write.csv(as.data.frame(NF_2_pRV_flat_2_RVF_up),file="./output/NF_2_pRV_flat_2_RVF_up.csv")
-# write.csv(as.data.frame(NF_2_pRV_flat_2_RVF_down),file="./output/NF_2_pRV_flat_2_RVF_down.csv")
-
-
-
-
-
-
-
-# #Compare gene lists to sc data
-# #Pooled data first
-
-# M1<-readRDS('/Volumes/Extreme SSD/Final_Analysis/CellTypes/Post_R3_FINAL_with_counts.rds')
-# M1$Names_group <- paste0(M1$Names,'_',M1$group)
-# M2<-AggregateExpression(M1, group.by = c("Names","group","patient"), assays = "RNA", return.seurat = TRUE)
-# M2$Names_group <- paste0(M2$Names,'_',M2$group)
-# Idents(M2) <- "group"
-# Idents(M1) <- "group"
-# M1<-PrepSCTFindMarkers(M1)
-
-
-# a1 <- FindMarkers(M2,ident.1=c('pRV'),ident.2=c('RVF'),logfc.threshold=0,test.use="DESeq2")
-# a2 <- FindMarkers(M2,ident.1=c('NF'),ident.2=c('pRV'),logfc.threshold=0,test.use="DESeq2")
-# a3 <- FindMarkers(M2,ident.1=c('NF'),ident.2=c('RVF'),logfc.threshold=0,test.use="DESeq2")
-
-# b1 <- FindMarkers(M1,ident.1=c('pRV'),ident.2=c('RVF'),logfc.threshold=0)
-# b2 <- FindMarkers(M1,ident.1=c('NF'),ident.2=c('pRV'),logfc.threshold=0)
-# b3 <- FindMarkers(M1,ident.1=c('NF'),ident.2=c('RVF'),logfc.threshold=0)
-
-
-# sc.prv.vs.rvf.up <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.prv.vs.rvf.down <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.prv.up <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.prv.down <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.rvf.up <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.rvf.down <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# #Gene expression gradients
-# sc.NF_2_pRV_up_2_RVF_up <- intersect(intersect(sc.nf.vs.prv.down, sc.nf.vs.rvf.down), sc.prv.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_down <- intersect(intersect(sc.nf.vs.prv.up, sc.nf.vs.rvf.up), sc.prv.vs.rvf.up)
-# sc.NF_2_pRV_up_2_RVF_down <- setdiff(intersect(sc.nf.vs.prv.down, sc.prv.vs.rvf.up), sc.nf.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_up <- setdiff(intersect(sc.nf.vs.prv.up, sc.prv.vs.rvf.down), sc.nf.vs.rvf.up)
-# sc.NF_2_pRV_flat_2_RVF_up <- setdiff(intersect(sc.nf.vs.rvf.up, sc.prv.vs.rvf.up), sc.nf.vs.prv.up)
-# sc.NF_2_pRV_flat_2_RVF_down <- setdiff(intersect(sc.nf.vs.rvf.down, sc.prv.vs.rvf.down), sc.nf.vs.prv.down)
-
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_up),file="./output/sc_NF_2_pRV_up_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_down),file="./output/sc_NF_2_pRV_down_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_down),file="./output/sc_NF_2_pRV_up_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_up),file="./output/sc_NF_2_pRV_down_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_up),file="./output/sc_NF_2_pRV_flat_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_down),file="./output/sc_NF_2_pRV_flat_2_RVF_down.csv")
-
-
-# x <- list(prv.vs.rvf.up, prv.vs.rvf.down, sc.prv.vs.rvf.up, sc.prv.vs.rvf.down)
-# myCol <- brewer.pal(4, "Pastel2")
-# pdf('./output/sc_vs_bulk_venn_up_down_concordance.pdf',width=6,height=6)
-
-# grid.newpage()
-
-# venn_object <- venn.diagram(x=x, category.names=c('pRV vs RVF up','pRV vs RVF down','sc pRV vs RVF up','sc pRV vs RVF down'),filename = NULL,lwd = 2,lty = 'blank',fill = myCol,fontfamily = "sans",cat.fontfamily = "sans",cat.default.pos = "outer")
-# grid.draw(venn_object)
-# dev.off()
-
-# #CMs only
-# Idents(M1) <- "Names_group"
-
-# b1 <- FindMarkers(M1,ident.1=c('CM_pRV'),ident.2=c('CM_RVF'),logfc.threshold=0)
-# b2 <- FindMarkers(M1,ident.1=c('CM_NF'),ident.2=c('CM_pRV'),logfc.threshold=0)
-# b3 <- FindMarkers(M1,ident.1=c('CM_NF'),ident.2=c('CM_RVF'),logfc.threshold=0)
-
-
-# sc.prv.vs.rvf.up <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.prv.vs.rvf.down <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.prv.up <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.prv.down <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.rvf.up <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.rvf.down <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# #Gene expression gradients
-# sc.NF_2_pRV_up_2_RVF_up <- intersect(intersect(sc.nf.vs.prv.down, sc.nf.vs.rvf.down), sc.prv.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_down <- intersect(intersect(sc.nf.vs.prv.up, sc.nf.vs.rvf.up), sc.prv.vs.rvf.up)
-# sc.NF_2_pRV_up_2_RVF_down <- setdiff(intersect(sc.nf.vs.prv.down, sc.prv.vs.rvf.up), sc.nf.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_up <- setdiff(intersect(sc.nf.vs.prv.up, sc.prv.vs.rvf.down), sc.nf.vs.rvf.up)
-# sc.NF_2_pRV_flat_2_RVF_up <- setdiff(intersect(sc.nf.vs.rvf.up, sc.prv.vs.rvf.up), sc.nf.vs.prv.up)
-# sc.NF_2_pRV_flat_2_RVF_down <- setdiff(intersect(sc.nf.vs.rvf.down, sc.prv.vs.rvf.down), sc.nf.vs.prv.down)
-
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_up),file="./output/sc_cm_NF_2_pRV_up_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_down),file="./output/sc_cm_NF_2_pRV_down_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_down),file="./output/sc_cm_NF_2_pRV_up_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_up),file="./output/sc_cm_NF_2_pRV_down_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_up),file="./output/sc_cm_NF_2_pRV_flat_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_down),file="./output/sc_cm_NF_2_pRV_flat_2_RVF_down.csv")
-
-
-
-# #FBs only
-# Idents(M1) <- "Names_group"
-
-# b1 <- FindMarkers(M1,ident.1=c('FB_pRV'),ident.2=c('FB_RVF'),logfc.threshold=0)
-# b2 <- FindMarkers(M1,ident.1=c('FB_NF'),ident.2=c('FB_pRV'),logfc.threshold=0)
-# b3 <- FindMarkers(M1,ident.1=c('FB_NF'),ident.2=c('FB_RVF'),logfc.threshold=0)
-
-
-# sc.prv.vs.rvf.up <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.prv.vs.rvf.down <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.prv.up <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.prv.down <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.rvf.up <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.rvf.down <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# #Gene expression gradients
-# sc.NF_2_pRV_up_2_RVF_up <- intersect(intersect(sc.nf.vs.prv.down, sc.nf.vs.rvf.down), sc.prv.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_down <- intersect(intersect(sc.nf.vs.prv.up, sc.nf.vs.rvf.up), sc.prv.vs.rvf.up)
-# sc.NF_2_pRV_up_2_RVF_down <- setdiff(intersect(sc.nf.vs.prv.down, sc.prv.vs.rvf.up), sc.nf.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_up <- setdiff(intersect(sc.nf.vs.prv.up, sc.prv.vs.rvf.down), sc.nf.vs.rvf.up)
-# sc.NF_2_pRV_flat_2_RVF_up <- setdiff(intersect(sc.nf.vs.rvf.up, sc.prv.vs.rvf.up), sc.nf.vs.prv.up)
-# sc.NF_2_pRV_flat_2_RVF_down <- setdiff(intersect(sc.nf.vs.rvf.down, sc.prv.vs.rvf.down), sc.nf.vs.prv.down)
-
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_up),file="./output/sc_fb_NF_2_pRV_up_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_down),file="./output/sc_fb_NF_2_pRV_down_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_down),file="./output/sc_fb_NF_2_pRV_up_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_up),file="./output/sc_fb_NF_2_pRV_down_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_up),file="./output/sc_fb_NF_2_pRV_flat_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_down),file="./output/sc_fb_NF_2_pRV_flat_2_RVF_down.csv")
-
-# #EC only
-# Idents(M1) <- "Names_group"
-
-# b1 <- FindMarkers(M1,ident.1=c('EC_pRV'),ident.2=c('EC_RVF'),logfc.threshold=0)
-# b2 <- FindMarkers(M1,ident.1=c('EC_NF'),ident.2=c('EC_pRV'),logfc.threshold=0)
-# b3 <- FindMarkers(M1,ident.1=c('EC_NF'),ident.2=c('EC_RVF'),logfc.threshold=0)
-
-
-# sc.prv.vs.rvf.up <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.prv.vs.rvf.down <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.prv.up <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.prv.down <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.rvf.up <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.rvf.down <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# #Gene expression gradients
-# sc.NF_2_pRV_up_2_RVF_up <- intersect(intersect(sc.nf.vs.prv.down, sc.nf.vs.rvf.down), sc.prv.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_down <- intersect(intersect(sc.nf.vs.prv.up, sc.nf.vs.rvf.up), sc.prv.vs.rvf.up)
-# sc.NF_2_pRV_up_2_RVF_down <- setdiff(intersect(sc.nf.vs.prv.down, sc.prv.vs.rvf.up), sc.nf.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_up <- setdiff(intersect(sc.nf.vs.prv.up, sc.prv.vs.rvf.down), sc.nf.vs.rvf.up)
-# sc.NF_2_pRV_flat_2_RVF_up <- setdiff(intersect(sc.nf.vs.rvf.up, sc.prv.vs.rvf.up), sc.nf.vs.prv.up)
-# sc.NF_2_pRV_flat_2_RVF_down <- setdiff(intersect(sc.nf.vs.rvf.down, sc.prv.vs.rvf.down), sc.nf.vs.prv.down)
-
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_up),file="./output/sc_ec_NF_2_pRV_up_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_down),file="./output/sc_ec_NF_2_pRV_down_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_down),file="./output/sc_ec_NF_2_pRV_up_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_up),file="./output/sc_ec_NF_2_pRV_down_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_up),file="./output/sc_ec_NF_2_pRV_flat_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_down),file="./output/sc_ec_NF_2_pRV_flat_2_RVF_down.csv")
-
-# #Myeloid only
-# Idents(M1) <- "Names_group"
-
-# b1 <- FindMarkers(M1,ident.1=c('Myeloid_pRV'),ident.2=c('Myeloid_RVF'),logfc.threshold=0)
-# b2 <- FindMarkers(M1,ident.1=c('Myeloid_NF'),ident.2=c('Myeloid_pRV'),logfc.threshold=0)
-# b3 <- FindMarkers(M1,ident.1=c('Myeloid_NF'),ident.2=c('Myeloid_RVF'),logfc.threshold=0)
-
-
-# sc.prv.vs.rvf.up <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.prv.vs.rvf.down <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.prv.up <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.prv.down <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.rvf.up <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.rvf.down <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# #Gene expression gradients
-# sc.NF_2_pRV_up_2_RVF_up <- intersect(intersect(sc.nf.vs.prv.down, sc.nf.vs.rvf.down), sc.prv.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_down <- intersect(intersect(sc.nf.vs.prv.up, sc.nf.vs.rvf.up), sc.prv.vs.rvf.up)
-# sc.NF_2_pRV_up_2_RVF_down <- setdiff(intersect(sc.nf.vs.prv.down, sc.prv.vs.rvf.up), sc.nf.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_up <- setdiff(intersect(sc.nf.vs.prv.up, sc.prv.vs.rvf.down), sc.nf.vs.rvf.up)
-# sc.NF_2_pRV_flat_2_RVF_up <- setdiff(intersect(sc.nf.vs.rvf.up, sc.prv.vs.rvf.up), sc.nf.vs.prv.up)
-# sc.NF_2_pRV_flat_2_RVF_down <- setdiff(intersect(sc.nf.vs.rvf.down, sc.prv.vs.rvf.down), sc.nf.vs.prv.down)
-
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_up),file="./output/sc_myeloid_NF_2_pRV_up_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_down),file="./output/sc_myeloid_NF_2_pRV_down_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_down),file="./output/sc_myeloid_NF_2_pRV_up_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_up),file="./output/sc_myeloid_NF_2_pRV_down_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_up),file="./output/sc_myeloid_NF_2_pRV_flat_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_down),file="./output/sc_myeloid_NF_2_pRV_flat_2_RVF_down.csv")
-
-# #Mural only
-# Idents(M1) <- "Names_group"
-
-# b1 <- FindMarkers(M1,ident.1=c('PC_pRV','SM_pRV'),ident.2=c('PC_RVF','SM_RVF'),logfc.threshold=0)
-# b2 <- FindMarkers(M1,ident.1=c('PC_NF','SM_NF'),ident.2=c('PC_pRV','PC_pRV'),logfc.threshold=0)
-# b3 <- FindMarkers(M1,ident.1=c('PC_NF','SM_NF'),ident.2=c('PC_RVF','SM_RVF'),logfc.threshold=0)
-
-
-# sc.prv.vs.rvf.up <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.prv.vs.rvf.down <- rownames(subset(b1, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.prv.up <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.prv.down <- rownames(subset(b2, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# sc.nf.vs.rvf.up <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC>0.1))
-# sc.nf.vs.rvf.down <- rownames(subset(b3, p_val_adj<0.05 & avg_log2FC < -0.1))
-
-# #Gene expression gradients
-# sc.NF_2_pRV_up_2_RVF_up <- intersect(intersect(sc.nf.vs.prv.down, sc.nf.vs.rvf.down), sc.prv.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_down <- intersect(intersect(sc.nf.vs.prv.up, sc.nf.vs.rvf.up), sc.prv.vs.rvf.up)
-# sc.NF_2_pRV_up_2_RVF_down <- setdiff(intersect(sc.nf.vs.prv.down, sc.prv.vs.rvf.up), sc.nf.vs.rvf.down)
-# sc.NF_2_pRV_down_2_RVF_up <- setdiff(intersect(sc.nf.vs.prv.up, sc.prv.vs.rvf.down), sc.nf.vs.rvf.up)
-# sc.NF_2_pRV_flat_2_RVF_up <- setdiff(intersect(sc.nf.vs.rvf.up, sc.prv.vs.rvf.up), sc.nf.vs.prv.up)
-# sc.NF_2_pRV_flat_2_RVF_down <- setdiff(intersect(sc.nf.vs.rvf.down, sc.prv.vs.rvf.down), sc.nf.vs.prv.down)
-
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_up),file="./output/sc_mural_NF_2_pRV_up_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_down),file="./output/sc_mural_NF_2_pRV_down_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_up_2_RVF_down),file="./output/sc_mural_NF_2_pRV_up_2_RVF_down.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_down_2_RVF_up),file="./output/sc_mural_NF_2_pRV_down_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_up),file="./output/sc_mural_NF_2_pRV_flat_2_RVF_up.csv")
-# write.csv(as.data.frame(sc.NF_2_pRV_flat_2_RVF_down),file="./output/sc_mural_NF_2_pRV_flat_2_RVF_down.csv")
-
-# ##############OLD
-
-
-# rvf.vs.rv <- topTreat(tfit, coef=2, n=Inf)
-# rvf.vs.rv.topgenes <- rownames(rvf.vs.rv)[1:100]
-
-# a = order(category)
-# i <- which(colnames(bulk) %in% rvf.vs.rv.topgenes[order(rvf.vs.rv[1:100,]$logFC)])
-# i <- i[match(rvf.vs.rv.topgenes[order(rvf.vs.rv[1:100,]$logFC)],colnames(bulk)[i])]
-# mycol <- colorpanel(1000,"blue","white","red")
-
-
-# pdf('./output/bulk_RVFvsNF_heatmap.pdf',width=10,height=10)
-# heatmap.2(as.matrix(t(bulk[a,i])), scale="row",
-#    labRow=colnames(bulk)[i], labCol=category[a], 
-#    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',
-#    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
-# dev.off()
-
-
-
-# f.vs.p <- topTreat(tfit, coef=3, n=Inf)
-# f.vs.p.topgenes <- rownames(f.vs.p)[1:100]
-
-# a = order(category)
-# i <- which(colnames(bulk) %in% f.vs.p.topgenes[order(f.vs.p[1:100,]$logFC)])
-# i <- i[match(f.vs.p.topgenes[order(f.vs.p[1:100,]$logFC)],colnames(bulk)[i])]
-# mycol <- colorpanel(1000,"blue","white","red")
-
-
-# pdf('./output/bulk_RVFvspRV_heatmap.pdf',width=10,height=10)
-# heatmap.2(as.matrix(t(bulk[a,i])), scale="row",
-#    labRow=colnames(bulk)[i], labCol=category[a], 
-#    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',
-#    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
-# dev.off()
-
-
-# ##############OLD
-
-
-# #Get var feats
-# #M1<-readRDS('/Volumes/Extreme SSD/Final_Analysis/CellTypes/Post_R3_FINAL_with_counts.rds')
-# #M1 <- SetIdent(M1,value = 'Names')
-# #DefaultAssay(M1) <- 'SCT'
-# #var_feats <- VariableFeatures(M1)
-
-
-# #var_keep =  colnames(bulk) %in% var_feats
-# #bulk_sub <- bulk[,var_keep]
-
-# #pcDat <- prcomp(bulk_sub)
-# #pdf('./output/bulk_pca_varfeats.pdf',width=10,height=7.5)
-# #autoplot(pcDat,data = bulk.meta, colour="category", shape="sex", size=4) + theme_classic() + #theme(axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),axis.text.x=element_blank(),ax#is.text.y=element_blank(),axis.title.x=element_text(size=16),axis.title.y=element_text(size=16#),legend.title=element_text(size=16),legend.text=element_text(size=16)) + #labs(color='Disease',shape='Sex')
-# #dev.off()
-
-# #####Limma
-
-# design <- model.matrix(~0+category)
-
-# contr.matrix <- makeContrasts(
-#    pRVvsNF =  categorypRV- categoryNF, 
-#    RVFvsNF = categoryRVF- categoryNF, 
-#    RVFvspRV = categoryRVF- categorypRV, 
-#    levels = colnames(design))
-# contr.matrix
-
-# fit <- lmFit(t(bulk), design)
-# fit2 <- contrasts.fit(fit, contr.matrix)
-# efit <- eBayes(fit2, trend=TRUE)
-# plotSA(efit, main="Final model: Mean-variance trend")
-
-# summary(decideTests(efit))
-# dtt <- decideTests(efit)
-
-# tfit <- treat(fit2, lfc=0.25)
-# dt <- decideTests(tfit)
-# summary(dt)
-
-# de.common <- which(dt[,1]!=0 & dt[,2]!=0)
-# length(de.common)
-
-# pdf('./output/bulk_overlap.pdf',width=10,height=10)
-
-# vennDiagram(dtt[,1:2], circle.col=c("turquoise", "salmon"))
-# dev.off()
-
-# pRV.vs.NF <- topTreat(tfit, coef=1, n=Inf)
-# head(pRV.vs.NF)
-
-# plotMD(tfit, column=1, status=dt[,1], main=colnames(tfit)[1], 
-#        xlim=c(-8,13))
-
-# library(gplots)
-
-# prv.vs.rv <- topTreat(tfit, coef=1, n=Inf)
-# prv.vs.rv.topgenes <- rownames(prv.vs.rv)[1:100]
-
-# a = order(category)
-# i <- which(colnames(bulk) %in% prv.vs.rv.topgenes[order(prv.vs.rv[1:100,]$logFC)])
-# i <- i[match(prv.vs.rv.topgenes[order(prv.vs.rv[1:100,]$logFC)],colnames(bulk)[i])]
-# mycol <- colorpanel(1000,"blue","white","red")
-
-
-# pdf('./output/bulk_pRVvsNF_heatmap.pdf',width=10,height=10)
-# heatmap.2(as.matrix(t(bulk[a,i])), scale="row",
-#    labRow=colnames(bulk)[i], labCol=category[a], 
-#    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',
-#    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
-# dev.off()
-
-
-# rvf.vs.rv <- topTreat(tfit, coef=2, n=Inf)
-# rvf.vs.rv.topgenes <- rownames(rvf.vs.rv)[1:100]
-
-# a = order(category)
-# i <- which(colnames(bulk) %in% rvf.vs.rv.topgenes[order(rvf.vs.rv[1:100,]$logFC)])
-# i <- i[match(rvf.vs.rv.topgenes[order(rvf.vs.rv[1:100,]$logFC)],colnames(bulk)[i])]
-# mycol <- colorpanel(1000,"blue","white","red")
-
-
-# pdf('./output/bulk_RVFvsNF_heatmap.pdf',width=10,height=10)
-# heatmap.2(as.matrix(t(bulk[a,i])), scale="row",
-#    labRow=colnames(bulk)[i], labCol=category[a], 
-#    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',
-#    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
-# dev.off()
-
-
-
-# f.vs.p <- topTreat(tfit, coef=3, n=Inf)
-# f.vs.p.topgenes <- rownames(f.vs.p)[1:100]
-
-# a = order(category)
-# i <- which(colnames(bulk) %in% f.vs.p.topgenes[order(f.vs.p[1:100,]$logFC)])
-# i <- i[match(f.vs.p.topgenes[order(f.vs.p[1:100,]$logFC)],colnames(bulk)[i])]
-# mycol <- colorpanel(1000,"blue","white","red")
-
-
-# pdf('./output/bulk_RVFvspRV_heatmap.pdf',width=10,height=10)
-# heatmap.2(as.matrix(t(bulk[a,i])), scale="row",
-#    labRow=colnames(bulk)[i], labCol=category[a], 
-#    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',
-#    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
-# dev.off()
-
-
-
-
-
-
-
-
-# write.csv(topTreat(tfit, coef=1, n=Inf),file="./output/bulk_pRV_vs_NF.csv")
-# write.csv(topTreat(tfit, coef=2, n=Inf),file="./output/bulk_RVF_vs_NF.csv")
-# write.csv(topTreat(tfit, coef=3, n=Inf),file="./output/bulk_RVF_vs_pRV.csv")
-
-# write.csv(topTreat(efit, coef=3, n=Inf),file="./output/bulk_RVF_vs_pRV_nofcthresh.csv")
-
-# pdf('./output/bulk_pRV_vs_NF.pdf',width=6,height=10)
-# EnhancedVolcano(topTreat(tfit, coef=1, n=Inf),lab = rownames(topTreat(tfit, coef=1, n=Inf)),x = 'logFC',y = 'P.Value',pCutoff=0.05/15959,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-4, 4)) 
-# dev.off()
-
-# pdf('./output/bulk_RVF_vs_NF.pdf',width=6,height=10)
-# EnhancedVolcano(topTreat(tfit, coef=2, n=Inf),lab = rownames(topTreat(tfit, coef=2, n=Inf)),x = 'logFC',y = 'P.Value',pCutoff=0.05/15959,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-4, 4)) 
-# dev.off()
-
-# pdf('./output/bulk_RVF_vs_pRV.pdf',width=6,height=10)
-# EnhancedVolcano(topTreat(efit, coef=3, n=Inf),lab = rownames(topTreat(efit, coef=3, n=Inf)),x = 'logFC',y = 'P.Value',pCutoff=0.05/15959,FCcutoff=0.1,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-4, 4)) 
-# dev.off()
-
-
-
-# #########Enrich
-
-# library(DOSE)
-# library(enrichR)
-# library(tidyverse)
-
-# websiteLive <- getOption("enrichR.live")
-# if (websiteLive) {
-#     listEnrichrSites()
-#     setEnrichrSite("Enrichr") # Human genes   
-# }
-
-
-# RVFvspRV = topTreat(efit, coef=3, n=Inf)
-
-# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-# if (websiteLive) {
-#     enriched <- enrichr(rownames(subset(RVFvspRV,logFC > .1)), dbs)
-# 	p1<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1)))
-# 	p2<- ggplot(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('WikiPathways Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," WP"), `[`, 1)))
-# 	p3<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('Reactome Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," Homo sapiens"), `[`, 1)))
-# 	p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1)))
-
-#     enriched <- enrichr(rownames(subset(RVFvspRV,logFC < -.1)), dbs)
-# 	p5<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1)))
-# 	p6<- ggplot(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('WikiPathways Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," WP"), `[`, 1)))
-# 	p7<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('Reactome Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," Homo sapiens"), `[`, 1)))
-# 	p8<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1)))
-
-# library(patchwork)
-# library(cowplot)
-# pdf('./output/bulk_RVFvspRV_enrich.pdf',width=40,height=12)
-# plot_grid(p1,p2,p3,p4,p5,p6,p7,p8,align="v",ncol=4)
-# dev.off()
-
-
-
-
-
-# RVFvsNF = topTreat(tfit, coef=2, n=Inf)
-
-# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-# if (websiteLive) {
-#     enriched <- enrichr(rownames(subset(RVFvsNF,logFC > .25)), dbs)
-# 	p1<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1)))
-# 	p2<- ggplot(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('WikiPathways Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," WP"), `[`, 1)))
-# 	p3<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('Reactome Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," Homo sapiens"), `[`, 1)))
-# 	p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1)))
-
-#     enriched <- enrichr(rownames(subset(RVFvsNF,logFC < -.25)), dbs)
-# 	p5<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1)))
-# 	p6<- ggplot(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('WikiPathways Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," WP"), `[`, 1)))
-# 	p7<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('Reactome Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," Homo sapiens"), `[`, 1)))
-# 	p8<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1)))
-
-# library(patchwork)
-# library(cowplot)
-# pdf('./output/bulk_RVFvsNF_enrich.pdf',width=40,height=12)
-# plot_grid(p1,p2,p3,p4,p5,p6,p7,p8,align="v",ncol=4)
-# dev.off()
-
-
-
-
-# pRVvsNF = topTreat(tfit, coef=1, n=Inf)
-
-# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-# if (websiteLive) {
-#     enriched <- enrichr(rownames(subset(pRVvsNF,logFC > .25)), dbs)
-# 	p1<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1)))
-# 	p2<- ggplot(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('WikiPathways Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," WP"), `[`, 1)))
-# 	p3<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('Reactome Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," Homo sapiens"), `[`, 1)))
-# 	p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Up') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1)))
-
-#     enriched <- enrichr(rownames(subset(pRVvsNF,logFC < -.25)), dbs)
-# 	p5<- ggplot(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('ChEA Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[1]][order(enriched[[1]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," "), `[`, 1)))
-# 	p6<- ggplot(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('WikiPathways Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[2]][order(enriched[[2]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," WP"), `[`, 1)))
-# 	p7<- ggplot(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('Reactome Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[3]][order(enriched[[3]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," Homo sapiens"), `[`, 1)))
-# 	p8<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + ggtitle('GO Biological Process Down') + scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:20),]$Term," \\(GO"), `[`, 1)))
-
-# library(patchwork)
-# library(cowplot)
-# pdf('./output/bulk_pRVvsNF_enrich.pdf',width=40,height=12)
-# plot_grid(p1,p2,p3,p4,p5,p6,p7,p8,align="v",ncol=4)
-# dev.off()
-
-
-
-# #####Limma with etiology, age, sex
-
-# design <- model.matrix(~0+category+sex+disease+age)
-
-# contr.matrix <- makeContrasts(
-#    pRVvsNF =  categorypRV- categoryNF, 
-#    RVFvsNF = categoryRVF- categoryNF, 
-#    RVFvspRV = categoryRVF- categorypRV, 
-#    levels = colnames(design))
-# contr.matrix
-
-# fit <- lmFit(t(bulk), design)
-# fit2 <- contrasts.fit(fit, contr.matrix)
-# efit <- eBayes(fit2, trend=TRUE)
-# plotSA(efit, main="Final model: Mean-variance trend")
-
-# summary(decideTests(efit))
-# dtt <- decideTests(efit)
-
-# tfit <- treat(fit2, lfc=0.25)
-# dt <- decideTests(tfit)
-# summary(dt)
-
-# de.common <- which(dt[,1]!=0 & dt[,2]!=0)
-# length(de.common)
-
-# pdf('./output/bulk_overlap.pdf',width=10,height=10)
-
-# vennDiagram(dtt[,1:2], circle.col=c("turquoise", "salmon"))
-# dev.off()
-
-# pRV.vs.NF <- topTreat(tfit, coef=1, n=Inf)
-# head(pRV.vs.NF)
-
-# plotMD(tfit, column=1, status=dt[,1], main=colnames(tfit)[1], 
-#        xlim=c(-8,13))
-
-# library(gplots)
-
-# prv.vs.rv <- topTreat(tfit, coef=1, n=Inf)
-# prv.vs.rv.topgenes <- rownames(prv.vs.rv)[1:1000]
-
-# a = order(category)
-# i <- which(colnames(bulk) %in% prv.vs.rv.topgenes)
-# mycol <- colorpanel(1000,"blue","white","red")
-# heatmap.2(as.matrix(bulk[a,i]), scale="row",
-#    labRow=colnames(bulk)[i], labCol=category[a], 
-#    col=mycol, trace="none", density.info="none", 
-#    margin=c(8,6), lhei=c(2,10), dendrogram="column")
-
-
-
-# write.csv(topTreat(tfit, coef=1, n=Inf),file="./output/bulk_pRV_vs_NF.csv")
-# write.csv(topTreat(tfit, coef=2, n=Inf),file="./output/bulk_RVF_vs_NF.csv")
-# write.csv(topTreat(tfit, coef=3, n=Inf),file="./output/bulk_RVF_vs_pRV.csv")
-
-# write.csv(topTreat(fit2, coef=3, n=Inf),file="./output/bulk_RVF_vs_pRV_nofcthresh.csv")
-
+## Cross-cohort PAH concordance dotplot (RV vs Senum 2023 PAH cohort).
+## Two stacked Reactome dotplots:
+##   (top)    Concordant DOWN — genes down in RVF vs NF in BOTH RV and PAH;
+##            enriched for respiratory ETC / mitochondrial pathways.
+##   (bottom) Concordant UP   — genes up in RVF vs NF in BOTH RV and PAH;
+##            enriched for IFN-α/β, OAS antiviral, TRAF3 signaling.
+##
+## PAH DESeq2 (Control vs Decompensated, ashr-shrunken log2FC) is computed
+## from GSE240921 (Senum et al. 2023) the first time the script runs and
+## cached as `fig1_pah_deg_cache.rds`. Subsequent runs skip the heavy
+## DESeq2 + svaseq step.
+
+dbs_reactome <- "Reactome_Pathways_2024"
+
+## ── Step 1. PAH DEG: cached pah.nf.vs.rvf log2FC table ──────────────────────
+.cache_pah_deg <- './output/Figure_1/fig1_pah_deg_cache.rds'
+if (file.exists(.cache_pah_deg)) {
+  message('Loading cached PAH DEGs (GSE240921 Control vs Decompensated)...')
+  pah.nf.vs.rvf <- readRDS(.cache_pah_deg)
+} else {
+  message('Computing PAH DEGs from GSE240921 (first-time only)...')
+  .pah_raw_path <- './dependencies/shared/GSE240921_processed-data-human.csv'
+  .pah_ann_path <- './dependencies/shared/Human.GRCh38.p13.annot.tsv'
+  if (file.exists(.pah_raw_path) && file.exists(.pah_ann_path)) {
+    pah_raw <- read.csv(.pah_raw_path, sep = ',')
+    gene.annot <- read.csv(.pah_ann_path, sep = '\t')
+    pah_raw$names <- gene.annot$Symbol[match(pah_raw$id, gene.annot$EnsemblGeneID)]
+    pah_raw$names[is.na(pah_raw$names)] <- pah_raw$id[is.na(pah_raw$names)]
+    pah_proc <- pah_raw[!duplicated(pah_raw$names), 2:41]
+    rownames(pah_proc) <- pah_raw$names[!duplicated(pah_raw$names)]
+    subj.names <- colnames(pah_raw)[2:41]
+    subj.group <- stringr::str_split_i(subj.names, '_', 1)
+    subj.group[subj.group == 'RV.Normal']  <- 'Control'
+    subj.group[subj.group == 'RV.Compen']  <- 'Compensated'
+    subj.group[subj.group == 'RV.Failing'] <- 'Decompensated'
+    coldata_pah <- data.frame(group = factor(subj.group,
+                                             levels = c('Control','Compensated','Decompensated')))
+    rownames(coldata_pah) <- subj.names
+    dds_pah <- DESeqDataSetFromMatrix(countData = pah_proc,
+                                      colData   = coldata_pah,
+                                      design    = ~ group)
+    dds_pah <- estimateSizeFactors(dds_pah)
+    keep_pah <- rowSums(counts(dds_pah, normalized = TRUE) >= 5) >= 3
+    dds_pah <- dds_pah[keep_pah, ]
+    mod_pah  <- model.matrix(~ group, colData(dds_pah))
+    mod0_pah <- model.matrix(~ 1, colData(dds_pah))
+    sv_pah <- svaseq(counts(dds_pah, normalized = TRUE), mod_pah, mod0_pah)
+    coldata_pah$SV1 <- sv_pah$sv[, 1]; coldata_pah$SV2 <- sv_pah$sv[, 2]
+    coldata_pah$SV3 <- sv_pah$sv[, 3]; coldata_pah$SV4 <- sv_pah$sv[, 4]
+    coldata_pah$SV5 <- sv_pah$sv[, 5]
+    dds_pah <- DESeqDataSetFromMatrix(countData = pah_proc[keep_pah, ],
+                                      colData   = coldata_pah,
+                                      design    = ~ group + SV1 + SV2 + SV3 + SV4 + SV5)
+    dds_pah <- DESeq(dds_pah)
+    pah.nf.vs.rvf <- lfcShrink(dds_pah,
+                               contrast = c('group','Control','Decompensated'),
+                               type = 'ashr')
+    saveRDS(pah.nf.vs.rvf, .cache_pah_deg)
+    rm(dds_pah, pah_raw, pah_proc, gene.annot, sv_pah, mod_pah, mod0_pah,
+       keep_pah, coldata_pah, subj.names, subj.group); gc(verbose = FALSE)
+  } else {
+    message('PAH raw data missing — Panel F will be skipped: ', .pah_raw_path)
+    pah.nf.vs.rvf <- NULL
+  }
+}
+
+## ── Step 2. Concordant gene sets (RV ∩ PAH) ─────────────────────────────────
+if (!is.null(pah.nf.vs.rvf)) {
+  shared_genes <- intersect(rownames(pah.nf.vs.rvf), rownames(nf.vs.rvf))
+  pah.up   <- intersect(rownames(subset(pah.nf.vs.rvf, padj < 0.1 & log2FoldChange >  0.1)), shared_genes)
+  pah.down <- intersect(rownames(subset(pah.nf.vs.rvf, padj < 0.1 & log2FoldChange < -0.1)), shared_genes)
+  rv.up    <- intersect(rownames(subset(nf.vs.rvf,     padj < 0.1 & log2FoldChange >  0.1)), shared_genes)
+  rv.down  <- intersect(rownames(subset(nf.vs.rvf,     padj < 0.1 & log2FoldChange < -0.1)), shared_genes)
+  ## Convention: positive log2FC = up in NF (= down in RVF).
+  ## Concordant DOWN in RVF = up in NF in both cohorts  = pah.up ∩ rv.up.
+  ## Concordant UP   in RVF = down in NF in both        = pah.down ∩ rv.down.
+  concordant_down_in_RVF <- intersect(pah.up,   rv.up)
+  concordant_up_in_RVF   <- intersect(pah.down, rv.down)
+  message(sprintf('Panel F: %d concordant DOWN, %d concordant UP genes (RVF vs NF)',
+                  length(concordant_down_in_RVF), length(concordant_up_in_RVF)))
+
+  ## ── Step 3. Reactome enrichr on each concordant set (cached) ─────────────
+  .cache_enrichr_pah <- './output/Figure_1/fig1_enrichr_pah_concordance_cache.rds'
+  if (file.exists(.cache_enrichr_pah)) {
+    message('Loading cached enrichr (PAH concordance)...')
+    enr_pah <- readRDS(.cache_enrichr_pah)
+  } else {
+    enr_pah <- tryCatch({
+      list(down = enrichr(concordant_down_in_RVF, dbs_reactome)[[1]],
+           up   = enrichr(concordant_up_in_RVF,   dbs_reactome)[[1]])
+    }, error = function(e) {
+      message('Enrichr API unreachable for Panel F: ', e$message); NULL
+    })
+    if (!is.null(enr_pah)) saveRDS(enr_pah, .cache_enrichr_pah)
+  }
+
+  ## ── Step 4. Build the two stacked dotplots ───────────────────────────────
+  if (!is.null(enr_pah)) {
+    .build_pah_dot <- function(enr_tbl, panel_title, topN = 3) {
+      enr_tbl <- subset(enr_tbl, Adjusted.P.value < 0.2)
+      enr_tbl <- enr_tbl[order(enr_tbl$Combined.Score, decreasing = TRUE), ]
+      enr_tbl <- enr_tbl[rev(seq_len(min(topN, nrow(enr_tbl)))), ]
+      ggplot(enr_tbl,
+             aes(x = Combined.Score, y = fct_inorder(Term),
+                 color = as.numeric(Adjusted.P.value),
+                 size  = parse_ratio(Overlap))) +
+        geom_point() +
+        scale_size(range = PS$dot_range) +
+        xlab('Combined Score') + ylab('Term') +
+        labs(color = 'P value', size = 'Overlap') +
+        ggtitle(panel_title) +
+        scale_y_discrete(labels = fct_inorder(
+          wrapText(sapply(strsplit(enr_tbl$Term, ' Homo sapiens'), `[`, 1), 35))) +
+        theme_classic() +
+        theme(axis.text = element_text(colour = 'black'),
+              legend.key.size = PS$legend_key) +
+        scale_color_stepsn(colors = rev(magma(256)))
+    }
+    p_1F_down <- .build_pah_dot(enr_pah$down, 'Concordant DOWN')
+    p_1F_up   <- .build_pah_dot(enr_pah$up,   'Concordant UP')
+
+    p_1F <- (p_1F_down / p_1F_up) +
+      patchwork::plot_layout(guides = 'collect') &
+      theme(legend.position = 'right',
+            plot.title = element_text(size = 10, face = 'bold'))
+    save_figure(p_1F, 'Figure_1_panel_F_enrichr.pdf', width = 6, height = 5)
+  } else {
+    message('Panel F skipped — enrichr cache missing and API unavailable.')
+  }
+} else {
+  message('Panel F skipped — PAH DEG data unavailable.')
+}
+
+
+###############################################################################
+##  Panel A — Illustrator-drawn cohort/heart schematic (asset)
+##  Falls back to a dashed placeholder if the PNG asset is missing.
+###############################################################################
+p_1A <- insert_asset('Figure_1_panel_A_heart.png',
+                     label = 'NF (n=29)  pRV (n=78)  RVF (n=35)')
+
+message('Figure 1 (v53) per-panel PDFs written to ', V52_FIG_DIR)

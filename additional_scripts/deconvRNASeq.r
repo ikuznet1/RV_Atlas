@@ -6,7 +6,7 @@ library(Seurat)
 
 ####### LOAD SINGLE CELL DATA ######
 
-M1<-readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
+M1<-readRDS('./dependencies/shared/RV_data.rds')
 sc.dat <- t(GetAssayData(object = M1, assay = "decontXcounts", slot = "counts"))
 rownames(sc.dat) <- colnames(M1)
 cell.type.labels <- M1$Names

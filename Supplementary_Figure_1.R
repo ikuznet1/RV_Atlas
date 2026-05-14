@@ -1,3 +1,38 @@
+###############################################################################
+## Supplementary Figure 1 (v52 draft) — Bulk RNA-seq supplemental analyses
+##
+## Panels (from RV_snRNASeq_v52_draft.md figure legends):
+##   (A) DEGs between NF, pRV, RVF
+##   (B) Correlation of FC for NF vs pRV and NF vs RVF
+##   (C) GO enrichment for pRV-upregulated genes (OxPhos, Aerobic ETC)
+##   (D) Additional WGCNA module details
+##   (E) 115 genes with stepwise increasing trend NF->pRV->RVF
+##   (F) 165 genes with decreasing trend NF->pRV->RVF
+##   (G-H) Pathway enrichment for decreasing genes (mito ribosomal)
+##   (I) M4 module genes decrease-then-increase expression pattern
+##
+## Source: copied from v51 Supplementary_Figure_1.R on 2026-04-10
+## Status: SKELETON — v52 porting pending
+##
+## Output: ./output/Supplementary_Figure_1/v52_figures/SupplementaryFigure_1.pdf
+###############################################################################
+
+source('./helper_scripts/_shared_helpers.R')
+
+## Per-figure output directory (introduced for consistent output paths)
+V52_FIG_DIR <- './output/Supplementary_Figure_1'
+dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+
+## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
+## that's outside an explicit pdf() ... dev.off() envelope.
+pdf(NULL)
+COMP_W <- 9
+COMP_H <- 6
+
+## Publication geom scales (linewidths, point sizes, dot ranges, bracket widths)
+PS <- pub_scales(COMP_W)
+
 library(reticulate)
 library(ggfortify)
 library(edgeR)
@@ -9,6 +44,24 @@ library(biomaRt)
 library(sva)
 library(Seurat)
 library(dplyr)
+
+## ── Cartoon / schematic asset insertion ───────────────────────────────────────
+## Supplementary_Figure_1.pdf (v51 composite) contains no explicit cartoon;
+## all panels are data-derived (volcano, GO dot plot, module heatmaps, frequency
+## bar). No insert_asset() call required. If a workflow schematic is added later,
+## use the magick crop block below to extract it from the v51 composite PDF.
+##
+## # library(magick)
+## # pdf_path <- '~/Downloads/hdWGCNA_TOM/Manuscripts/Supplementary_Figure_1.pdf'
+## # pg <- image_read_pdf(pdf_path, pages = 1, density = 300)
+## # # Example crop: 17 cm full width = ~2008 px at 300 DPI.
+## # # Pick a roughly 2008x900 region containing the schematic, e.g.
+## # # image_crop(pg, geometry = '2008x900+0+0')
+## # cartoon <- image_crop(pg, geometry = '2008x900+0+0')
+## # image_write(cartoon, file.path(ASSET_DIR, 'SuppFig1_overview.png'),
+## #             format = 'png')
+## s1_cartoon <- insert_asset('SuppFig1_overview.png',
+##                            label = 'Bulk RNA-seq cohort schematic')
 
 #######################################
 #############  FIGURE S1A  #############
@@ -182,16 +235,16 @@ nf.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','NF','RVF'), type="ashr")
 prv.vs.rvf <- lfcShrink(ddsSE,contrast=c('category','pRV','RVF'), type="ashr")
 
 
-pdf('./output/bulk_pRV_vs_RVF_volcano.pdf',width=8,height=10)
-EnhancedVolcano(prv.vs.rvf,lab = rownames(prv.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-1, 1)) 
+pdf('./output/Supplementary_Figure_1/bulk_pRV_vs_RVF_volcano.pdf',width=8,height=10)
+EnhancedVolcano(prv.vs.rvf,lab = rownames(prv.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black', labFace = "italic") +  ggplot2::coord_cartesian(xlim=c(-1, 1))
 dev.off()
 
-pdf('./output/bulk_NF_vs_RVF_volcano.pdf',width=8,height=10)
-EnhancedVolcano(nf.vs.rvf,lab = rownames(nf.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-6, 6)) 
+pdf('./output/Supplementary_Figure_1/bulk_NF_vs_RVF_volcano.pdf',width=8,height=10)
+EnhancedVolcano(nf.vs.rvf,lab = rownames(nf.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black', labFace = "italic") +  ggplot2::coord_cartesian(xlim=c(-6, 6))
 dev.off()
 
-pdf('./output/bulk_NF_vs_pRV_volcano.pdf',width=8,height=10)
-EnhancedVolcano(nf.vs.prv,lab = rownames(nf.vs.prv),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black') +  ggplot2::coord_cartesian(xlim=c(-6, 6)) 
+pdf('./output/Supplementary_Figure_1/bulk_NF_vs_pRV_volcano.pdf',width=8,height=10)
+EnhancedVolcano(nf.vs.prv,lab = rownames(nf.vs.prv),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black', labFace = "italic") +  ggplot2::coord_cartesian(xlim=c(-6, 6))
 dev.off()
 
 
@@ -206,20 +259,21 @@ rownames(dataset) <- shared
 labs <- rownames(dataset)
 labs[prv.vs.rvf$padj > 0.05 | is.na(prv.vs.rvf$padj) | prv.vs.rvf$log2FoldChange<0.25] = ""
 
-pdf(paste0('./output/', 'pRV_vs_RVF_logFC_dot.pdf'), width=4, height=5)
-ggplot(dataset, aes(x = pRV, y=RVF)) + geom_point(alpha=0.05) + 
-  geom_text_repel(label=labs,max.overlaps=Inf,point.size = NA,force=10) + theme_classic() + xlim(c(-5,5)) + ylim(c(-5,5))
+pdf(paste0('./output/Supplementary_Figure_1/', 'pRV_vs_RVF_logFC_dot.pdf'), width=4, height=5)
+ggplot(dataset, aes(x = pRV, y=RVF)) + geom_point(alpha=0.05, size = PS$scatter_pt) +
+  geom_text_repel(label=labs,max.overlaps=Inf,point.size = NA,force=10,
+    size = PS$text_mm, family = FONT_FAMILY, fontface = "italic") + theme_v52(COMP_W) + xlim(c(-5,5)) + ylim(c(-5,5))
 dev.off()
 
 
 temp <- data.frame(nf.vs.rvf) %>% arrange(desc(log2FoldChange))
-write.csv(temp,'./output/NF_vs_RVF_deseq.csv')
+write.csv(temp,'./output/Supplementary_Figure_1/NF_vs_RVF_deseq.csv')
 
 temp <- data.frame(prv.vs.rvf) %>% arrange(desc(log2FoldChange))
-write.csv(temp,'./output/pRV_vs_RVF_deseq.csv')
+write.csv(temp,'./output/Supplementary_Figure_1/pRV_vs_RVF_deseq.csv')
 
 temp <- data.frame(subset(prv.vs.rvf,padj<0.05)) %>% arrange(desc(log2FoldChange))
-write.csv(temp,'./output/pRV_vs_RVF_deseq_sig.csv')
+write.csv(temp,'./output/Supplementary_Figure_1/pRV_vs_RVF_deseq_sig.csv')
 
 
 
@@ -250,25 +304,25 @@ dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Pro
 
 enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange > 0.1)), dbs)
 enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.05,]
-pdf('./output/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Up.pdf',width=10,height=3)
-p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + 
-geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") + 
-theme_classic()  + ggtitle('GO Biological Process Up') + 
-scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"), `[`, 1))) + 
-theme(axis.text=element_text(colour="black")) +
+pdf('./output/Supplementary_Figure_1/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Up.pdf',width=10,height=3)
+p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) +
+geom_point() + xlab('Combined Score') + ylab('Term') + labs(color="P value",size="Overlap") +
+theme_v52(COMP_W) + ggtitle('GO Biological Process Up') +
+scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"), `[`, 1))) +
+scale_size_continuous(range = PS$dot_range) +
 scale_color_stepsn(colors=rev(magma(256)))
 p4
 dev.off()
 
 enriched <- enrichr(rownames(subset(prv.vs.rvf,padj<0.05 & log2FoldChange < -0.1)), dbs)
 enriched[[4]] <- enriched[[4]][enriched[[4]]$Adjusted.P.value < 0.05,]
-pdf('./output/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Down.pdf',width=10,height=3)
-p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) + 
-geom_point() + xlab('Combined Score') + ylab('Term') + 
-labs(color="P value",size="Overlap") + theme_classic()  + 
-ggtitle('GO Biological Process Down') + 
-scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"), `[`, 1))) + 
-theme(axis.text=element_text(colour="black"))  +
+pdf('./output/Supplementary_Figure_1/bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Down.pdf',width=10,height=3)
+p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), size=parse_ratio(Overlap)))) +
+geom_point() + xlab('Combined Score') + ylab('Term') +
+labs(color="P value",size="Overlap") + theme_v52(COMP_W) +
+ggtitle('GO Biological Process Down') +
+scale_y_discrete(labels= fct_inorder(sapply(strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"), `[`, 1))) +
+scale_size_continuous(range = PS$dot_range) +
 scale_color_stepsn(colors=rev(magma(256)))
 p4
 dev.off()
@@ -295,7 +349,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_pRVvsRVF_heatmap_tight.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_pRVvsRVF_heatmap_tight.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -317,7 +371,7 @@ i <- i[match(nf.vs.rvf.topgenes[order(nf.vs.rvf.filt[1:100,]$log2FoldChange)],ro
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_NFvsRVF_heatmap_tight.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_NFvsRVF_heatmap_tight.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -338,7 +392,7 @@ i <- i[match(nf.vs.prv.topgenes[order(nf.vs.prv.filt[1:100,]$log2FoldChange)],ro
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_NFvspRV_heatmap_tight.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_NFvspRV_heatmap_tight.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -353,7 +407,7 @@ resOrdered1 <- prv.vs.rvf[order(prv.vs.rvf$pvalue),]
 resOrdered1$padj[is.na(resOrdered1$padj)]=1
 signif1 <- rownames(subset(resOrdered1, resOrdered1$padj<0.1))
 # write.csv(as.data.frame(resOrdered1), 
-#           file="./output/pRV_vs_RVF.csv")
+#           file="./output/Supplementary_Figure_1/pRV_vs_RVF.csv")
 
 sum(nf.vs.rvf$padj < 0.1, na.rm=TRUE)
 resOrdered2 <- nf.vs.rvf[order(nf.vs.rvf$pvalue),]
@@ -361,7 +415,7 @@ resOrdered2$padj[is.na(resOrdered2$padj)]=1
 signif2 <- rownames(subset(resOrdered2, resOrdered2$padj<0.1))
 
 # write.csv(as.data.frame(resOrdered2), 
-#           file="./output/NF_vs_RVF.csv")
+#           file="./output/Supplementary_Figure_1/NF_vs_RVF.csv")
 
 sum(nf.vs.prv$padj < 0.1, na.rm=TRUE)
 resOrdered3 <- nf.vs.prv[order(nf.vs.prv$pvalue),]
@@ -369,7 +423,7 @@ resOrdered3$padj[is.na(resOrdered3$padj)]=1
 signif3 <- rownames(subset(resOrdered3, resOrdered3$padj<0.1))
 
 # write.csv(as.data.frame(resOrdered3), 
-#           file="./output/NF_vs_pRV.csv")
+#           file="./output/Supplementary_Figure_1/NF_vs_pRV.csv")
 
 
 
@@ -414,14 +468,18 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_up.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_up.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
    Rowv = FALSE, Colv=FALSE,srtCol=90,lmat = rbind(c(0,3),c(2,1),c(0,4)))
 dev.off()
 
-#
+######################################
+############  FIGURE S1F  ############
+####### Heatmap of monotonically  ####
+####### DECREASING genes NF→pRV→RVF ##
+######################################
 filt <- rownames(prv.vs.rvf) %in% NF_2_pRV_down_2_RVF_down
 filt[is.na(filt)]=FALSE
 prv.vs.rvf.filt <- prv.vs.rvf[filt,]
@@ -434,7 +492,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_down.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_down.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -454,7 +512,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_down.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_down.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -474,7 +532,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_up.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_up.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -494,7 +552,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_up.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_up.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -514,7 +572,7 @@ i <- i[match(prv.vs.rvf.topgenes[order(prv.vs.rvf.filt[1:100,]$log2FoldChange)],
 mycol <- colorpanel(1000,"blue","white","red")
 
 
-pdf('./output/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_down.pdf',width=10,height=10)
+pdf('./output/Supplementary_Figure_1/bulk_pRVvsRVF_heatmap_module_NF_2_pRV_flat_2_RVF_down.pdf',width=10,height=10)
 heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
    labRow=rownames(assay(vstSE))[i], labCol=category[a], 
    col=mycol, margin=c(6,6),trace="none", density.info="none", lhei=c(1,10,3),lwid=c(1,10), dendrogram='none',breaks = seq(-4, 4, length.out = 1001),
@@ -525,6 +583,17 @@ dev.off()
 #######################################
 ############  FIGURE S1G  #############
 #######################################
+## Load bulk WGCNA module assignments before first use (re-used by S1H/I below)
+if (!exists('bulk_modules')) {
+  bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
+  mapping <- c('turquoise','blue','brown','yellow','green','red','black','pink',
+               'magenta','purple','greenyellow','tan','salmon','cyan',
+               'midnightblue','lightcyan','grey60','lightgreen','lightyellow',
+               'royalblue','darkred','darkgreen','darkturquoise','darkgrey',
+               'orange','darkorange','white','skyblue','saddlebrown')
+  bulk_modules$module <- match(bulk_modules$module, mapping)
+  levels(bulk_modules$module) <- c(1:29)
+}
 idx<-match(NF_2_pRV_down_2_RVF_down,bulk_modules$gene_name)
 idx<-idx[!is.na(idx)]
 p2 <- table(bulk_modules[idx,]$module)/sum(table(bulk_modules[idx,]$module))*100
@@ -551,17 +620,17 @@ wrapText <- function(x, len) {
 library(viridis)
 enriched <- enrichr(genes_int, dbs)
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/Bulk_down_down_enrichr.pdf',width=6,height=2.5)
-p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO Biological Process Up') + 
+pdf('./output/Supplementary_Figure_1/Bulk_down_down_enrichr.pdf',width=6,height=2.5)
+p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),],
+  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value),
+  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') +
+  ylab('Term') + labs(color="P value",size="Overlap") + theme_v52(COMP_W) +
+  ggtitle('GO Biological Process Up') +
   scale_y_discrete(labels= fct_inorder(
     wrapText(sapply(
       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
+         `[`, 1),35))) +
+  scale_size_continuous(range = PS$dot_range) +
   scale_color_stepsn(colors=rev(magma(256)))
 p1
 dev.off()
@@ -576,11 +645,11 @@ keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
 names(keyvals)[keyvals == 'blue'] <- 'high'
 names(keyvals)[keyvals == 'red'] <- 'low'
 
-pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_prv.pdf',width=5,height=6)
+pdf('./output/Supplementary_Figure_1/MitoRibo_down_down_bulk_enrichr_nf_prv.pdf',width=5,height=6)
 EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
    pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
    xlim=c(0,2),colCustom = keyvals,
-   selectLab = rownames(a)[which(names(keyvals) %in% c('high'))])
+   selectLab = rownames(a)[which(names(keyvals) %in% c('high'))], labFace = "italic")
 dev.off()
 
 
@@ -590,11 +659,11 @@ keyvals <- ifelse(rownames(a) %in% translation,'blue','red')
 names(keyvals)[keyvals == 'blue'] <- 'high'
 names(keyvals)[keyvals == 'red'] <- 'low'
 
-pdf('./output/MitoRibo_down_down_bulk_enrichr_nf_rvf.pdf',width=5,height=6)
+pdf('./output/Supplementary_Figure_1/MitoRibo_down_down_bulk_enrichr_nf_rvf.pdf',width=5,height=6)
 EnhancedVolcano(a,lab = rownames(a),x = 'log2FoldChange',y = 'padj',
    pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black',
    xlim=c(0,2),colCustom = keyvals,
-   selectLab = rownames(a)[which(names(keyvals) %in% c('high'))])
+   selectLab = rownames(a)[which(names(keyvals) %in% c('high'))], labFace = "italic")
 dev.off()
 
 
@@ -602,7 +671,7 @@ dev.off()
 #######################################
 ############  FIGURE S1I  #############
 #######################################
-source('./dependencies/shared/spatial_functions.R')
+source('./helper_scripts/spatial_functions.R')
 library(hdWGCNA)
 
 
@@ -674,14 +743,13 @@ percent_df$color <- mapping[c(1:29)]
 percent_df$color <- factor(percent_df$color,levels=mapping[c(1:29)])
 percent_df$label[!is.na(percent_df$label)] = paste0(paste(percent_df$Var1[!is.na(percent_df$label)],round(percent_df$label[!is.na(percent_df$label)],0),sep=': '),'%')
 
-pdf('./output/Bulk_gene_program.pdf',width=9,height=6)
-ggplot(percent_df, aes(fill=color, y=Freq, x=type,label=label)) +  
-	geom_bar(position="stack", stat="identity",width=0.6) + 
-    scale_fill_manual(values = mapping[c(1:29)]) + 
-	theme_classic() + xlab("Gene Program") + ylab("Frequency") + 
-	labs(fill="Module",color='black') + 
-	theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + 
-	geom_label_repel(aes(type,sum,label=label),fill='white',nudge_x=0,direction="y")
-dev.off()
+p_bulk_gene_program <- ggplot(percent_df, aes(fill=color, y=Freq, x=type,label=label)) +
+	geom_bar(position="stack", stat="identity",width=0.6, linewidth = PS$geom_lw) +
+    scale_fill_manual(values = mapping[c(1:29)]) +
+	theme_v52(COMP_W) + xlab("Gene Program") + ylab("Frequency") +
+	labs(fill="Module",color='black') +
+	geom_label_repel(aes(type,sum,label=label),fill='white',nudge_x=0,direction="y",
+	  size = PS$text_mm, family = FONT_FAMILY) +
+	scale_y_touch()
 
-
+save_figure(p_bulk_gene_program, 'Supplementary_Figure_1.pdf', width=COMP_W, height=COMP_H)

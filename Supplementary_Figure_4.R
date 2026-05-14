@@ -1,3 +1,47 @@
+###############################################################################
+## Supplementary Figure 4 (v54 draft) — Left ventricular failure (DCM) comparison
+##
+## Panels (from RV_snRNASeq_v54_draft.md figure legends):
+##   (A) UMAP of integrated human RV FB lineages (top), reference-mapped LV (bottom)
+##   (B) Fibroblast subtype concordance between ventricles
+##   (C) Conservation of FB Phase 1 + Phase 2 programs in LV snRNA-seq
+##       (Koenig 2022; per-patient pseudobulk; Donor vs DCM Wilcoxon)
+##   (D) Scatter log2FC human LV-FB(DCM/NF) vs human RV-FB(RVF/NF)
+##   (E) UMAP of integrated human RV myeloid lineages
+##   (F) Reference mapping of LV myeloid: snRNA (i), scRNA (ii); original LV
+##       annotations (iii) snRNA, (iv) scRNA
+##   (G) [TODO] Cross-chamber concordance scatter for myeloid bulk-WGCNA modules
+##       (M1, M3, M4, M8): per-gene log2FC RV vs LV myeloid (Koenig 2022)
+##   (H) [TODO] Bulk WGCNA myeloid modules (M1/M3/M4/M8) projected onto LV
+##       (Koenig 2022) myeloid atlas via Seurat::AddModuleScore — dot plot of
+##       mean per-cell module score by LV myeloid subtype × Donor/DCM
+##   (I) Per-patient pseudobulk module-score box plots in LV myeloid for the
+##       4 RV-derived programs (GR-homeostatic, HIF/vascular drift, NF-kB
+##       MHCII/inflammasome, IFNg antigen presentation); Donor vs DCM Wilcoxon
+##
+## Output: ./output/Supplementary_Figure_4/v52_figures/Supplementary_Figure_4_panel_<LETTER>.pdf (per-panel)
+###############################################################################
+
+source('./helper_scripts/_shared_helpers.R')
+
+## Per-figure output directory (introduced for consistent output paths)
+V52_FIG_DIR <- './output/Supplementary_Figure_4'
+dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+
+## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
+## that's outside an explicit pdf() ... dev.off() envelope.
+pdf(NULL)
+# SCTransform / FindIntegrationAnchors export ~1 GB of globals to future workers;
+# default cap is 500 MiB. Set high enough for the largest pipeline step.
+options(future.globals.maxSize = 16 * 1024^3)
+
+COMP_W <- 12
+COMP_H <- 16
+
+## Publication geom scales (linewidths, point sizes, dot ranges, bracket widths)
+PS <- pub_scales(COMP_W)
+
 library(Seurat)
 library(hdWGCNA)
 library(ggeasy)
@@ -5,11 +49,362 @@ library(harmony)
 
 
 
-source('./dependencies/shared/spatial_functions.R')
+source('./helper_scripts/spatial_functions.R')
+
+## ── Cartoon / schematic asset insertion ───────────────────────────────────────
+## Supplementary_Figure_3.pdf (v51 composite) is a DCM LV cross-comparison
+## figure assembled from UMAPs, DotPlots, and violin plots only; the current
+## composite contains no explicit cartoon/illustration panel. If a reference-
+## mapping schematic (sn/sc LV  RV myeloid projection) is later added, extract
+## it from the composite with the magick block below.
+##
+## # library(magick)
+## # pdf_path <- '~/Downloads/hdWGCNA_TOM/Manuscripts/Supplementary_Figure_3.pdf'
+## # pg <- image_read_pdf(pdf_path, pages = 1, density = 300)
+## # # 17 cm = ~2008 px at 300 DPI; ~2008x800 band for a schematic row.
+## # cartoon <- image_crop(pg, geometry = '2008x800+0+0')
+## # image_write(cartoon, file.path(ASSET_DIR, 'SuppFig3_lv_mapping.png'),
+## #             format = 'png')
+## s3_cartoon <- insert_asset('SuppFig3_lv_mapping.png',
+##                            label = 'LV -> RV reference mapping schematic')
+
+
+
 
 #######################################
-#############  FIGURE S5A  ############
+######  FIGURE S4 PANEL E (+ F)  ######
 #######################################
+# Myeloid pipeline (v54 panels E and F i-iv):
+#   E: RV_Myeloid_Integrated_snUMAP.pdf
+#   F i: RV_LV_myeloid_ref_mapped.pdf            (LV snRNA RefMapped)
+#   F ii: RV_LV_sc_myeloid_ref_mapped.pdf        (LV scRNA RefMapped)
+#   F iii/iv: LV_sn_sc_myeloid_ref_mapped.pdf    (LV original annotations)
+#   G: RV_vs_LV_myeloid__dot.pdf                 (LV vs RV failure concordance)
+#   H: LV_vln_modules.pdf, LV_dot_modules.pdf    (LV WGCNA module DCM vs NF)
+# Memory-gated: this block plus the FB SCTransform pipeline together exceed
+# ~44 GB on this 48 GB box. Set RUN_LEGACY_MYELOID=TRUE in the environment
+# to enable; the master driver (run_S4_stages.sh) runs this block in a
+# dedicated Rscript invocation so the heap is freed before FB/box stages.
+if (isTRUE(as.logical(Sys.getenv('RUN_LEGACY_MYELOID', 'FALSE')))) {
+
+# Use the cleaned, post-Contamination, Harmony-integrated object built in
+# Figure_6.R (line 157). It has the canonical v53 cluster labels as Idents:
+#   Mac_Inflammatory, CCR2- Resident Mac, Dendritic Cell,
+#   Monocyte / Mac_Mono_Derived, TREM2+ Mac, Proliferating
+# Reductions: pca, harmony, umap (already finalized). Skipping the legacy
+# FindClusters / RenameIdents / sub-clustering / re-Harmony pipeline.
+M1 <- readRDS(file = "./output/Figure_6/myeloid_subclust_new.rds")
+M1$Subnames    <- Idents(M1)
+M1$Subsubnames <- Idents(M1)
+M1 <- SetIdent(M1, value = 'Subsubnames')
+M2 <- M1                       # alias AFTER Subsubnames is set, so M2$Subsubnames exists
+
+M1 <- AddModuleScore(M1, features=list(c("TREM2","GPNMB","MITF","SPP1")),assay="SCT",name="TREM2_Mac_Score")
+M1 <- AddModuleScore(M1, features=list(c("CLEC9A","ZBTB46","CD1C","CD226")),assay="SCT",name="DC_Score")
+M1 <- AddModuleScore(M1, features=list(c("FCN1","LILRB2","ITGAL","CSF3R")),assay="SCT",name="Mono_Score")
+M1 <- AddModuleScore(M1, features=list(c("CCR2","CX3CR1","ITGAX")),assay="SCT",name="CCR2+_rMac_Score")
+M1 <- AddModuleScore(M1, features=list(c("LYVE1","FOLR2","SIGLEC1","F13A1")),assay="SCT",name="CCR2-_rMac1_Score")
+M1 <- AddModuleScore(M1, features=list(c("RBMS3","PLA2G5","EBF1")),assay="SCT",name="CCR2-_rMac2_Score")
+M1 <- AddModuleScore(M1, features=list(c("IL1B","CCL3","CCL4","CXCL3","CXCL8")),assay="SCT",name="iMac_Score")
+
+
+M1$SubNames_group <- paste0(M1$Subsubnames,'_',M1$group)
+M1 <- SetIdent(M1, value = "group")
+M1$group <- factor(M1$group,levels=c("NF","pRV","RVF"))
+
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
+consensus_modules <- consensus_modules[,1:3]
+consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M1))
+# remove duplicate gene names
+consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name), consensus_modules$gene_name),]
+
+
+library(dplyr)
+mapping <- labels2colors(1:100)
+
+score_calc <- consensus_modules %>% group_by(module) %>% group_split()
+module_colors <- unique(unlist(lapply(score_calc,'[[','module')))
+module_colors <- paste0('M',match(module_colors,mapping))
+
+
+M1 <- AddModuleScore(M1,lapply(score_calc,'[[','gene_name'),name="module_score")
+invisible(gc(verbose = FALSE))
+
+cols_current <- colnames(M1@meta.data)
+cols_current[startsWith(colnames(M1@meta.data),'module_score')] <- paste0('module_',module_colors)
+colnames(M1@meta.data) <- cols_current
+
+pdf(paste0('./output/Supplementary_Figure_4/', 'RV_vln_modules.pdf'), width=6, height=3)
+VlnPlot(M1,c('module_M1','module_M3','module_M4','module_M8'),pt.size=0,ncol=4) &
+  scale_fill_disease() & theme_v52(COMP_W)
+dev.off()
+
+pdf(paste0('./output/Supplementary_Figure_4/', 'RV_dot_modules.pdf'), width=4.5, height=2.2)
+p <- DotPlot(M1,paste0('module_',
+  c('M1','M3','M4','M8')),dot.min=0,col.min=0,col.max=2,
+  dot.scale = PS$dot_range[2]) +
+  RotatedAxis() + ylab('')+ xlab('')+
+  scale_color_gradient2(high='red', mid='grey95', low='blue') +
+  scale_size_continuous(range = PS$dot_range) +
+  theme_v52(COMP_W) +
+  theme(
+    panel.border = element_rect(linewidth = PS$linewidth_mm, fill=NA, color='black'),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank()
+)
+p
+dev.off()
+
+
+
+# Panel E: harmony-based UMAP saved in myeloid_subclust_new.rds (matches
+# Figure_6.R reduction='harmony', dims=1:30). Color palette pinned to .rv_pal
+# below so Panel E matches F.i / F.ii left side.
+.rv_levels <- levels(droplevels(factor(M2$Subsubnames)))
+.rv_pal    <- setNames(scales::hue_pal()(length(.rv_levels)), .rv_levels)
+M2$Subsubnames <- factor(M2$Subsubnames, levels = .rv_levels)
+pdf(paste0('./output/Supplementary_Figure_4/', 'RV_Myeloid_Integrated_snUMAP.pdf'), width=5, height=5)
+print(
+  PlotEmbedding(M2, group.by='Subsubnames', point_size=1, plot_under=TRUE,
+                plot_theme=umap_theme()+NoLegend(),
+                raster_dpi=400, raster_scale=0.5) +
+    scale_color_manual(values = .rv_pal, drop = FALSE)
+)
+dev.off()
+
+# Refresh M2 UMAP with return.model=TRUE so MapQuery's ProjectUMAP works.
+# Trained on harmony reduction (matches Fig 6 layout).
+M2 <- RunUMAP(M2, reduction = "harmony", dims = 1:30, return.model = TRUE)
+
+#######################################
+############  FIGURE S4 PANEL F  ######
+####### LV myeloid ref mapping ########
+####### (i) snRNA + (ii) scRNA;       #
+####### (iii)/(iv) original LV labels #
+#######################################
+# Process snLV and scLV one at a time so peak memory holds at most one
+# Koenig SCT'd object at once. The joint sn+sc plot reuses ggplot objects
+# captured before each Seurat object is freed.
+
+# Koenig modules (recreate Mac1-5 / Mono / DC / Prolif via marker-argmax on
+# de-novo Louvain clusters — robust to Seurat/igraph version drift).
+
+options(future.globals.maxSize = 50 * 1024^3)
+
+.koenig_modules <- list(
+  Nonclassical_Mono  = c('FCGR3A','LILRA5','LST1'),
+  Classical_Mono     = c('CD14','S100A8','S100A9','S100A12','FCN1'),
+  Intermediate_Mono  = c('FCN1','OLR1','PLAUR','TRAF1'),
+  Prolif             = c('MKI67','STMN1','BIRC5','TOP2A'),
+  Mac1               = c('TREM2','SPP1','FABP5','LGALS3'),
+  Mac2               = c('FOLR2','LYVE1','MRC1','SIGLEC1','CD163'),
+  Mac3               = c('LYVE1','HSPH1','HSPA1A','HSPA1B'),
+  Mac4               = c('CCL3','CCL4','PHLDA1','PMAIP1'),
+  Mac5               = c('KLF2','KLF4','EGR1','RHOB'),
+  DC                 = c('CD1C','CCR7','FCER1A'))
+.module_cols   <- paste0(names(.koenig_modules), '1')   # AddModuleScore appends '1'
+.module_labels <- names(.koenig_modules)
+
+# .rv_pal / .rv_levels were defined for Panel E above. .lv_pal is used by the
+# Koenig-labeled F.iii / F.iv sub-panels.
+.lv_pal <- setNames(scales::hue_pal()(length(.module_labels)), .module_labels)
+
+# Reference panel of M2 (used in both F.i and F.ii); render once, reuse.
+p_M2 <- DimPlot(M2, reduction = "umap", group.by = "Subsubnames",
+                label = TRUE, label.size = 3, repel = TRUE,
+                raster = TRUE, pt.size = 1.5) +
+  scale_color_manual(values = .rv_pal, drop = FALSE) +
+  NoLegend() + ggtitle("Reference annotations")
+
+# Helper: process one Koenig query (tech == 'SN' or 'SC'), plot its ref-mapped
+# pair (M2 + query), then return a DimPlot of LV_names for the joint sn+sc
+# panel. The Seurat object is rm()'d on exit.
+.process_LV <- function(tech_id, ref_pdf) {
+  q <- readRDS('./dependencies/shared/Kory_myeloid_fibroblasts.rds')
+  q <- subset(q, Names == 'Myeloid')   # ~10x smaller — drop other cell types first
+  invisible(gc(verbose = FALSE))
+  q <- subset(q, tech == tech_id)
+
+  DefaultAssay(q) <- "RNA"
+  q[['SCT']]      <- NULL
+  q <- SCTransform(q, vst.flavor = "v2", assay = 'RNA')
+  q <- RunPCA(q, npcs = 50, verbose = FALSE)
+
+  anchors <- FindTransferAnchors(
+    reference = M2, query = q,
+    normalization.method = "SCT", recompute.residuals = FALSE,
+    reference.reduction = "pca", dims = 1:50
+  )
+  q <- MapQuery(anchorset = anchors, reference = M2, query = q,
+                refdata = list(celltype = "Subsubnames"),
+                reference.reduction = "pca", reduction.model = "umap")
+  q$map_score <- MappingScore(anchors)
+  rm(anchors); invisible(gc(verbose = FALSE))
+
+  # Align the query's predicted-celltype levels with M2's Subsubnames so the
+  # color palette is shared across F.i left and right (and across F.i and F.ii).
+  q$predicted.celltype <- factor(q$predicted.celltype, levels = .rv_levels)
+
+  # F.i / F.ii: M2 reference + query transferred labels
+  p_query <- DimPlot(q, reduction = "ref.umap", group.by = "predicted.celltype",
+                     label = TRUE, label.size = 3, repel = TRUE,
+                     raster = TRUE, pt.size = 1.5) +
+    scale_color_manual(values = .rv_pal, drop = FALSE) +
+    NoLegend() + ggtitle("Query transferred labels")
+  pdf(paste0('./output/Supplementary_Figure_4/', ref_pdf), width = 10, height = 5)
+  print(p_M2 + p_query)
+  dev.off()
+
+  # Marker-module scores for argmax-labelling
+  for (m in names(.koenig_modules)) {
+    q <- AddModuleScore(q, list(.koenig_modules[[m]]), name = m)
+  }
+
+  # De-novo cluster + marker-argmax label (robust to Seurat/igraph drift)
+  q <- RunPCA(q, npcs = 50, verbose = FALSE)
+  q <- FindNeighbors(q, dims = 1:50, verbose = FALSE)
+  q <- FindClusters(q,
+                    resolution = if (tech_id == 'SN') 0.6 else 1,
+                    verbose = FALSE)
+  q <- RunUMAP(q, dims = 1:50, verbose = FALSE)
+
+  cm <- aggregate(q@meta.data[, .module_cols],
+                  by = list(cluster = as.character(Idents(q))),
+                  FUN = mean)
+  ids <- setNames(.module_labels[apply(cm[, .module_cols], 1, which.max)],
+                  cm$cluster)
+  q <- RenameIdents(q, ids)
+  q$LV_names <- factor(q@active.ident, levels = .module_labels)
+  Idents(q)  <- 'LV_names'
+
+  # F.iii / F.iv panel ggplot — captured before q is freed; share .lv_pal
+  # with the other panel so sn and sc are in the same color scheme.
+  p_LV <- DimPlot(q, reduction = "ref.umap", label = TRUE, label.size = 3,
+                  repel = TRUE, raster = TRUE, pt.size = 1.5) +
+    scale_color_manual(values = .lv_pal, drop = FALSE) +
+    NoLegend() +
+    ggtitle(if (tech_id == 'SN') "LV snRNA-seq (Koenig labels)"
+            else                  "LV scRNA-seq (Koenig labels)")
+  rm(q); invisible(gc(verbose = FALSE))
+  p_LV
+}
+
+p_sn <- .process_LV('SN', 'RV_LV_myeloid_ref_mapped.pdf')      # Panel F.i
+p_sc <- .process_LV('SC', 'RV_LV_sc_myeloid_ref_mapped.pdf')   # Panel F.ii
+
+# Panels F.iii + F.iv: side-by-side LV original (Koenig) annotations.
+pdf(paste0('./output/Supplementary_Figure_4/', 'LV_sn_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
+print(p_sn + p_sc)
+dev.off()
+rm(p_sn, p_sc, p_M2); invisible(gc(verbose = FALSE))
+
+}  # end of legacy S3D + S3E skip block
+
+#######################################
+########## FIGURE S4 PANEL I  #########
+####### LV myeloid program boxes ######
+####### (4 RV-derived programs;       #
+####### Donor vs DCM Wilcoxon)        #
+#######################################
+# Patient-level pseudobulk module-score box plots in LV (Koenig snRNA-seq)
+# myeloid cells, DCM vs Donor (NF). Mirrors Fig 6 panels G/H gene sets.
+# Single horizontal panel combining all 4 program scores:
+#   GR-homeostatic (down in DCM) | HIF/vascular drift (up) |
+#   NF-kB MHCII / inflammasome (up) | IFNg antigen presentation (up)
+
+# Self-loading: light NormalizeData on RNA assay (no SCTransform) keeps
+# the LV myeloid object well under the 40 GB R cap on this 48 GB box.
+snLV <- readRDS('./dependencies/shared/Kory_myeloid_fibroblasts.rds')
+snLV <- subset(snLV, Names == 'Myeloid')   # drop ~10x cells before tech split
+invisible(gc(verbose = FALSE))
+snLV <- subset(snLV, tech == 'SN')
+DefaultAssay(snLV) <- 'RNA'
+snLV <- NormalizeData(snLV, verbose = FALSE)
+
+GR_homeostatic <- c('TSC22D3','FKBP5','KLF9','KLF13','MERTK','CD163','MARCO',
+                    'MT2A','GLUL','ZBTB16','BCL6','CEBPB','TFCP2L1','MAFB',
+                    'GADD45B','ANGPTL4')
+HIF_vascular   <- c('EPAS1','RAMP3','NAMPT','TIMP3','PECAM1','MYH9','LDLR',
+                    'PODXL','ID1','MAF','CHD7','ADIPOR2')
+NFkB_MHCII     <- c('CD74','HLA-DRB1','HLA-DRA','HLA-DPA1','HLA-DPB1',
+                    'NLRP1','NLRP3','AIM2','CIITA','RUNX1','FOSL2','SRGN',
+                    'FOXO3','IRF1','CD83')
+IFNg_AP        <- c('STAT1','IRF1','IRF8','JAK2',
+                    'B2M','HLA-A','HLA-B','HLA-C',
+                    'PSMB8','PSMB9','TAP1','IFI30',
+                    'GBP1','GBP2','GBP4','GBP5','ICAM1')
+
+.in_obj <- function(g, obj) intersect(g, rownames(obj))
+snLV <- AddModuleScore(snLV, list(.in_obj(GR_homeostatic, snLV)), name = 'GR_hom')
+snLV <- AddModuleScore(snLV, list(.in_obj(HIF_vascular,   snLV)), name = 'HIF_vasc')
+snLV <- AddModuleScore(snLV, list(.in_obj(NFkB_MHCII,     snLV)), name = 'NFkB_MHCII')
+snLV <- AddModuleScore(snLV, list(.in_obj(IFNg_AP,        snLV)), name = 'IFNg_AP')
+
+snLV$condition <- factor(snLV$condition, levels = c('Donor','DCM'))
+
+# Per-patient mean module score (pseudobulk)
+.patient_scores <- aggregate(
+  cbind(GR_hom     = snLV$GR_hom1,
+        HIF_vasc   = snLV$HIF_vasc1,
+        NFkB_MHCII = snLV$NFkB_MHCII1,
+        IFNg_AP    = snLV$IFNg_AP1),
+  by  = list(patient = as.character(snLV$orig.ident),
+             condition = snLV$condition),
+  FUN = mean
+)
+write.csv(.patient_scores,
+  './output/Supplementary_Figure_4/fig_s4_panel_FGH_LV_myeloid_module_scores.csv', row.names = FALSE)
+
+.box_plot <- function(df, col, title) {
+  pv <- tryCatch(wilcox.test(df[[col]] ~ df$condition)$p.value,
+                 error = function(e) NA_real_)
+  ggplot(df, aes(x = condition, y = .data[[col]], fill = condition)) +
+    geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
+    geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
+    scale_fill_disease() +
+    labs(title = title, x = NULL,
+         y = 'Per-patient mean module score',
+         subtitle = paste0('Wilcoxon p = ', signif(pv, 2))) +
+    theme_v52(COMP_W) +
+    theme(legend.position = 'none')
+}
+
+# Build all 4 box plots
+p_GR    <- .box_plot(.patient_scores, 'GR_hom',     'GR homeostatic (down in DCM)')
+p_HIF   <- .box_plot(.patient_scores, 'HIF_vasc',   'HIF / vascular drift (up in DCM)')
+p_MHCII <- .box_plot(.patient_scores, 'NFkB_MHCII', 'NF-kB MHCII / inflammasome (up in DCM)')
+p_IFNg  <- .box_plot(.patient_scores, 'IFNg_AP',    'IFNg antigen presentation (up in DCM)')
+
+# Concatenate horizontally — share the y-axis label, drop redundant per-plot y titles
+.strip_y <- theme(axis.title.y = element_blank())
+panel_I <- (p_GR + (p_HIF + .strip_y) +
+            (p_MHCII + .strip_y) + (p_IFNg + .strip_y)) +
+  plot_layout(nrow = 1)
+
+pdf(paste0('./output/Supplementary_Figure_4/', 'fig_s4_panel_I_LV_myeloid_module_scores_box.pdf'),
+  width = 5, height = 3)
+print(panel_I)
+dev.off()
+
+# Free the LV myeloid pipeline objects before reloading for the FB sections.
+rm(list = intersect(ls(),
+  c('snLV','scLV','M1','M2','anchors','predictions','score',
+    'p1','p2','p_GR','p_HIF','p_MHCII','p_IFNg','.patient_scores',
+    'a','b','dataset','dataset_fb','shared','shared_fb','labs','labs_fb')))
+invisible(gc(verbose = FALSE))
+
+#######################################
+############  FIGURE S4A  #############
+####### RV+LV FB UMAP ref-mapped ######
+#######################################
+snLV <- readRDS('./dependencies/shared/Kory_myeloid_fibroblasts.rds')
+snLV <- subset(snLV, Names == 'Fibroblasts')   # drop other cell types first
+invisible(gc(verbose = FALSE))
+snLV <- subset(snLV, tech == 'SN')
+
+snLV <- SetIdent(snLV, value = "condition")
+
+
 
 M1 <- readRDS(file = "./dependencies/shared/fb_subclust.rds")
 
@@ -20,1850 +415,286 @@ M1 <- RenameIdents(M1, new.cluster.ids)
 M1$Subnames <- M1@active.ident
 M1$SubNames_Groups <- paste(M1$Subnames,M1$group,sep='_')
 
-pdf(paste0('./output/', 'FB_snUMAP.pdf'), width=5, height=5)
-PlotEmbedding(M1,group.by='Subnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
-dev.off()
+
+
+M1 <- SetIdent(M1, value = "group")
+M1$group <- factor(M1$group,levels=c("NF","pRV","RVF"))
+
+
+#Reference mao LV to RV
+
+M2 <- SplitObject(M1, split.by = "patient")
+M2<-PrepSCTIntegration(M2)
+features<-SelectIntegrationFeatures(M2)
+M2.anchors<-FindIntegrationAnchors(M2,normalization.method = 'SCT',anchor.features = features, reduction = "rpca")
+M2 <- IntegrateData(anchorset = M2.anchors,normalization.method='SCT')
+
+DefaultAssay(M2) <- "integrated"
+
+M2 <- RunPCA(M2, npcs = 50, verbose = FALSE)
+M2 <- RunUMAP(M2, reduction = "pca", dims = 1:30)
 
 
 
-#######################################
-#############  FIGURE S5B  ############
-#######################################
+DefaultAssay(snLV) <- "RNA"
+snLV[['SCT']] <- NULL
 
-M1 <- AddModuleScore(M1, features=list(c("SCN7A","ACSM3")),assay="SCT",name="Fb1Score")
-M1 <- AddModuleScore(M1, features=list(c("KAZN","CNTNAP2","C7")),assay="SCT",name="Fb2Score")
-M1 <- AddModuleScore(M1, features=list(c("LTBP2","PLXDC2","ELN","NOX4","FGF14")),assay="SCT",name="Fb3Score")
-M1 <- AddModuleScore(M1, features=list(c("PCOLCE2","FBN1","MFAP5","CREB5")),assay="SCT",name="Fb4Score")
-M1 <- AddModuleScore(M1, features=list(c("GRID2","NAMPT","NR4A3","NR4A1")),assay="SCT",name="Fb5Score")
-M1 <- AddModuleScore(M1, features=list(c("SERPINE1","DEC1","TNC","FN1")),assay="SCT",name="Fb6Score")
-M1 <- AddModuleScore(M1, features=list(c("SYN3","TIMP3")),assay="SCT",name="Fb7Score")
+snLV <- SCTransform(snLV, vst.flavor = "v2",assay='RNA')
+snLV <- RunPCA(snLV, npcs = 50, verbose = FALSE)
 
-#Fb1 (SCN7A, ACSM3), Fb2 (KAZN, CNTNAP2, C7), Fb3 (LTBP2, PLXDC2, ELN, NOX4, FGF14)
-#Fb4 (PCOLCE2, FBN1, MFAP5, CREB5), Fb5 (GRID2, NAMPT, NR4A3, NR4A1)
-#Fb6 (SERPINE1, DEC1 TNC, FN1), Fb7 (SYN3, TMIP3)
-
-pdf(paste0('./output/', 'FB_sn_Dot.pdf'), width=6, height=5)
-
-DotPlot(M1,features=c("Fb1Score1",
-	"Fb2Score1","Fb3Score1","Fb4Score1",
-	"Fb5Score1","Fb6Score1","Fb7Score1"),
-col.min=0,col.max=2)+ylab('Condition')+xlab('Marker Score')+
-scale_x_discrete(labels=c('Clust 1','Clust 2','Clust 3',
-	'Clust 4','Clust 5','Clust 6','Clust 7'))
-dev.off()
-
-
-a <- FindAllMarkers(M1)
-b <- split( a , f = a$cluster )
-c <-  lapply(b,subset,avg_log2FC>0 & p_val_adj < 0.05)
-d <- lapply(c,'[[','gene')
-
-
-M1 <- AddModuleScore(M1,d,name='ClustMarkers')
-
-DotPlot(M1,features=c("ClustMarkers1",
-	"ClustMarkers2","ClustMarkers3","ClustMarkers4",
-	"ClustMarkers5","ClustMarkers6","ClustMarkers7"),
-col.min=0,col.max=2)+ylab('Condition')+xlab('Marker Score')+
-scale_x_discrete(labels=c('Clust 1','Clust 2','Clust 3',
-	'Clust 4','Clust 5','Clust 6','Clust 7'))
-
-#######################################
-#############  FIGURE S5C  ############
-#######################################
-
-library(enrichR)
-
-dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2021','GO_Molecular_Function_2021','LINCS_L1000_Chem_Pert_up','LINCS_L1000_Chem_Pert_down', 'WikiPathway_2021_Human', 'KEGG_2021_Human')
-
-# compute GO terms:
-enrich_list <- list()
-
-combined_output <- data.frame()
-for (i in 1:length(unique(M1$Subnames))) {
-    cur_mod <- unique(M1$Subnames)[i]
-    cur_info <- subset(a, cluster == cur_mod & avg_log2FC>0 & p_val_adj < 0.05)
-    cur_info <- cur_info[, c("gene")]
-    
-    enriched <- enrichR::enrichr(cur_info, dbs)
-    Sys.sleep(5)
-    for (db in names(enriched)) {
-        cur_df <- enriched[[db]]
-        if (nrow(cur_df) > 1) {
-            cur_df$db <- db
-            cur_df$module <- cur_mod
-            combined_output <- rbind(combined_output, cur_df)
-        }
-    }
-}
-
-M1 <- SetupForWGCNA(M1,wgcna_name='temp')
-M1 <- SetEnrichrTable(M1, combined_output)
-
-outdir = './output/scFB_subclust_enrichr_plot'
-
-
-wrapText <- function(x, len) {
-        sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), 
-            USE.NAMES = FALSE)
-}
-
- enrichr_df <- GetEnrichrTable(M1)
-
-for (i in 1:length(unique(M1$Subnames))) {
-    cur_mod <- unique(M1$Subnames)[i]
-    cur_terms <- subset(enrichr_df, module == cur_mod)
-    print(cur_mod)
-    #cur_color <- modules %>% subset(module == cur_mod) %>% 
-    #    .$color %>% unique %>% as.character
-    #if (!is.null(plot_bar_color)) {
-    #    cur_color <- plot_bar_color
-    #}
-    if (nrow(cur_terms) == 0) {
-        next
-    }
-    cur_terms$wrap <- wrapText(cur_terms$Term, 45)
-    plot_list <- list()
-    for (cur_db in dbs) {
-        plot_df <- subset(cur_terms, db == cur_db) %>% top_n(5, 
-            wt = Combined.Score)
-        text_color = "black"
-        cur_color = 'green'
-
-        plot_df$Combined.Score <- log(plot_df$Combined.Score)
-        lab <- "Enrichment log(combined score)"
-        x <- 0.2
-
-        plot_list[[cur_db]] <- ggplot(plot_df, aes(x = Combined.Score, 
-            y = reorder(wrap, Combined.Score))) + geom_bar(stat = "identity", 
-            position = "identity", color = "white", fill = cur_color) + 
-            geom_text(aes(label = wrap), x = x, color = text_color, 
-              size = 3.5, hjust = "left") + ylab("Term") + 
-            xlab(lab) + ggtitle(cur_db) + theme(panel.grid.major = element_blank(), 
-            panel.grid.minor = element_blank(), legend.title = element_blank(), 
-            axis.ticks.y = element_blank(), axis.text.y = element_blank(), 
-            plot.title = element_text(hjust = 0.5))
-    }
-    pdf(paste0(outdir, "/", cur_mod, ".pdf"), width = 5, 
-        height = 4)
-    for (plot in plot_list) {
-        print(plot)
-    }
-    dev.off()
-}
-
-
-
-
-
-#Plot enrichments by cluster
-selected_terms <- subset(combined_output,db=="GO_Biological_Process_2023")
-selected_terms <- subset(selected_terms, P.value < 0.05)
-
-
-
-# subset selected terms
-idx_top_1 <- match(unique(selected_terms$module),selected_terms$module)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module),
-  levels = levels(selected_terms$module)
+anchors <- FindTransferAnchors(
+  reference = M2,
+  query = snLV,
+  normalization.method = "SCT",
+  recompute.residuals=FALSE,
+  reference.reduction = "pca",
+  dims = 1:50
 )
 
+M2 <- RunUMAP(M2, dims = 1:50, return.model = TRUE)
+snLV <- MapQuery(anchorset = anchors, reference = M2, query = snLV,
+  refdata = list(celltype = "Subnames"), reference.reduction = "pca", reduction.model = "umap")
 
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
+score <- MappingScore(anchors)
 
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
+snLV$map_score <- score
 
-# remove GO Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\(GO.*", "")
+# Pin FB palette so reference (Subnames) and query (predicted.celltype) share
+# the same color per Fb cluster, with drop=FALSE for missing levels.
+.fb_levels <- levels(droplevels(factor(M2$Subnames)))
+.fb_pal    <- setNames(scales::hue_pal()(length(.fb_levels)), .fb_levels)
+M2$Subnames          <- factor(M2$Subnames,          levels = .fb_levels)
+snLV$predicted.celltype <- factor(snLV$predicted.celltype, levels = .fb_levels)
 
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 35)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-
-pdf(paste0('./output/', 'FB_by_cluster_GO.pdf'), width=6, height=8)
-p
-dev.off()
-
-
-#######################################
-#############  FIGURE S5D  ############
-#######################################
-pdf(paste0('./output/', 'MyoFB_dot.pdf'), width=4.5, height=4)
-DotPlot(M1,c('ACTA2','CDH11','TAGLN','SLIT3',
-  'MINDY2','MYO1B','LIMS2','GARS'),group.by='group',dot.min=0,col.min=0,col.max=2) +
-  coord_flip() + ylab('')+ xlab('')+
-  scale_color_gradient2(high='red', mid='grey95', low='blue') +
-  theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
-dev.off()
-
-
-M1 <- AddModuleScore(M1, features=list(c('ACTA2','CDH11','TAGLN','SLIT3',
-  'MINDY2','MYO1B','LIMS2','GARS')),assay="SCT",name="MyoFBScore")
-
-pdf(paste0('./output/', 'MyoFB_Vln.pdf'), width=4.5, height=4)
-VlnPlot(M1,'MyoFBScore1',split.by='group',pt.size=0)
+p1 <- DimPlot(M2, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) +
+  scale_color_manual(values = .fb_pal, drop = FALSE) +
+  NoLegend() + ggtitle("Reference annotations")
+p2 <- DimPlot(snLV, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) +
+  scale_color_manual(values = .fb_pal, drop = FALSE) +
+  NoLegend() + ggtitle("Query transferred labels")
+pdf(paste0('./output/Supplementary_Figure_4/', 'RV_LV_fb_ref_mapped.pdf'), width=10, height=5)
+print(p1 + p2)
 dev.off()
 
 
 
+
+snLV <- AddModuleScore(snLV,list(c('ACSM3','SCN7A','ABCA10','NEGR1','ABCA9')),name='Fb1')
+snLV <- AddModuleScore(snLV,list(c('PCOLCE2','IGFBP6','MFAP5','S100A10','FGFBP2')),name='Fb2')
+snLV <- AddModuleScore(snLV,list(c('GPX3','APOD','C3','HSPA1A','GLUL')),name='Fb3')
+snLV <- AddModuleScore(snLV,list(c('PLA2G2A','RARRES1','IGFBP4','FGF7')),name='Fb4')
+snLV <- AddModuleScore(snLV,list(c('ELN','GPC6','FGF14','ITGA1')),name='Fb5')
+snLV <- AddModuleScore(snLV,list(c('TNC','FN1','MEOX1')),name='Fb6')
+snLV <- AddModuleScore(snLV,list(c('CCL2','THBS1','CYR61','NR4A1')),name='Fb7')
+snLV <- AddModuleScore(snLV,list(c('THBS4','AEBP1','POSTN','CLU','COMP')),name='Fb8')
+snLV <- AddModuleScore(snLV,list(c('SERPINE1','CYR61','NFATC2','LRRFIP1')),name='Fb9')
+
+
+snLV <- SetIdent(snLV, value = 'predicted.celltype')
+
+
 #######################################
-#############  FIGURE S5E  ############
+############  FIGURE S4B  #############
+####### FB subtype concordance ########
 #######################################
+# RV vs LV FB annotation concordance dot.
 
-seurat_ref <- M1
-
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
-consensus_modules <- consensus_modules[,1:3]
-consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
-# remove duplicate gene names
-consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name), consensus_modules$gene_name),]
-
-mapping <- labels2colors(1:100)
-
-bulk_modules <- consensus_modules
-bulk_modules$module <- match(consensus_modules$module,mapping)
-
-seurat_ref <- M1
-
-dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023','Reactome_2022', 'ChEA_2022',"LINCS_L1000_Chem_Pert_up")
+pdf(paste0('./output/Supplementary_Figure_4/', 'RV_LV_fb_ref_mapped_dot.pdf'), width=6, height=4)
+DotPlot(snLV,c('Fb31','Fb61','Fb91','Fb41','Fb71','Fb21',
+  'Fb51','Fb81','Fb11'),group.by = "predicted.celltype",col.min=0,col.max=2,
+  dot.scale = PS$dot_range[2]) +
+  scale_size_continuous(range = PS$dot_range) +
+  theme_v52(COMP_W)
+dev.off()
 
 
-#Run enrichment by cell type
-Idents(seurat_ref) <- "SubNames_Groups"
-combined_set <- data.frame()
-combined_output <- data.frame()
+#######################################
+############  FIGURE S4C  #############
+####### LV FB Phase 1 + Phase 2 #######
+####### per-patient conservation ######
+#######################################
+# LV (Koenig SN FB) Phase-1 + Phase-2 conservation, mirroring the RV
+# pseudobulk module-score panels in Supplementary_Figure_3.R (D and F).
+#   Phase 1 (FB identity, Koenig 2022 donor signature):
+#     GPX3, PID1, TGFBR3, ACSM3, APOD
+#     Expected: erodes NF→failing  →  DOWN in DCM vs Donor
+#   Phase 2 (matrifibrocyte, Fu 2018 PMID 29664017; main-text + IHC):
+#     COMP, CHAD, CILP2  (Fig 10G; Fig 11C human IHC for Comp/Chad)
+#     Expected: commits as failure progresses  →  UP in DCM vs Donor
+#   (Prior 6-gene panel including CILP/FMOD/CTHRC1 was unsupported by Fu's
+#    main text; CTHRC1 belongs to a distinct activated-profibrotic state per
+#    Ruiz-Villalba et al. Circulation 2020, PMID 32972203.)
 
-cell_types <- unique(seurat_ref$Subnames)
-comparison <- list(c("RVF","NF"),c("RVF","pRV"))
-for (j in cell_types){
-  for (k in comparison){
-    key_genes <- rownames(seurat_ref)
+# Drop any cells with non-Donor/DCM condition (no third category exists in
+# Koenig but defensive in case of NAs) before aggregating, so every column of
+# the pseudobulk matrix has a known group.
+.lv_fb_obj <- subset(snLV, subset = condition %in% c('Donor','DCM'))
 
-    gene_set <- FindMarkers(seurat_ref, ident.1 = paste0(j,"_",k[1]), ident.2 = paste0(j,"_",k[2]),features=key_genes)
-    
-    gene_set<-subset(gene_set,p_val_adj<0.05)
-    if (length(rownames(gene_set))==0){next}
-    gene_set$comparison <- paste0(k[1],'_',k[2])
-    gene_set$celltype <- j
+# Pseudobulk per patient, CPM + log1p
+.lv_fb_agg <- AggregateExpression(.lv_fb_obj, assays = 'RNA',
+                                  group.by = 'orig.ident',
+                                  slot = 'counts',
+                                  return.seurat = FALSE)$RNA
+.lv_lib    <- colSums(.lv_fb_agg)
+.lv_logcpm <- log1p(sweep(.lv_fb_agg, 2, .lv_lib, '/') * 1e6)
 
-    if (length(combined_set) == 0){
-      combined_set <- gene_set
-    }
-    else {
-      combined_set <- rbind(combined_set,gene_set)
-    }
+# Normalize both join keys: AggregateExpression coerces orig.ident through
+# make.names() (so 'TWCM-11-78' becomes 'TWCM.11.78'). Mirror that on the
+# meta-data side or the join misses every patient with a dash in their ID.
+.lv_pat_grp <- .lv_fb_obj@meta.data %>%
+  dplyr::distinct(orig.ident, condition) %>%
+  dplyr::mutate(orig.ident_key = make.names(as.character(orig.ident)),
+                condition      = factor(condition, levels = c('Donor','DCM')))
 
-    gene_enrich <- subset(gene_set,avg_log2FC<0)
-    enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-    Sys.sleep(5)
-    for(db in names(enriched)){
-        cur_df <- enriched[[db]]
-        if (nrow(cur_df) > 1){
-          cur_df$db <- db
-          cur_df$celltype <- j
-          cur_df$comparison <- paste0(k[1],'_',k[2])
-          cur_df$direction <- 'down'
-          combined_output <- rbind(combined_output, cur_df)
-        }
-    }
+cat('LV FB pseudobulk patients per condition:\n')
+print(table(.lv_pat_grp$condition))
 
-    gene_enrich <- subset(gene_set,avg_log2FC>0)
-    enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-    Sys.sleep(5)
-    for(db in names(enriched)){
-        cur_df <- enriched[[db]]
-        if (nrow(cur_df) > 1){
-          cur_df$db <- db
-          cur_df$celltype <- j
-          cur_df$comparison <- paste0(k[1],'_',k[2])
-          cur_df$direction <- 'up'
-          combined_output <- rbind(combined_output, cur_df)
-        }
-    }
+.lv_fb_pb_module <- function(gene_set, label_short) {
+  have <- intersect(gene_set, rownames(.lv_logcpm))
+  cat(sprintf('%s — detected: %s\n', label_short, paste(have, collapse = ', ')))
+  mat <- .lv_logcpm[have, , drop = FALSE]
+  z   <- t(scale(t(mat)))
+  d <- data.frame(orig.ident_key = make.names(colnames(z)),
+                  score          = colMeans(z, na.rm = TRUE),
+                  stringsAsFactors = FALSE)
+  out <- dplyr::inner_join(d, .lv_pat_grp, by = 'orig.ident_key') %>%
+    dplyr::filter(!is.na(condition)) %>%
+    dplyr::arrange(condition, orig.ident)
+  if (nrow(out) == 0) {
+    stop(sprintf('No matching pseudobulk samples for %s. ',
+                 label_short),
+         'colnames(z) head: ', paste(head(colnames(z), 3), collapse = ', '),
+         '; pat key head: ', paste(head(.lv_pat_grp$orig.ident_key, 3),
+                                   collapse = ', '))
   }
+  out
 }
 
-
-#Up
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=4, height=4)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=4, height=4)
-p 
-dev.off()
-
-
-
-#Up
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=4, height=4)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=4, height=4)
-p 
-dev.off()
-
-
-
-
-
-
-
-
-#Up
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
-p 
-dev.off()
-
-
-
-#Up
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'FB_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=8, height=7)
-p 
-dev.off()
-
-#######################################
-#############  FIGURE S5F  ############
-#######################################
-
-
-M1 <- readRDS(file = "./dependencies/Supplementary_Figure_4/pc_sm_subclust.rds")
-
-
-new.cluster.ids <- c("Sm","Pc","Pc","Sm")
-
-names(new.cluster.ids) <- levels(M1)
-M1 <- RenameIdents(M1, new.cluster.ids)
-
-M1$Subnames <- M1@active.ident
-M1$SubNames_Groups <- paste(M1$Subnames,M1$group,sep='_')
-
-pdf(paste0('./output/', 'PC_SM_snUMAP.pdf'), width=5, height=5)
-PlotEmbedding(M1,group.by='Subnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
-dev.off()
-
-
-#######################################
-#############  FIGURE S5G  ############
-#######################################
-#M5, M20, M11
-
-
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
-consensus_modules <- consensus_modules[,1:3]
-consensus_modules <- subset(consensus_modules, gene_name %in% rownames(seurat_ref))
-# remove duplicate gene names
-consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name), consensus_modules$gene_name),]
-
-mapping <- labels2colors(1:100)
-
-bulk_modules <- consensus_modules
-bulk_modules$module <- match(consensus_modules$module,mapping)
-
-seurat_ref <- M1
-
-dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023','Reactome_2022', 'ChEA_2022',"LINCS_L1000_Chem_Pert_up")
-
-
-#Run enrichment by cell type
-Idents(seurat_ref) <- "SubNames_Groups"
-combined_set <- data.frame()
-combined_output <- data.frame()
-
-mods_idx <- c(5,11,20)
-cell_types <- unique(seurat_ref$Subnames)
-comparison <- list(c("RVF","NF"),c("RVF","pRV"))
-for (i in mods_idx){
-  for (j in cell_types){
-    for (k in comparison){
-      key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
-      key_genes <- key_genes[key_genes %in% rownames(seurat_ref)]
-
-      gene_set <- FindMarkers(seurat_ref, ident.1 = paste0(j,"_",k[1]), ident.2 = paste0(j,"_",k[2]),features=key_genes)
-      
-      gene_set<-subset(gene_set,p_val_adj<0.05)
-      if (length(rownames(gene_set))==0){next}
-      gene_set$module <- paste0('M',i)
-      gene_set$color <- mapping[i]
-      gene_set$comparison <- paste0(k[1],'_',k[2])
-      gene_set$celltype <- j
-
-      if (length(combined_set) == 0){
-        combined_set <- gene_set
-      }
-      else {
-        combined_set <- rbind(combined_set,gene_set)
-      }
-
-      gene_enrich <- subset(gene_set,avg_log2FC<0)
-      enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-      Sys.sleep(5)
-      for(db in names(enriched)){
-          cur_df <- enriched[[db]]
-          if (nrow(cur_df) > 1){
-            cur_df$db <- db
-            cur_df$module <- paste0('M',i)
-            cur_df$celltype <- j
-            cur_df$comparison <- paste0(k[1],'_',k[2])
-            cur_df$color <- mapping[i]
-            cur_df$direction <- 'down'
-            combined_output <- rbind(combined_output, cur_df)
-          }
-      }
-
-      gene_enrich <- subset(gene_set,avg_log2FC>0)
-      enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-      Sys.sleep(5)
-      for(db in names(enriched)){
-          cur_df <- enriched[[db]]
-          if (nrow(cur_df) > 1){
-            cur_df$db <- db
-            cur_df$module <- paste0('M',i)
-            cur_df$celltype <- j
-            cur_df$comparison <- paste0(k[1],'_',k[2])
-            cur_df$color <- mapping[i]
-            cur_df$direction <- 'up'
-            combined_output <- rbind(combined_output, cur_df)
-          }
-      }
-    }
-  }
+fb_identity_genes <- c('GPX3','PID1','TGFBR3','ACSM3','APOD')
+fb_matrifib_genes <- c('COMP','CHAD','CILP2')
+lv_fb_phase1 <- .lv_fb_pb_module(fb_identity_genes, 'LV FB identity (Koenig 2022, Phase 1)')
+lv_fb_phase2 <- .lv_fb_pb_module(fb_matrifib_genes, 'LV FB matrifibrocyte (Fu 2018, Phase 2)')
+
+.lv_fb_box <- function(d, ylab_text, title_text, csv_tag) {
+  pv <- tryCatch(
+    suppressWarnings(wilcox.test(score ~ condition, data = d, exact = FALSE)$p.value),
+    error = function(e) NA_real_)
+  write.csv(d,
+    sprintf('./output/Supplementary_Figure_4/fig_s4_panel_C_%s_score.csv', csv_tag),
+    row.names = FALSE)
+
+  y_max  <- max(d$score, na.rm = TRUE)
+  y_step <- (y_max - min(d$score, na.rm = TRUE)) * 0.18
+  lab    <- dplyr::case_when(
+    is.na(pv)  ~ 'NA',
+    pv < 0.001 ~ '***',
+    pv < 0.01  ~ '**',
+    pv < 0.05  ~ '*',
+    TRUE       ~ sprintf('p=%s', signif(pv, 2)))
+
+  ggplot(d, aes(x = condition, y = score, fill = condition)) +
+    geom_boxplot(outlier.shape = NA, width = 0.55,
+                 linewidth = PS$geom_lw, alpha = 0.85) +
+    geom_jitter(width = 0.12, size = 1.4, shape = 21,
+                color = 'black', stroke = 0.3) +
+    scale_fill_manual(values = c(Donor = '#4477AA', DCM = '#CC3311'),
+                      guide = 'none') +
+    annotate('segment', x = 1, xend = 2,
+             y = y_max + y_step * 1, yend = y_max + y_step * 1,
+             linewidth = PS$geom_lw) +
+    annotate('text', x = 1.5, y = y_max + y_step * 1.2, label = lab,
+             size = PS$text_mm, family = FONT_FAMILY) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.30))) +
+    coord_flip() +
+    theme_v52(COMP_W) +
+    theme(plot.title = element_text(face = 'bold')) +
+    xlab(NULL) + ylab(ylab_text) +
+    labs(title = title_text)
 }
 
+p_C_phase1 <- .lv_fb_box(lv_fb_phase1,
+  ylab_text  = 'FB-identity score (z, pseudobulk)',
+  title_text = 'Phase 1 conservation\n(Koenig 2022 donor signature)',
+  csv_tag    = 'fb_identity_phase1')
+p_C_phase2 <- .lv_fb_box(lv_fb_phase2,
+  ylab_text  = 'Matrifibrocyte score (z, pseudobulk)',
+  title_text = 'Phase 2 conservation\n(Fu 2018 matrifibrocyte)',
+  csv_tag    = 'fb_matrifib_phase2')
 
-#Up
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-selected_terms <- subset(selected_terms,color %in% mapping[c(5,11,20)])
-
-
-# subset selected terms
-selected_terms <- subset(selected_terms, P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1 <- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-#idx_top_5 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2,idx_top_1+3,idx_top_1+4))
-
-selected_terms<-selected_terms[idx_top_1,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-
-mapping <- labels2colors(1:100)
-
-
-color_df <- data.frame(group = selected_terms$group,colour = selected_terms$color)
-
-
-
-color_df$group <- factor(
-  as.character(color_df$group),
-  levels = unique(color_df$group)
-)
-
-
-c_vect <- color_df$colour
-names(c_vect) <- color_df$group
-
-
-
-# make the colorbar as its own heatmap
-color_df$var <- 1
-colorbar <- color_df %>%
-  ggplot(aes(x=group, y=var, fill=group)) +
-  geom_tile() +
-  scale_fill_manual(values=c_vect) +
-  coord_equal() +
-  NoLegend() + RotatedAxis() +
-  theme(
-    plot.title=element_blank(),
-    axis.line=element_blank(),
-    axis.ticks.y =element_blank(),
-    axis.text.y = element_blank(),
-    axis.title = element_blank(),
-    plot.margin=margin(0,0,0,0),
-  )
-
-
-pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
-p / colorbar 
+pdf(paste0('./output/Supplementary_Figure_4/', 'fig_s4_panel_C_LV_FB_phase_scores_box.pdf'),
+  width = 3.5, height = 4.5)
+print(p_C_phase1 / p_C_phase2)   # stacked since panels are now horizontal
 dev.off()
 
-
-#Up
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-selected_terms <- subset(selected_terms,color %in% mapping[c(5,11,20)])
-
-
-# subset selected terms
-selected_terms <- subset(selected_terms, P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1 <- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-#idx_top_5 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2,idx_top_1+3,idx_top_1+4))
-
-selected_terms<-selected_terms[idx_top_1,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-
-mapping <- labels2colors(1:100)
-
-
-color_df <- data.frame(group = selected_terms$group,colour = selected_terms$color)
-
-
-
-color_df$group <- factor(
-  as.character(color_df$group),
-  levels = unique(color_df$group)
-)
-
-
-c_vect <- color_df$colour
-names(c_vect) <- color_df$group
-
-
-
-# make the colorbar as its own heatmap
-color_df$var <- 1
-colorbar <- color_df %>%
-  ggplot(aes(x=group, y=var, fill=group)) +
-  geom_tile() +
-  scale_fill_manual(values=c_vect) +
-  coord_equal() +
-  NoLegend() + RotatedAxis() +
-  theme(
-    plot.title=element_blank(),
-    axis.line=element_blank(),
-    axis.ticks.y =element_blank(),
-    axis.text.y = element_blank(),
-    axis.title = element_blank(),
-    plot.margin=margin(0,0,0,0),
-  )
-
-
-pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
-p / colorbar 
-dev.off()
-
-
-
-
-
-
-
-
-seurat_ref <- M1
-
-dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023','Reactome_2022', 'ChEA_2022',"LINCS_L1000_Chem_Pert_up")
-
-
-#Run enrichment by cell type
-Idents(seurat_ref) <- "SubNames_Groups"
-combined_set <- data.frame()
-combined_output <- data.frame()
-
-cell_types <- unique(seurat_ref$Subnames)
-comparison <- list(c("RVF","NF"),c("RVF","pRV"))
-for (j in cell_types){
-  for (k in comparison){
-    key_genes <- rownames(seurat_ref)
-
-    gene_set <- FindMarkers(seurat_ref, ident.1 = paste0(j,"_",k[1]), ident.2 = paste0(j,"_",k[2]),features=key_genes)
-    
-    gene_set<-subset(gene_set,p_val_adj<0.05)
-    if (length(rownames(gene_set))==0){next}
-    gene_set$comparison <- paste0(k[1],'_',k[2])
-    gene_set$celltype <- j
-
-    if (length(combined_set) == 0){
-      combined_set <- gene_set
-    }
-    else {
-      combined_set <- rbind(combined_set,gene_set)
-    }
-
-    gene_enrich <- subset(gene_set,avg_log2FC<0)
-    enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-    Sys.sleep(5)
-    for(db in names(enriched)){
-        cur_df <- enriched[[db]]
-        if (nrow(cur_df) > 1){
-          cur_df$db <- db
-          cur_df$celltype <- j
-          cur_df$comparison <- paste0(k[1],'_',k[2])
-          cur_df$direction <- 'down'
-          combined_output <- rbind(combined_output, cur_df)
-        }
-    }
-
-    gene_enrich <- subset(gene_set,avg_log2FC>0)
-    enriched <- enrichR::enrichr(rownames(gene_enrich), dbs)
-    Sys.sleep(5)
-    for(db in names(enriched)){
-        cur_df <- enriched[[db]]
-        if (nrow(cur_df) > 1){
-          cur_df$db <- db
-          cur_df$celltype <- j
-          cur_df$comparison <- paste0(k[1],'_',k[2])
-          cur_df$direction <- 'up'
-          combined_output <- rbind(combined_output, cur_df)
-        }
-    }
-  }
-}
-
-
-#Up
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_up_RVF_vs_NF.pdf'), width=4, height=4)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_down_RVF_vs_NF.pdf'), width=4, height=4)
-p 
-dev.off()
-
-
-
-#Up
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_up_RVF_vs_pRV.pdf'), width=4, height=4)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="ChEA_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ .*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_chea_terms_cell_type_down_RVF_vs_pRV.pdf'), width=4, height=4)
-p 
-dev.off()
-
-
-
-
-
-
-
-
-#Up
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_NF.pdf'), width=8, height=7)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_NF")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_NF.pdf'), width=8, height=7)
-p 
-dev.off()
-
-
-
-#Up
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="up")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_up_RVF_vs_pRV.pdf'), width=8, height=7)
-p 
-dev.off()
-
-#Down
-selected_terms <- subset(combined_output,db=="Reactome_2022")
-selected_terms <- subset(selected_terms,direction=="down")
-selected_terms <- subset(selected_terms,comparison=="RVF_pRV")
-
-# subset selected terms
-selected_terms <- subset(selected_terms, Adjusted.P.value < 0.05)
-selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-idx_top_1<- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
-idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
-
-selected_terms<-selected_terms[idx_top_3,]
-
-
-selected_terms$group <- factor(
-  as.character(selected_terms$module_celltype),
-  levels = unique(selected_terms$module_celltype)
-)
-
-
-# set max pval
-quantile(-log(selected_terms$P.value), 0.95)
-max_p <- 10
-
-selected_terms$logp <- -log(selected_terms$P.value)
-selected_terms$logp <- ifelse(selected_terms$logp > max_p, max_p, selected_terms$logp)
-
-# remove Reactome Term ID
-library(stringr)
-selected_terms$Term <- str_replace(selected_terms$Term, "\\ R-HSA.*", "")
-
-selected_terms <- selected_terms %>%
-  arrange(group)
-
-
-selected_terms$wrap <- wrapText(selected_terms$Term, 45)
-
-selected_terms$Term <- factor(
-  as.character(selected_terms$Term),
-  levels = rev(unique(as.character(selected_terms$Term)))
-)
-
-selected_terms$wrap <- factor(
-  as.character(selected_terms$wrap),
-  levels = rev(unique(as.character(selected_terms$wrap)))
-)
-
-library(viridis)
-
-# Reactome Term dot plot
-p <- selected_terms %>%
-  ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
-  geom_point() +
-  scale_color_stepsn(colors=rev(magma(256))) +
-  RotatedAxis() + xlab('') + ylab('') +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.border = element_rect(size=1, color='black', fill=NA),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    plot.margin = margin(0,0,0,0),
-    panel.grid = element_line(size=0.25, color='lightgrey')
-  )
-
-pdf(paste0('./output/', 'PCSM_reactome_terms_cell_type_down_RVF_vs_pRV.pdf'), width=8, height=7)
-p 
-dev.off()
 
 #######################################
-#############  FIGURE S5H  ############
+############  FIGURE S4D  #############
+####### LV vs RV FB log2FC scatter ####
 #######################################
-a<-FindMarkers(seurat_ref,ident.1=c('Pc_RVF','Sm_RVF'),ident.2=c('Pc_pRV','Sm_pRV'))
+# Transcriptomic concordance in LV vs RV fibroblasts.
+# Computes DCM-vs-Donor (LV) and RVF-vs-NF (RV) FB DEG sets, then plots two
+# scatters: legacy unlabelled (RV_vs_LV_fb_dot.pdf) and the v53 polished
+# version with axis labels and significant-gene highlighting.
+
+snLV <- readRDS('./dependencies/shared/Kory_myeloid_fibroblasts.rds')
+snLV <- subset(snLV, Names == 'Fibroblasts')   # drop other cell types first
+invisible(gc(verbose = FALSE))
+snLV <- subset(snLV, tech == 'SN')
 
 
-pdf(paste0('./output/', 'PCSM_volcano_RVF_vs_pRV.pdf'), width=4, height=8)
+snLV <- SetIdent(snLV,value='condition')
 
-EnhancedVolcano(a,lab=rownames(a),
-  x='avg_log2FC',y='p_val_adj',
-  FCcutoff = 0.1,pCutoff=0.05,xlim=c(-6,6),ylim=c(0,27))
+a<-FindMarkers(snLV,ident.1='DCM',ident.2='Donor',recorrect_umi=F)
+
+M1 <- SetIdent(M1,value='group')
+
+
+b<-FindMarkers(M1,ident.1='RVF',ident.2='NF')
+
+shared <- intersect(rownames(a),rownames(b))
+dataset <- data.frame(RV=b[shared,]$avg_log2FC,LV=a[shared,]$avg_log2FC)
+rownames(dataset) <- shared
+labs <- rownames(dataset)
+#labs[abs(dataset$PAB - dataset$RV)<1] <- NA
+
+
+pdf(paste0('./output/Supplementary_Figure_4/', 'RV_vs_LV_fb_dot.pdf'), width=6, height=8)
+ggplot(dataset, aes(x = RV, y=LV)) + geom_point(size = PS$scatter_pt) +
+  geom_text_repel(label=labs,max.overlaps=10,
+    size = PS$text_mm, family = FONT_FAMILY, fontface = "italic") + theme_v52(COMP_W)
 dev.off()
 
+# --- v53 polished version (axis labels + sig highlighting) ---
+# Reuses `a` (LV DCM vs Donor, snLV) and `b` (RV RVF vs NF, M1) above.
 
+shared_fb <- intersect(rownames(a), rownames(b))
+dataset_fb <- data.frame(
+  RV       = b[shared_fb, ]$avg_log2FC,
+  LV       = a[shared_fb, ]$avg_log2FC,
+  RV_padj  = b[shared_fb, ]$p_val_adj,
+  LV_padj  = a[shared_fb, ]$p_val_adj,
+  row.names = shared_fb
+)
+dataset_fb$sig_both <- dataset_fb$RV_padj < 0.05 & dataset_fb$LV_padj < 0.05
+labs_fb <- ifelse(dataset_fb$sig_both, rownames(dataset_fb), NA_character_)
+
+pdf(paste0('./output/Supplementary_Figure_4/', 'fig_s4_panel_D_fb_LV_RV_scatter.pdf'), width = 4, height = 4)
+print(
+  ggplot(dataset_fb, aes(x = RV, y = LV)) +
+    geom_hline(yintercept = 0, linewidth = PS$linewidth_mm, colour = 'grey80') +
+    geom_vline(xintercept = 0, linewidth = PS$linewidth_mm, colour = 'grey80') +
+    geom_point(aes(colour = sig_both), size = PS$scatter_pt) +
+    scale_colour_manual(values = c(`TRUE` = 'firebrick', `FALSE` = 'grey60'), guide = 'none') +
+    geom_text_repel(aes(label = labs_fb), max.overlaps = 20,
+      size = PS$text_mm, family = FONT_FAMILY, fontface = 'italic') +
+    labs(x = expression(RV~(RVF~vs~NF~Log[2]~FC)),
+         y = expression(LV~(DCM~vs~NF~Log[2]~FC))) +
+    theme_v52(COMP_W)
+)
+dev.off()
+
+write.csv(dataset_fb,
+  './output/Supplementary_Figure_4/fig_s4_panel_D_fb_LV_RV_scatter.csv', row.names = TRUE)
+
+
+#######################################

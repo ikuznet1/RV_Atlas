@@ -18,7 +18,39 @@ This repository contains the R analysis code used to generate all figures in the
 
 ## Repository purpose
 
-This repository enables reproduction of all publication figures (`Figure_1.R` – `Figure_8.R`) and supplementary figures (`Supplementary_Figure_1.R` – `Supplementary_Figure_8.r`). Each script is self-contained and reads processed data objects from the `./dependencies/` directory.
+This repository enables reproduction of all publication figures (`Figure_1.R` – `Figure_8.R`) and supplementary figures (`Supplementary_Figure_1.R` – `Supplementary_Figure_8.r`). Each script reads processed data objects from `./dependencies/`; see *Data bundle (Zenodo)* below for layout and the one cross-script dependency.
+
+---
+
+### DATA BUNDLE (Zenodo) ###
+
+Figure scripts read processed data objects from `./dependencies/`. The full bundle (≈42 GB) is archived on Zenodo at **[DOI placeholder]**. Download and extract into the repository root so that `dependencies/` sits alongside the `Figure_*.R` scripts.
+
+**Layout**
+
+- `dependencies/shared/` — DEG CSVs, metadata, snRNA-seq + bulk Seurat objects, the cached module eigengenes matrix (`scWGCNA_bulk2sn_MEs.rds`), bulk-WGCNA consensus module table, and the Kallisto bulk RNA-seq outputs (`BulkRNA/`).
+- `dependencies/shared/Xenium/` — Xenium spatial objects (`Xenium_resegmented_corrected.rds`, `Xenium_resegmented_imputed_final.rds`, `xenium_obj_subclustered.rds`), nine per-lineage `*_clean_clean.rds` subcluster objects, `cellnest_output/` (CellNEST cell–cell communication tables), Xenium pseudobulk DEG CSVs, and Xenium metadata.
+- `dependencies/Figure_8/` — Pediatric + adult co-embedded Seurat objects for cross-cohort comparison. The `*_annotated.rds` files are scale.data-stripped and xz-compressed (~85% smaller than the working copies); standard `readRDS()` loads them transparently.
+
+**Run order**
+
+Most scripts are independent and can run in any order. Two cases warrant attention:
+
+1. `Figure_2.R` and `Figure_5.R` rebuild a small module-eigengenes cache on first run, then reuse it. The cache is shipped pre-built as `dependencies/shared/scWGCNA_bulk2sn_MEs.rds`, so first-run cost is zero on a fresh Zenodo download.
+2. **`Supplementary_Figure_4.R` panels E/F+ (the legacy myeloid block, gated by `RUN_LEGACY_MYELOID=TRUE`) read `./output/Figure_6/myeloid_subclust_new.rds`.** If you want to render that gated block, run `Figure_6.R` first so it produces that file. The default run path (without the env var) skips the gated block.
+
+**Known TODO panels** — placeholders in the current bundle:
+
+- `Figure_8.R` panels G/H/I require `dependencies/shared/Koenig_LV_with_RV_modules.rds` (not bundled).
+- `Figure_8.R` panels L/M require `dependencies/shared/rv_dcm_merged.rds` (not bundled).
+
+The script renders informative placeholders in these positions when the files are absent.
+
+**Optional re-derivation (not needed for figure reproduction)**
+
+- `additional_scripts/` contains pipelines for re-deriving bundled processed objects from raw data: `XeniumReanalysis.r` (Xenium resegmentation + subclustering), `snRNAReanalysis.r` (snRNA re-clustering), and `AnalysisPAH.R` (PAH bulk DEG generation, which also writes the `pah.*` / `rv.*` CSVs referenced by `Supplementary_Figure_1.R`). These scripts reference paths outside `dependencies/` and are not required to reproduce the published figures.
+- `scWGCNA_bulk2sn_projection.rds` (the full 20 GB Seurat object with bulk-to-snRNA WGCNA projection) is **not bundled**. `Figure_2.R` and `Figure_5.R` read the precomputed MEs cache (`scWGCNA_bulk2sn_MEs.rds`, 13 MB) instead. To re-derive the projection from scratch, build the bulk WGCNA via `Figure_1.R` and then run `hdWGCNA::ProjectModules()` against the snRNA Seurat object (`RV_data.rds`).
+- Raw sequencing reads (bulk + snRNA-seq + Xenium) are deposited in GEO under accession **[GSE placeholder]**.
 
 ---
 
@@ -46,7 +78,7 @@ Outputs per cell type to `./output/CellTypes/` and final cleaned object to `./ou
 
 **STEP3_Decontaminate_ambient.R** — Ambient RNA removal and final integration
 Reads `./output/CellTypes/integrated_no_doublets.rds`. Converts to SingleCellExperiment and runs `decontX` (from the `celda` package) with cell-type and patient-batch labels to model and remove ambient RNA contamination. The decontaminated count matrix is stored as a new `decontXcounts` assay. Samples are split, re-merged, and re-integrated with SCTransform + Harmony. A final three-round cell-type re-extraction and cleanup produces the publication-ready object.
-Final output: `./output/Post_R3_FINAL.rds` (used as `./dependencies/shared/Post_R3_FINAL_with_counts.rds` by figure scripts)
+Final output: `./output/Post_R3_FINAL.rds` (used as `./dependencies/shared/RV_data.rds` by figure scripts)
 
 ---
 
@@ -128,58 +160,58 @@ shiny::runApp("XeniumExp")
 
 ---
 
-### FIGURES ###
+### FIGURES (v57 manuscript) ###
 
 #### Main Figures
 
-**Figure 1 — Bulk RNA-sequencing of human RVF** (`Figure_1.R`)
-Characterizes the bulk transcriptional landscape of 142 human RV samples (NF/pRV/RVF) using PCA, WGCNA (29 modules), GO enrichment, and module eigengene comparisons. Highlights a non-monotonic gene expression pattern (genes decreasing from NF→pRV then increasing pRV→RVF) enriched for Reactome pathways. Key modules capture sarcomere, mitochondrial, and inflammatory biology.
+**Figure 1 — Study overview and bulk RNA-sequencing of human RVF** (`Figure_1.R`)
+Cohort schematic across three platforms (bulk n=142, snRNA n=11, Xenium n=9), PCA of bulk transcriptomes, WGCNA UMAP of 29 modules with top hub genes and GO enrichments, module-score violins across NF/pRV/RVF for significant modules, and cross-cohort concordance dotplots between RVF and pulmonary arterial hypertension (PAH).
 
-**Figure 2 — Single-nucleus RNA-sequencing of human RVF** (`Figure_2.R`)
-Presents the adult RV snRNA-seq atlas: UMAP of 12 cell populations, marker-based cluster annotation, cell-type frequency shifts by disease state (notably EC expansion from NF→RVF), and projection of bulk WGCNA module scores onto individual cell types and disease states.
+**Figure 2 — Single-nucleus transcriptomic atlas of the right ventricle** (`Figure_2.R`)
+UMAP of 61,398 nuclei colored by 12 lineage clusters (CM, FB, EC, Endo, SM, Myeloid, NKT, PC, Adipo, Epi, LEC, Neuron) with patient-overlay inset for integration QC, stacked-violin canonical lineage markers, per-lineage frequency boxplots across disease states (capturing progressive EC expansion and CM contraction), and a two-row dotplot of bulk WGCNA module scores by lineage (i) and disease group (ii).
 
-**Figure 3 — Xenium-based spatial transcriptomics of human RVF** (`Figure_3.R`)
-Maps 9 of the 12 snRNA-seq cell types onto Xenium spatial data. Shows spatial distribution of cell types and 14 distinct cardiac niches, niche composition by disease state (no significant differences), and a heatmap of the 50 most variable genes by cell type.
+**Figure 3 — Xenium spatial transcriptomic atlas of the right ventricle** (`Figure_3.R`)
+UMAP of 625,305 Xenium cells across 12 lineages with patient-overlay inset, canonical-marker dotplot, cross-platform pseudobulk log₂FC concordance scatter (snRNA-seq vs Xenium per lineage × contrast), spatial maps of all NF/pRV/RVF sections by lineage and by 14-niche assignment (BuildNicheAssay, k=100, CLR-transformed), and niche frequency boxplots.
 
-**Figure 4 — RV cardiomyocyte transcriptomics** (`Figure_4.R`)
-Deep analysis of cardiomyocyte-specific WGCNA modules. Demonstrates downregulation of nuclear-encoded mitochondrial transcripts (Complex I subunits NDUFA12, NDUFA5, NDUFB9) and upregulation of cytoskeletal/sarcomeric programs in RVF. Validated by direct mitochondrial respirometry showing reduced ETC capacity. Spatially localizes NPPA/NPPB-expressing CM subpopulations.
+**Figure 4 — Two-phase transcriptional trajectory of RV failure** (`Figure_4.R`)
+Two-phase model of NF→pRV (Phase 1) and pRV→RVF (Phase 2) transitions integrated across bulk, snRNA-seq pseudobulk, and Xenium pseudobulk. Lineage-level key-gene heatmaps per phase, bulk WGCNA module × phase × platform × lineage heatmap, Phase 1 vs Phase 2 DEG asymmetry quantification, CellNEST ligand-receptor pairs across disease states, and cell-type communication chord diagrams.
 
-**Figure 5 — RV vs LV cardiomyocyte comparison** (`Figure_5.R`)
-Compares RV RVF transcriptional changes to LV DCM (Koenig et al. dataset). Shows conservation of mitochondrial module downregulation and M2 cytoskeletal upregulation across both ventricles, with notable divergence in the M12 module trend. PCA and DESeq2 pseudobulk analysis reveal residual RV–LV differences beyond shared disease programs.
+**Figure 5 — RV cardiomyocyte transcriptional and metabolic remodeling** (`Figure_5.R`)
+CM-enriched WGCNA module dotplot by subcluster × disease state, GO enrichments on intersected module + DEG gene lists, M2 module volcano (pRV vs NF), mitochondrial-module volcanoes (M10, M25, M26, M28), CollecTRI/decoupleR TF activity for mitochondrial regulators, snRNA-seq pseudobulk violins of *ESRRA*/*ESRRG*/*PPARA*/*PPARGC1A*, Oroboros 2k high-resolution respirometry on isolated RV mitochondria (adult NF/pRV/RVF and pediatric NF/HLHS-palliated; PAB mouse 2-week + 2-month), and a cross-cohort OXPHOS summary panel showing reduced maximal coupled respiration in adult RVF and murine PAB but preserved in pediatric HLHS-palliated.
 
-**Figure 6 — Myeloid cell subclustering and analysis** (`Figure_6.R`)
-Resolves 7 myeloid subtypes (resident macrophages, monocytes, DCs, inflammatory macrophages, TREM2+ macrophages). Shows a shift from resident macrophages toward monocytes and inflammatory macrophages in RVF. Identifies CIITA/MHCII upregulation (module M8) and glucocorticoid-responsive NR3C1 target gene downregulation (module M1) as key disease-associated transcriptional programs.
+**Figure 6 — Myeloid subclustering and disease-associated programs** (`Figure_6.R`)
+Six myeloid subtypes: *CCR2*⁻ resident macrophage (rMac), inflammatory macrophages (iMac), Mono / Mono-derived, *TREM2*⁺ macrophages, dendritic cells, and proliferating myeloid. Marker dotplot, disease-state frequencies, four myeloid-relevant bulk WGCNA module scores (M1, M3, M4, M8), ChEA TF enrichments for up/down DEGs, and pseudobulk violins for the four transcriptional programs (GR-homeostatic and HIF/vascular drift in *CCR2*⁻ rMac; NF-κB MHCII/inflammasome in iMac; IFNγ antigen presentation pooled). Spatial localization of myeloid subtypes in the full Xenium dataset.
 
-**Figure 7 — EC subclustering and analysis** (`Figure_7.R`)
-Resolves 5 EC subtypes (arterial, capillary, venous, lymphatic, endocardial). Demonstrates capillary and arterial expansion in adult RVF. hdWGCNA identifies 7 EC modules; module M1 (capillary), M4 (arterial), and M7 (venous/endocardial) all increase with disease severity. MECOM is highlighted as upregulated with RVF across EC subtypes.
+**Figure 7 — Endothelial subclustering and disease-associated programs** (`Figure_7.R`)
+Five EC subtypes (Arterial, Capillary, Venous, Lymph, Endocardial); per-subtype frequency boxplots; hdWGCNA on EC snRNA-seq with seven modules; GO enrichments for capillary-core (ecM1), arterial (ecM4) and venous/inflamed (ecM7) modules; EC module-score dotplot and FeaturePlots; Xenium pan-EC pseudobulk volcano (RVF vs pRV) with Phase-2 candidate annotation; cross-platform concordance scatter for Phase-2 candidates; per-subtype expression of *NRG1* (endocardial) and *MECOM* (arterial).
 
-**Figure 8 — Pediatric single-ventricle (HLHS) snRNA-seq** (`Figure_8.R`)
-Co-embeds pediatric HLHS and adult RV datasets, showing shared cell types and broadly conserved disease-associated transcriptional programs. Pediatric RVF largely mirrors adult RVF in cardiomyocyte mitochondrial downregulation and myeloid MHCII upregulation. Notable differences include venous (rather than capillary/arterial) EC expansion in HLHS and divergent MECOM and Notch signaling trends.
+**Figure 8 — Cross-species, cross-age, and cross-etiology comparisons** (`Figure_8.R`)
+Co-embedding of HLHS (n=209,604 nuclei) and adult RV (n=61,398 nuclei) datasets; HLHS cell-type abundance by disease state; bulk WGCNA module expression by cell type and disease state across both cohorts; cross-cohort log₂FC scatter (adult-RVF vs ped-RVF); HLHS CM-specific module expression by disease state (M10/M26 rise with severity; M25/M28 flat); GO enrichments for pooled mitochondrial-module DEGs; LV (Koenig 2022 DCM) cross-comparison panels for M2 and pooled mitochondrial modules at both per-nuclei and per-subject pseudobulk resolution; cross-ventricle log₂FC scatter (LV DCM/NF vs RV RVF/NF).
 
 ---
 
 #### Supplementary Figures
 
-**Figure S1 — Extended bulk RNA-seq data** (`Supplementary_Figure_1.R`)
-Volcano plots, fold-change scatter plots, and GO enrichments for pRV vs RVF DEGs. Heatmaps of monotonically increasing and decreasing gene sets. Shows that DD (down-down) genes belong primarily to M1 (mitochondrial ribosome components) and UU (up-up) genes to M2/M3.
+**Figure S1 — Bulk RNA-seq supplemental analyses** (`Supplementary_Figure_1.R`)
+RVF vs NF volcano; NF-vs-RVF vs pRV-vs-NF fold-change scatter; GO biological-process enrichments for pRV-up and RVF-up genes; heatmaps of monotonically increasing and decreasing gene sets across NF/pRV/RVF; GO enrichments for stepwise-decreasing genes (M1/M25/M26, mitochondrial translation machinery); progressively-downregulated DEG volcanoes (NF vs pRV; NF vs RVF) highlighting mitochondrial ribosome components; PAH-comparison divergent patterns in *CD163* and mitochondrial-translation genes.
 
-**Figure S2 — Cardiomyocyte subclustering** (`Supplementary_Figure_2.R`)
-UMAP and marker dot plots for 10 CM subpopulations. Cluster frequency by disease state, GO enrichments per cluster, and Xenium spatial validation of CM subtype markers (NPPA, NPPB, MYH7, MYH6, ANKRD1).
+**Figure S2 — Cardiomyocyte subclustering and spatial validation** (`Supplementary_Figure_2.R`)
+UMAP of 10 CM subpopulations with patient-overlay inset; marker dotplot; per-state cluster frequency; per-cluster GO enrichments; Xenium spatial distribution of CM subclusters; per-cluster WGCNA module-score dotplot; MitoCarta3.0 mitochondrial-gene dotplot by CM subtype × disease; *HAND2* and *EDNRA* pseudobulk violins; WGA-stained minimum-Feret diameter quantification of CM hypertrophy (NF/pRV/RVF; cell-level linear mixed model); per-patient Xenium *NPPA*/*NPPB* rasterized spatial tiles.
 
-**Figure S3 — RV vs LV myeloid and fibroblast comparison** (`Supplementary_Figure_3.R`)
-Reference mapping of LV myeloid and fibroblast datasets onto the RV atlas. Validates concordance of macrophage/monocyte annotations across ventricles. Shows conservation of NR3C1-target and MHCII gene changes, and correlation of fibroblast RVF vs DCM fold changes.
+**Figure S3 — Fibroblast and mural cell subclustering and spatial validation** (`Supplementary_Figure_3.R`)
+Seven FB subpopulations (UMAP, marker dotplot, per-patient frequencies); FB Phase 1 sn-vs-Xenium concordance heatmap and Phase 2 concordance scatter at FB lineage; "erosion of FB identity" Phase-1 (Koenig 2022 donor-FB signature) and "matrifibrocyte commitment" Phase-2 (Fu 2018 mature-scar signature) per-patient module scores; Xenium FB subtype dot plot with SpaGE-imputed values; Xenium↔snRNA FB cluster similarity heatmap via label transfer; FB–myeloid spatial colocalization (K=15 nearest-neighbor analysis) with per-patient co-abundance scatter and spatial vignettes; adult RV trichrome/Sirius-red fibrosis quantification; mural-cell subclustering (PC and SM) with Phase 1 and Phase 2 heatmaps, vascular-protective Phase-1 and vascular IEG/stress Phase-2 module scores, and sn-vs-Xenium concordance scatter.
 
-**Figure S4 — Fibroblast, pericyte, and smooth muscle subclustering** (`Supplementary_Figure_4.R`)
-UMAP and markers for 7 fibroblast subpopulations; myofibroblast activation markers increase from NF→RVF across subtypes. ChEA TF enrichments for up/downregulated DEGs. Pericyte/smooth muscle subpopulations and their disease-associated DEGs.
+**Figure S4 — Left ventricular failure (DCM) comparison** (`Supplementary_Figure_4.R`)
+Integrated human RV fibroblast UMAP with reference-mapped LV; FB subtype concordance between ventricles; Koenig (LV DCM) per-patient pseudobulk module scores for FB Phase 1 (donor-FB identity erosion) and Phase 2 (matrifibrocyte commitment); LV-FB vs RV-FB log₂FC scatter; integrated RV myeloid UMAP; reference mapping of LV snRNA (i) and scRNA (ii) myeloid onto RV with original LV annotations (iii, iv); cross-chamber concordance scatter for the four myeloid bulk-WGCNA modules (M1, M3, M4, M8); LV (Koenig 2022) myeloid dot plot of *AddModuleScore* values for the four modules by subtype × Donor/DCM; per-patient pseudobulk module-score box plots for the four RV-derived myeloid programs (GR-homeostatic, HIF/vascular drift, NF-κB MHCII/inflammasome, IFNγ antigen presentation) in LV myeloid (Donor vs DCM).
 
-**Figure S5 — Mouse PAB RV snRNA-seq** (`Supplementary_Figure_5.R`)
-snRNA-seq atlas of the murine pulmonary artery banding (PAB) model. EC expansion is recapitulated, but myeloid MHCII response is inverted (decreases with PAB, opposite to human RVF). Bulk RNA-seq of sorted cardiac macrophages validates the myeloid single-nuclei findings.
+**Figure S5 — Murine PAB model: immune and vascular characterization** (`Supplementary_Figure_5.R`)
+Mouse PAB snRNA-seq atlas (n=55,420 nuclei, 11 cell types); marker-based annotation; per-subject stacked-bar cell-type proportions across disease states; mouse EC subclustering with adult RV ecM1/ecM4/ecM7 module-score overlay (capturing arterial vs venous bias); mouse-EC stacked-bar proportions; human myeloid WGCNA module scores in mouse PAB myeloid clusters; per-mouse pseudobulk scores for the four human RVF myeloid programs (Kruskal–Wallis + pairwise Wilcoxon); flow-cytometry validation of immune populations in PAB heart; orthogonal bulk RNA-seq validation in flow-sorted cardiac macrophages.
 
-**Figure S6 — Mouse PAB RV cardiomyocytes** (`Supplementary_Figure_6.R`)
-Reference mapping of mouse CM subtypes onto human RV subtypes — partial concordance. Human RVF mitochondrial transcript downregulation is not conserved in the mouse model. Scatter plots highlight poor fold-change correlation between species for CM genes. MitoCarta3.0-annotated genes are uniformly downregulated in human but not mouse RVF.
+**Figure S6 — Mouse PAB cardiomyocyte comparison with human RV failure** (`Supplementary_Figure_6.R`)
+Reference mapping of mouse PAB CMs onto human RV CM subtypes; per-subcluster expression-score validation and mapping-score quantification; cross-species fold-change scatter (human RVF vs NF against mouse PAB severe vs NF) showing poor correlation; CM WGCNA module scores in mouse PAB by disease state (human trends poorly conserved); per-subject MitoCarta3.0 module score (mouse vs human); per-patient pseudobulk DESeq2 volcano of human MitoCarta3.0 genes with apeglm shrinkage; within-mouse Severe-vs-Moderate fold-change trajectories indicating mild PAB is transcriptionally distinct from severe; Sirius-red fibrosis quantification across PAB stages; cross-species concordance summary for three CM programs (fatty-acid oxidation, failure/fetal, glucocorticoid receptor).
 
-**Figure S7 — Extended pediatric HLHS data** (`Supplementary_Figure_7.R`)
-Detailed myeloid and EC subclustering of the HLHS dataset. Myeloid: CIITA/NR3C1 enrichments conserved with adult; EC: venous expansion in HLHS contrasts with capillary/arterial expansion in adults. Divergent MECOM, Notch, SMAD1, and NR2F2 trends between adult and pediatric EC disease programs.
+**Figure S7 — Pediatric snRNA-seq myeloid and endothelial comparison with adult RV** (`Supplementary_Figure_7.R`)
+Adult-RV myeloid marker scores in HLHS myeloid clusters; HLHS bulk WGCNA module-score dotplot by cell type × disease; GO biological-process enrichment for upregulated M8 DEGs (failing single-ventricle vs NF bi-ventricle); ChEA TF enrichments for NF and failing single-ventricle vs NF bi-ventricle, subset to M1 and M8 (CIITA, NR3C1, IRF8); per-patient HLHS myeloid program scores (one-way ANOVA per program); adult-RV EC hdWGCNA module scores in HLHS EC clusters; HLHS EC stacked-bar proportions (venous expansion); Phase-1 EC vasoprotective and IFN-engagement scores (pediatric vs adult); subtype-restricted Phase-2 readouts including *MECOM*, arterialization-TF score, Notch-target score, *SMAD1* and *NR2F2* in pediatric vs adult ECs.
 
-**Figure S8 — Non-failing adult vs pediatric RV comparison** (`Supplementary_Figure_8.r`)
-Co-embedding of healthy adult and pediatric RVs. Compares cell type abundance, bulk WGCNA module scores, and pseudobulk cardiomyocyte DEGs between NF adult and NF pediatric samples, highlighting baseline transcriptional differences between age groups independent of disease.
+**Figure S8 — Adult vs pediatric non-failing RV comparison** (`Supplementary_Figure_8.r`)
+Co-embedding of healthy adult and pediatric NF RVs; cell-type abundance by dataset origin (one-way ANOVA); bulk WGCNA module expression by cell type and origin; pseudobulk CM volcano, PCA embedding, and GO enrichments for adult-NF vs pediatric-NF cardiomyocytes (baseline differences independent of disease).

@@ -1,0 +1,123 @@
+## Conda environment for RV_Atlas figure-generation R scripts (Figure_*.R, Supplementary_Figure_*.R).
+## Scope: only packages required to render the v57 figure panels at the repo root.
+## Excluded by design: python-docx / Pillow / manuscript-conversion utilities, scVelo / cellrank
+## (reticulate is loaded but never actually invoked in current figure scripts).
+##
+## Create:
+##   conda env create -f environment.yml
+##   conda activate rv_atlas
+##
+## After activation, install packages NOT available (or unsolvable) on conda channels:
+##   Rscript -e 'BiocManager::install(c("decoupleR","OmnipathR","WGCNA"), update = FALSE, ask = FALSE)'
+##   Rscript -e 'install.packages(c("colormap","harmony"), repos = "https://cloud.r-project.org")'
+##   Rscript -e 'remotes::install_github("smorabit/hdWGCNA",        ref = "dev")'
+##   Rscript -e 'remotes::install_github("satijalab/seurat-wrappers")'
+##   Rscript -e 'remotes::install_github("bnprks/BPCells",          subdir = "r")'
+##   Rscript -e 'remotes::install_github("samuel-marsh/scCustomize")'  # also on CRAN
+##
+## Original conda explicit-spec snapshot preserved as requirements.txt.osx_arm64_lock.
+
+name: rv_atlas
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+## Note: this env REQUIRES flexible channel priority — strict priority cannot
+## resolve the libgfortran/r-base/bioconductor cross-deps. Create with:
+##   CONDA_CHANNEL_PRIORITY=flexible conda env create -f environment.yml
+
+dependencies:
+  - r-base=4.4.*
+  - r-remotes
+  - r-devtools
+  - r-biocmanager
+
+  ## ── Core single-cell & integration ────────────────────────────────────────
+  - r-seurat=5.*
+  - r-seuratobject
+  ## r-harmony installed via CRAN post-conda (the latest builds require
+  ## libgfortran5 ≥15 which conflicts with the rest of bioconductor-* on r-base 4.4).
+
+  ## ── Bulk RNA-seq + differential expression ────────────────────────────────
+  - bioconductor-deseq2
+  - bioconductor-edger
+  - bioconductor-limma
+  - bioconductor-sva
+  - bioconductor-tximport
+  - bioconductor-tximportdata
+  - bioconductor-apeglm
+  - bioconductor-summarizedexperiment
+  - bioconductor-biocparallel
+
+  ## ── Enrichment, TF activity, gene-set scoring ─────────────────────────────
+  - bioconductor-dose
+  - bioconductor-geneoverlap
+  - bioconductor-enhancedvolcano
+  - r-enrichr
+  ## decoupleR + OmnipathR (F5 Panel F) are installed via BiocManager post-conda
+  ## (no bioconda build aligns with r-base 4.4 at the moment).
+
+  ## ── Annotation / external data fetch ──────────────────────────────────────
+  - bioconductor-biomart
+  - r-arrow
+
+  ## ── Statistics ────────────────────────────────────────────────────────────
+  - r-lme4
+  - r-lmertest
+  - r-emmeans
+  - r-rstatix
+  - r-pracma
+  ## WGCNA installed via BiocManager post-conda (no current bioconda build).
+
+  ## ── Plotting / layout ─────────────────────────────────────────────────────
+  - r-ggplot2
+  - r-ggpubr
+  - r-ggrepel
+  - r-ggrastr
+  - r-ggeasy
+  - r-ggfortify
+  - r-ggpattern
+  - r-ggplotify
+  - r-patchwork
+  - r-cowplot
+  - r-circlize
+  - r-scales
+  - r-viridis
+  - r-rcolorbrewer
+  - r-gplots
+  - r-gtools
+  - r-magick
+  ## r-colormap installed via CRAN post-conda (not on conda channels).
+
+  ## ── Tidyverse + utilities ─────────────────────────────────────────────────
+  - r-tidyverse
+  - r-dplyr
+  - r-tidyr
+  - r-tibble
+  - r-stringr
+  - r-forcats
+  - r-readxl
+  - r-reshape2
+  - r-magrittr
+  - r-data.table
+
+  ## ── Geometry / spatial / NN ───────────────────────────────────────────────
+  - r-sf
+  - r-rann
+  - r-uwot
+  - r-igraph
+
+  ## ── Python bridge (loaded but not invoked in current scripts; safe to keep)
+  - r-reticulate
+
+  ## ── Build deps occasionally needed by Bioconductor packages ───────────────
+  - pkg-config
+  - hdf5
+  - libxml2
+  - libpng
+  - libtiff
+  - libjpeg-turbo
+  - gsl
+  - cmake

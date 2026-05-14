@@ -104,26 +104,36 @@ RUN Rscript -e "pak::pak(c( \
         'bioc::TFBSTools', \
         'bioc::motifmatchr', \
         'bioc::EnsDb.Hsapiens.v86', \
-        'bioc::Nebulosa' \
+        'bioc::Nebulosa', \
+        'bioc::limma', \
+        'bioc::singleCellTK', \
+        'bioc::decoupleR', \
+        'bioc::celda' \
     ), ask = FALSE)"
 
 # Layer C — CRAN packages
 RUN Rscript -e "pak::pak(c( \
         'shiny', 'plotly', \
         'ggplot2', 'ggpubr', 'ggfortify', 'ggrepel', 'ggeasy', \
+        'ggrastr', 'ggpattern', 'ggplotify', \
         'patchwork', 'cowplot', \
         'dplyr', 'tidyverse', 'reshape2', 'stringr', 'forcats', \
-        'RColorBrewer', 'viridis', 'colormap', \
+        'RColorBrewer', 'viridis', 'colormap', 'circlize', \
         'igraph', 'enrichR', 'scCustomize', 'harmony', \
-        'arrow', 'readxl', 'matrixStats', 'pracma', 'sf', \
-        'reticulate', 'gplots', 'ashr' \
+        'arrow', 'readxl', 'openxlsx', 'matrixStats', 'pracma', 'sf', \
+        'reticulate', 'gplots', 'ashr', \
+        'pheatmap', 'rstatix', 'magick', \
+        'showtext', 'sysfonts', \
+        'WGCNA', 'ClusterR' \
     ), ask = FALSE)"
 
-# Layer D — GitHub packages (seurat-wrappers, hdWGCNA, monocle3)
+# Layer D — GitHub packages (seurat-wrappers, hdWGCNA, monocle3, BPCells, spacexr)
 RUN Rscript -e "pak::pak(c( \
         'satijalab/seurat-wrappers', \
         'smorabit/hdWGCNA', \
-        'cole-trapnell-lab/monocle3' \
+        'cole-trapnell-lab/monocle3', \
+        'bnprks/BPCells/r', \
+        'dmcable/spacexr' \
     ), ask = FALSE)"
 
 # ── 4. Directory structure ────────────────────────────────────────────────────

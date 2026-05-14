@@ -1,3 +1,46 @@
+###############################################################################
+## Supplementary Figure 6 (v54 draft) — PAB cardiomyocyte comparison
+##
+## Panels (assembled order in Supplementary_Figure_6.png/.ai):
+##   (A) Co-embedding UMAPs: human RV CM clusters and PAB transferred labels
+##   (B) Mouse-mapped-cluster × human-RV-CM signature dot plot
+##   (C) Mapping-score violin per mouse mapped cluster
+##   (D) Cross-species FC scatter: human RVF/NF vs mouse PAB Sev/Nor
+##   (E) WGCNA bulk-derived CM module dot plot (mouse PAB by group)
+##   (F) Per-subject MitoCarta module score, mouse PAB + human RV (stacked)
+##   (G) Pseudobulk DESeq2 MitoCarta volcano (RVF vs NF, n=4 vs 3, apeglm)
+##   (H) Within-mouse FC trajectories:
+##         (i)  mouse Sev/Nor vs Mod/Nor — internal-consistency control
+##         (ii) mouse Sev/Mod vs Mod/Nor — "mild as protected state"
+##   (I) Cardiac fibrosis (Sirius Red % area) by PAB stage
+##   (J) Cross-species CM concordance strip (mouse + human pairs):
+##         FAO program | Failure / fetal program | NR3C1 (GR axis)
+##
+## Source: ported from v51 Supplementary_Figure_6.R; updated for v53 with
+## new CM reference (cm_subclust_new_new.rds), per-patient pseudobulk for
+## the MitoCarta box and volcano, apeglm shrinkage, curated FC-scatter
+## labels (CM-expression filtered, |log2FC|>1), and panels (I)/(J).
+##
+## Output: ./output/Supplementary_Figure_6/v52_figures/SupplementaryFigure_6.pdf (composite) and
+## individual panel PDFs in ./output/Supplementary_Figure_6/.
+###############################################################################
+
+source('./helper_scripts/_shared_helpers.R')
+
+## Per-figure output directory (introduced for consistent output paths)
+V52_FIG_DIR <- './output/Supplementary_Figure_6'
+dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+
+## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
+## that's outside an explicit pdf() ... dev.off() envelope.
+pdf(NULL)
+dir.create(file.path(V52_FIG_DIR, 'v52_figures'), showWarnings = FALSE, recursive = TRUE)
+COMP_W <- 6
+COMP_H <- 11
+
+## Publication scaling constants (geom linewidths, point sizes, text mm, etc.)
+PS <- pub_scales(COMP_W)
 
 library(Seurat)
 library(hdWGCNA)
@@ -7,9 +50,24 @@ library(tximportData)
 library(tximport)
 library(viridis)
 
+options(future.globals.maxSize = 16 * 1024^3)
 
+source('./helper_scripts/spatial_functions.R')
 
-source('./dependencies/shared/spatial_functions.R')
+###############################################################################
+## Cartoon / external assets
+##
+## Supplementary Figure 6 contains no external cartoon; all panels (A-H) are
+## computed ggplot/Seurat plots. insert_asset() call retained for parity with
+## other figures and will render a dashed "missing asset" box if an override
+## cartoon PNG is ever added later.
+##
+## (If an asset needs to be produced, crop from original PDF:)
+##   cd /Users/ikuz/Documents/RV_Atlas/new_scripts/assets
+##   magick -density 300 ~/Downloads/hdWGCNA_TOM/Manuscripts/Supplementary_Figure_6.pdf \
+##       -crop WIDTHxHEIGHT+XOFF+YOFF +repage Supplementary_Figure_6_cartoon.png
+##
+# p_S6_cartoon <- insert_asset('Supplementary_Figure_6_cartoon.png')
 
 
 #######################################
@@ -33,12 +91,12 @@ M2 <- RunUMAP(M2, dims = 1:50,reduction = "harmony")
 M2$Names <- M2@active.ident
 markers<-FindAllMarkers(M2,recorrect_umi=F)
 
-pdf(paste0('./output/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M2,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
 
-M3 <- readRDS(file = "./dependencies/shared/cm_new_subclust.rds")
+M3 <- readRDS(file = "./output/Supplementary_Figure_2/cm_subclust_new_new.rds")
 
 human2mouse <- read.csv('./dependencies/shared/human2mouse.csv',header=F)
 idx <- match(unique(human2mouse[,2]),human2mouse[,2])
@@ -81,17 +139,17 @@ M2$map_score <- score
 
 p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
 
-pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
 
-pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+pdf(paste0('./output/Supplementary_Figure_6/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -111,32 +169,46 @@ idx<-match(RV_marks_sig$cluster,unique(RV_marks_sig$cluster))
 
 marks <- split(RV_marks_sig$gene,idx)
 
+## Human CM cluster labels in the same order as RV_marks1..RV_marksN
+cm_sig_levels <- as.character(unique(RV_marks_sig$cluster))
+
 M2 <- AddModuleScore(M2,marks,name='RV_marks',ctrl=25)
 DefaultAssay(M3) <- "SCT"
 M3 <- AddModuleScore(M3,marks,name='RV_marks')
 
 M2$predicted.celltype <- factor(M2$predicted.celltype,levels=levels(M3))
 
-pdf(paste0('./output/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
 
 DotPlot(M2,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
   ,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),
-  col.min = 0,group.by='predicted.celltype') +
-scale_x_discrete(labels=c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10'))
+  col.min = 0, scale.min = 0, scale.max = 100,group.by='predicted.celltype') +
+scale_x_discrete(labels=cm_sig_levels) +
+scale_size(range = PS$dot_range) + theme_v52(COMP_W) +
+labs(x = 'Human RV CM signature', y = 'Murine mapped cluster') +
+theme(legend.key.size = PS$legend_key,
+      axis.text.x = element_text(angle = 45, hjust = 1))
 dev.off()
 
 
 DotPlot(M3,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
-  ,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),col.min = 0) +
-scale_x_discrete(labels=c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10'))
+  ,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),
+  col.min = 0, scale.min = 0, scale.max = 100) +
+scale_x_discrete(labels=cm_sig_levels) +
+scale_size(range = PS$dot_range) + theme_v52(COMP_W) +
+theme(legend.key.size = PS$legend_key,
+      axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 #######################################
 #############  FIGURE S6C #############
 #######################################
 
-pdf(paste0('./output/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
-VlnPlot(M2,'map_score',group.by='predicted.celltype',pt.size=0)
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
+VlnPlot(M2,'map_score',group.by='predicted.celltype',pt.size=0) +
+  theme_v52(COMP_W) +
+  theme(legend.key.size = PS$legend_key) +
+  NoLegend()
 dev.off()
 
 
@@ -149,68 +221,183 @@ M3 <- SetIdent(M3,value = 'group')
 M2 <- SetIdent(M2,value = 'group')
 
 
-a <- FindMarkers(M3,ident.1='RVF',ident.2='NF')
-b <-  FindMarkers(M2,ident.1='Sev',ident.2='Nor')
-shared <- intersect(rownames(a),rownames(b))
-dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-rownames(dataset) <- shared
-labs <- rownames(dataset)
-cor(dataset$RV,dataset$PAB)^2
-#labs[abs(dataset$PAB - dataset$RV)<1] <- NA
+## Curated cardiac/heart-failure gene set used to label FC scatter plots.
+## Drawn from sarcomere/cytoskeleton, mitochondrial/FAO/OXPHOS, glycolysis,
+## Ca-handling, ECM, stress/apoptosis, hypertrophy/lineage TFs, oxidative
+## stress, ion channels, plus the 10 CM_* subtype markers used in S2.
+## Both legacy and modern HUGO aliases are listed (e.g. ATP5A1 + ATP5F1A,
+## CTGF + CCN2); the runtime CM-expression filter below keeps whichever
+## name is actually present and meaningfully expressed in CMs.
+.hf_label_genes_raw <- unique(c(
+  "TTN","MYH6","MYH7","MYBPC3","ACTC1","ACTA1","ACTA2","TNNT2","TNNI3",
+  "TNNC1","TPM1","MYL2","MYL3","MYL7","NEBL","NEB","XIRP1","XIRP2",
+  "ANKRD1","MYOM1","MYOM2","NRAP","BAG3","FLNC","OBSCN","JPH2","CNN1",
+  "DES","SYNPO2L","CSRP3","MYOZ2","TCAP",
+  "NPPA","NPPB","CCDC141",
+  "PPARGC1A","PPARGC1B","PPARA","PPARG","NRF1","TFAM","MFN1","MFN2","OPA1",
+  "ESRRA","ESRRG","ATP5A1","ATP5F1A","ATP5B","ATP5F1B","COX5B","COX6A2",
+  "CKM","CKMT2","CPT1A","CPT1B","CPT2","ACADM","ACADL","ACADVL",
+  "HADHA","HADHB","ECH1","ECHS1","ACOX1","HMGCS2","ETFDH","SLC25A20",
+  "PDK4","PDHA1","SLC2A1","SLC2A4","HK2","LDHA","LDHB","ALDOA","ENO1",
+  "PFKM","PKM",
+  "RYR2","ATP2A2","PLN","CASQ2","CALR","CACNA1C","CACNB2","CAMK2D",
+  "S100A1","SRL","CALM1",
+  "COL1A1","COL3A1","COL4A1","FN1","POSTN","BGN","DCN","FBN1","TGFB1",
+  "TGFBR1","TGFBR2","CTGF","CCN2","CYR61","CCN1","SMAD3",
+  "HSPA1A","HSPA8","HSPB1","HSPB7","CRYAB","FKBP5","NR3C1","FOXO3",
+  "BAX","BCL2","MYC","TRIM63","FBXO32","KLF15","KLF6",
+  "GATA4","GATA6","MEF2A","MEF2C","MEF2D","NKX2-5","TBX5","HAND1","HAND2",
+  "STAT3","TEAD1","YAP1","CREB1",
+  "SOD1","SOD2","CAT","GPX1","GPX4","NFE2L2","NOX4","TXN1","TXN","TXNIP",
+  "SLC8A1","KCNQ1","KCNH2","KCNJ2","SCN5A","HCN4","TLN1",
+  "CORIN","PCSK6","NCALD","RORA","SPOCK1","EDNRA","TENM3","HTR4",
+  "CACNA1E","ARNTL","SOX5","KCNJ3","HS6ST3","CAMK1D","NRXN3",
+  "AGT","AGTR1","ACE","NPR3","NRG1","ERBB2","ERBB4",
+  "LPL","FABP3","FABP4","CD36",
+  "GDF15","TIMP1","MMP2","MMP9","TNF","IL6"
+))
+
+## Filter the curated pool to genes actually expressed in human RV CMs.
+## Threshold: ≥ 5% of cells with non-zero counts (any cluster). Removes
+## fibrosis/inflammation/RAS genes that aren't really CM-transcripts and
+## prevents labeling them in the FC scatters.
+.cm_pct_for_pool <- {
+  .raw_in <- intersect(.hf_label_genes_raw, rownames(M3))
+  .cm_counts <- GetAssayData(M3, assay = 'RNA', slot = 'counts')[.raw_in, , drop = FALSE]
+  rowMeans(.cm_counts > 0) * 100
+}
+hf_label_genes <- names(.cm_pct_for_pool)[.cm_pct_for_pool >= 5]
+cat(sprintf('FC-scatter label pool: %d genes after CM-expression filter (>=5%%).\n',
+            length(hf_label_genes)))
+
+## Pick up to `n` genes from the curated pool that ALSO have
+## max(|FC_x|, |FC_y|) >= min_abs_fc, ranked by that score.
+.pick_labels <- function(df, label_pool = hf_label_genes,
+                          n = 100, min_abs_fc = 1) {
+  in_pool <- rownames(df) %in% label_pool
+  scores  <- pmax(abs(df$RV), abs(df$PAB))
+  passes  <- in_pool & scores >= min_abs_fc
+  if (!any(passes)) return(rep(NA_character_, nrow(df)))
+  pool_df <- df[passes, , drop = FALSE]
+  scores2 <- pmax(abs(pool_df$RV), abs(pool_df$PAB))
+  ord     <- order(scores2, decreasing = TRUE)
+  top_genes <- rownames(pool_df)[ord[seq_len(min(n, length(ord)))]]
+  out <- rep(NA_character_, nrow(df))
+  out[match(top_genes, rownames(df))] <- top_genes
+  out
+}
+
+.fc_scatter <- function(dataset, xlab, ylab,
+                         label_pool = hf_label_genes, n = 100,
+                         min_abs_fc = 1) {
+  labs <- .pick_labels(dataset, label_pool, n, min_abs_fc)
+  ggplot(dataset, aes(x = RV, y = PAB)) +
+    geom_hline(yintercept = 0, linewidth = PS$linewidth_mm,
+               linetype = "dashed", colour = "grey80") +
+    geom_vline(xintercept = 0, linewidth = PS$linewidth_mm,
+               linetype = "dashed", colour = "grey80") +
+    geom_point(size = PS$scatter_pt, alpha = 0.6) +
+    geom_text_repel(label = labs, max.overlaps = Inf,
+                    size = 2 * PS$text_mm, family = FONT_FAMILY,
+                    fontface = "italic", min.segment.length = 0,
+                    segment.size = PS$linewidth_mm,
+                    segment.color = "grey60") +
+    labs(x = xlab, y = ylab) +
+    theme_v52(COMP_W) +
+    theme(legend.key.size = PS$legend_key,
+          aspect.ratio    = 1,
+          axis.title      = element_text(size = 2 * PS$base_pt),
+          axis.text       = element_text(size = 2 * PS$base_pt))
+}
 
 
-pdf(paste0('./output/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
-ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-  geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
-dev.off()
+## Panel D: mouse Sev/Nor vs human RVF/NF (cross-species end-stage).
+a <- FindMarkers(M3, ident.1 = 'RVF', ident.2 = 'NF')
+b <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor')
+shared  <- intersect(rownames(a), rownames(b))
+dataset <- data.frame(RV  = a[shared, ]$avg_log2FC,
+                      PAB = b[shared, ]$avg_log2FC,
+                      row.names = shared)
+cor(dataset$RV, dataset$PAB)^2
+p_d <- .fc_scatter(dataset,
+  xlab = 'Human RVF vs NF (avg log2FC)',
+  ylab = 'Mouse PAB Sev vs Nor (avg log2FC)')
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM__dot.pdf'), width = 5, height = 5)
+print(p_d); dev.off()
 
 
-a <- FindMarkers(M3,ident.1='RVF',ident.2='NF')
-b <-  FindMarkers(M2,ident.1='Mod',ident.2='Nor')
-shared <- intersect(rownames(a),rownames(b))
-dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-rownames(dataset) <- shared
-labs <- rownames(dataset)
-cor(dataset$RV,dataset$PAB)^2
-#labs[abs(dataset$PAB - dataset$RV)<1] <- NA
+## Cross-species early phase: mouse Mod/Nor vs human RVF/NF.
+a <- FindMarkers(M3, ident.1 = 'RVF', ident.2 = 'NF')
+b <- FindMarkers(M2, ident.1 = 'Mod', ident.2 = 'Nor')
+shared  <- intersect(rownames(a), rownames(b))
+dataset <- data.frame(RV  = a[shared, ]$avg_log2FC,
+                      PAB = b[shared, ]$avg_log2FC,
+                      row.names = shared)
+cor(dataset$RV, dataset$PAB)^2
+p_d_mod <- .fc_scatter(dataset,
+  xlab = 'Human RVF vs NF (avg log2FC)',
+  ylab = 'Mouse PAB Mod vs Nor (avg log2FC)')
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width = 5, height = 5)
+print(p_d_mod); dev.off()
 
 
-pdf(paste0('./output/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
-ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-  geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
-dev.off()
+## Late-phase progression matched cross-species:
+## human pRV → RVF (compensated → failure) compared with mouse Mod → Sev.
+a <- FindMarkers(M3, ident.1 = 'RVF', ident.2 = 'pRV')
+b <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Mod')
+shared  <- intersect(rownames(a), rownames(b))
+dataset <- data.frame(RV  = a[shared, ]$avg_log2FC,
+                      PAB = b[shared, ]$avg_log2FC,
+                      row.names = shared)
+cor(dataset$RV, dataset$PAB)^2
+p_late <- .fc_scatter(dataset,
+  xlab = 'Human RVF vs pRV (avg log2FC)',
+  ylab = 'Mouse PAB Sev vs Mod (avg log2FC)')
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM_Sev_Mod_RVF_pRV_dot.pdf'),
+    width = 5, height = 5)
+print(p_late); dev.off()
 
 
-a <- FindMarkers(M2,ident.1='Sev',ident.2='Nor')
-b <-  FindMarkers(M2,ident.1='Mod',ident.2='Nor')
-shared <- intersect(rownames(a),rownames(b))
-dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-rownames(dataset) <- shared
-labs <- rownames(dataset)
-cor(dataset$RV,dataset$PAB)^2
-#labs[abs(dataset$PAB - dataset$RV)<1] <- NA
+## Panel H, top: mouse Sev/Nor vs Mod/Nor (within-mouse, late vs early).
+a <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor')
+b <- FindMarkers(M2, ident.1 = 'Mod', ident.2 = 'Nor')
+shared  <- intersect(rownames(a), rownames(b))
+dataset <- data.frame(RV  = a[shared, ]$avg_log2FC,
+                      PAB = b[shared, ]$avg_log2FC,
+                      row.names = shared)
+cor(dataset$RV, dataset$PAB)^2
+p_h1 <- .fc_scatter(dataset,
+  xlab = 'Mouse PAB Sev vs Nor (avg log2FC)',
+  ylab = 'Mouse PAB Mod vs Nor (avg log2FC)')
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'),
+    width = 5, height = 5)
+print(p_h1); dev.off()
 
 
-pdf(paste0('./output/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
-ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-  geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
-dev.off()
+## Panel H, bottom: mouse Sev/Mod vs Mod/Nor ("mild as protected state").
+a <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Mod')
+b <- FindMarkers(M2, ident.1 = 'Mod', ident.2 = 'Nor')
+shared  <- intersect(rownames(a), rownames(b))
+dataset <- data.frame(RV  = a[shared, ]$avg_log2FC,
+                      PAB = b[shared, ]$avg_log2FC,
+                      row.names = shared)
+cor(dataset$RV, dataset$PAB)^2
+p_h2 <- .fc_scatter(dataset,
+  xlab = 'Mouse PAB Sev vs Mod (avg log2FC)',
+  ylab = 'Mouse PAB Mod vs Nor (avg log2FC)')
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'),
+    width = 5, height = 5)
+print(p_h2); dev.off()
 
 
-a <- FindMarkers(M2,ident.1='Sev',ident.2='Mod')
-b <-  FindMarkers(M2,ident.1='Mod',ident.2='Nor')
-shared <- intersect(rownames(a),rownames(b))
-dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-rownames(dataset) <- shared
-labs <- rownames(dataset)
-cor(dataset$RV,dataset$PAB)^2
-labs[abs(dataset$PAB - dataset$RV)<1] <- NA
-
-
-pdf(paste0('./output/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
-ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-  geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
-dev.off()
+## Combined vertical stack: D / H1 / H2 — same horizontal dimension (5") so
+## panels share x-extent in the figure layout. Each sub-panel keeps its own
+## axis labels via .fc_scatter().
+p_combo <- p_d / p_h1 / p_h2
+ggsave('./output/Supplementary_Figure_6/PAB_CM_FC_combined.pdf',
+       p_combo, width = 5, height = 15)
+ggsave('./output/Supplementary_Figure_6/v52_figures/PAB_CM_FC_combined.pdf',
+       p_combo, width = 5, height = 15)
 
 
 #######################################
@@ -240,17 +427,20 @@ M2 <- SetIdent(M2, value = "group")
 M2$group <- factor(M2$group,levels=c('Nor','Mod','Sev'))
 
 
-pdf(paste0('./output/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M2,paste0('module_',
-  c('M2','M10','M12','M25','M26','M28')),dot.min=0,col.min=0,col.max=2,group.by='group') +
+  c('M2','M10','M12','M25','M26','M28')),dot.min=0,col.min=0,col.max=2,
+  scale.min=0, scale.max=100, group.by='group') +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
+  scale_size(range = PS$dot_range) + theme_v52(COMP_W) +
   theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
+    panel.border = element_rect(linewidth = PS$linewidth_mm, fill=NA, color='black'),
     axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
+    axis.line.y = element_blank(),
+    legend.key.size = PS$legend_key
+)
 p
 
 dev.off()
@@ -269,49 +459,418 @@ Mouse.Mito <- read_excel("./dependencies/shared/Mouse.MitoCarta3.0.xls", sheet =
 M3 <- AddModuleScore(M3,list(Human.Mito$Symbol),name='mito')
 M2 <- AddModuleScore(M2,list(union(Human.Mito$Symbol,Mouse.Mito$Symbol)),name='mito',ctrl = 50)
 
-p1<-VlnPlot(M2,'mito1',group.by='group',pt.size=0)
-p2<-VlnPlot(M3,'mito1',group.by='group',pt.size=0)
+## Disease palette applied: mouse Nor/Mod/Sev and human NF/pRV/RVF both remap
+## to the canonical disease palette.
+mhc_pal_mouse <- setNames(disease_pal[c('NF','pRV','RVF')], c('Nor','Mod','Sev'))
+mhc_pal_human <- disease_pal[c('NF','pRV','RVF')]
 
-pdf(paste0('./output/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
+## ── Pseudobulk per-subject mean MitoCarta module score ────────────────────
+## Per-cell mito1 (above) is averaged within (subject × group) so that the
+## unit of statistical analysis is the patient/animal, not the cell.
+## This avoids pseudoreplication when comparing disease groups.
+library(ggpubr)
 
-p1 / p2
+## NB: M2$orig.ident is the group label in this object; per-animal ID is M2$patient.
+.mouse_mito_pat <- aggregate(
+  list(mito = M2$mito1),
+  by  = list(patient = as.character(M2$patient),
+             group   = as.character(M2$group)),
+  FUN = mean
+)
+.mouse_mito_pat$group <- factor(.mouse_mito_pat$group,
+                                levels = c('Nor','Mod','Sev'))
+write.csv(.mouse_mito_pat,
+          './output/Supplementary_Figure_6/PAB_mouse_CM_mitocarto_per_animal.csv',
+          row.names = FALSE)
+
+.human_mito_pat <- aggregate(
+  list(mito = M3$mito1),
+  by  = list(patient = as.character(M3$patient),
+             group   = as.character(M3$group)),
+  FUN = mean
+)
+.human_mito_pat$group <- factor(.human_mito_pat$group,
+                                levels = c('NF','pRV','RVF'))
+write.csv(.human_mito_pat,
+          './output/Supplementary_Figure_6/RV_human_CM_mitocarto_per_patient.csv',
+          row.names = FALSE)
+
+p1 <- ggplot(.mouse_mito_pat, aes(x = group, y = mito, fill = group)) +
+  geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
+  geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
+  scale_fill_manual(values = mhc_pal_mouse) +
+  ggpubr::stat_compare_means(
+    comparisons = list(c('Nor','Mod'), c('Nor','Sev'), c('Mod','Sev')),
+    method      = 'wilcox.test',
+    label       = 'p.format',
+    size        = PS$text_mm
+  ) +
+  labs(title = 'Mouse PAB — CM MitoCarta',
+       x = NULL, y = 'Per-animal mean score') +
+  theme_v52(COMP_W) +
+  theme(legend.position = 'none')
+
+p2 <- ggplot(.human_mito_pat, aes(x = group, y = mito, fill = group)) +
+  geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
+  geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
+  scale_fill_manual(values = mhc_pal_human) +
+  ggpubr::stat_compare_means(
+    comparisons = list(c('NF','pRV'), c('NF','RVF'), c('pRV','RVF')),
+    method      = 'wilcox.test',
+    label       = 'p.format',
+    size        = PS$text_mm
+  ) +
+  labs(title = 'Human RV — CM MitoCarta',
+       x = NULL, y = 'Per-patient mean score') +
+  theme_v52(COMP_W) +
+  theme(legend.position = 'none')
+
+pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_RV_CM_mitocarto.pdf'), width = 3.2, height = 4.675)
+print(p1 / p2)
 dev.off()
+ggsave('./output/Supplementary_Figure_6/v52_figures/PAB_RV_CM_mitocarto.pdf',
+       p1 / p2, width = 3.2, height = 4.675)
 
 anno <- trimws(unlist(lapply(lapply(lapply(Human.Mito$MitoCarta3.0_MitoPathways,str_split,'>'),'[[',1),'[[',1)))
 
-anno[anno == "Small molecule transport | Signaling"] = "Small molecule transport" 
+anno[anno == "Small molecule transport | Signaling"] = "Small molecule transport"
+
+## Map MitoCarta3.0 top-level categories to display labels for the volcano
+## legend. Avoid building a named vector with an empty key (R's c("" = ...)
+## errors as 'attempt to use zero-length variable name'); use explicit
+## boolean assignment.
+.anno_remap <- function(x) {
+  x   <- as.character(x)
+  out <- character(length(x))
+  out[is.na(x) | x == ""]                                           <- "No annotation"
+  out[x == "Metabolism"]                                            <- "Metabolism"
+  out[x == "OXPHOS"]                                                <- "Oxidative phos"
+  out[x == "Protein homeostasis"]                                   <- "Protein import/sorting"
+  out[x == "Mitochondrial central dogma"]                           <- "Mito central dogma"
+  out[x == "Mitochondrial dynamics and surveillance"]               <- "Mito dynamics"
+  out[x == "Signaling"]                                             <- "Signaling"
+  out[x == "Small molecule transport"]                              <- "Transport"
+  out[out == ""]                                                    <- "No annotation"
+  out
+}
+anno <- .anno_remap(anno)
 
 
-a<-FindMarkers(M3,ident.1='RVF',ident.2='NF',features = intersect(Human.Mito$Symbol,rownames(M3)))
-a$p_val_adj[a$p_val_adj < 1e-50] = 1e-50
+## Per-patient pseudobulk DESeq2 for the MitoCarta volcano: aggregate human RV
+## CMs by patient, then test RVF vs NF with DESeq2 (n = 4 NF + 3 RVF).
+## Replaces the prior single-cell Wilcoxon FindMarkers volcano (which inflated
+## p-values via cell-level pseudoreplication).
+library(DESeq2)
 
-keyvals <- anno[match(rownames(a),Human.Mito$Symbol)]
-library(colormap)
+pb <- AggregateExpression(M3, group.by = 'patient',
+                          assays   = 'RNA',
+                          slot     = 'counts',
+                          return.seurat = FALSE)
+pb_mat <- round(as.matrix(pb$RNA))
+## Seurat prepends 'g' to group names that start with a digit; strip so the
+## column names match the raw patient IDs in M3@meta.data$patient.
+colnames(pb_mat) <- sub('^g', '', colnames(pb_mat))
 
-colors <- colormap(colormap=colormaps$rainbow_soft, nshades=length(unique(keyvals)))
+pat_meta <- unique(M3@meta.data[, c('patient', 'group')])
+pat_meta$patient <- as.character(pat_meta$patient)
+pat_meta <- pat_meta[match(colnames(pb_mat), pat_meta$patient), ]
+rownames(pat_meta) <- pat_meta$patient
+pat_meta$group <- factor(pat_meta$group, levels = c('NF', 'pRV', 'RVF'))
 
-colors <- colors[match(keyvals,unique(keyvals))]
+dds <- DESeqDataSetFromMatrix(countData = pb_mat,
+                              colData   = pat_meta,
+                              design    = ~ group)
+dds <- DESeq(dds)
+## Apply apeglm log2FC shrinkage (recommended for small-n pseudobulk):
+## shrinks noisy high-FC estimates from low-count genes toward 0. Preserve
+## padj from the unshrunken results() so the y-axis still reflects the
+## original Wald test FDR.
+suppressPackageStartupMessages(library(apeglm))
+res_raw    <- as.data.frame(results(dds, contrast = c('group', 'RVF', 'NF')))
+res_shrunk <- as.data.frame(lfcShrink(dds, coef = 'group_RVF_vs_NF',
+                                      type = 'apeglm'))
+res <- res_shrunk
+res$padj <- res_raw[rownames(res), 'padj']
+
+mito_in_res <- intersect(Human.Mito$Symbol, rownames(res))
+a <- data.frame(avg_log2FC = res[mito_in_res, 'log2FoldChange'],
+                p_val_adj  = res[mito_in_res, 'padj'],
+                row.names  = mito_in_res)
+a <- a[complete.cases(a), ]
+a$p_val_adj[a$p_val_adj < 1e-50] <- 1e-50
+write.csv(cbind(gene = rownames(a), a),
+          './output/Supplementary_Figure_6/PAB_RV_CM_mitocarto_volcano_pseudobulk.csv',
+          row.names = FALSE)
+
+## Map each gene to its MitoCarta category, then pick one color per category
+## from a *categorical* palette (Dark2, 8 perceptually-distinct colors).
+## Previous code interpolated colormap::rainbow_soft, which is a continuous
+## gradient and made adjacent categories look the same.
+keyvals <- anno[match(rownames(a), Human.Mito$Symbol)]
+library(RColorBrewer)
+.cat_levels  <- unique(keyvals)
+.cat_palette <- RColorBrewer::brewer.pal(
+  n    = max(3, min(length(.cat_levels), 8)),
+  name = 'Dark2'
+)[seq_along(.cat_levels)]
+names(.cat_palette) <- .cat_levels
+colors <- .cat_palette[keyvals]
 names(colors) <- keyvals
 
-
 library(EnhancedVolcano)
-pdf(paste0('./output/', 'CM_RV_Mito.pdf'), width=6, height=11)
+p_volcano <- EnhancedVolcano(a, lab = rownames(a),
+  x = 'avg_log2FC', y = 'p_val_adj',
+  xlim      = c(-6, 6),
+  ylim      = c(0, 6),
+  FCcutoff  = 0.5, pCutoff = 0.05,
+  colCustom = colors,
+  labFace   = 'italic',
+  title     = NULL,
+  subtitle  = NULL,
+  caption   = NULL,
+  legendPosition = 'top'
+)
+p_volcano <- p_volcano +
+  guides(colour = guide_legend(nrow = 4, ncol = 2, byrow = FALSE,
+                               override.aes = list(size = 3))) +
+  theme(legend.position = 'top',
+        legend.title    = element_blank())
 
-EnhancedVolcano(a,lab=rownames(a),
-  x='avg_log2FC',y='p_val_adj',
-  FCcutoff = 0.1,pCutoff=0.05,colCustom = colors,xlim=c(-6.25,3),ylim=c(0,52))
-dev.off()
+ggsave('./output/Supplementary_Figure_6/PAB_RV_CM_mitocarto_volcano.pdf',
+       p_volcano, width = 6, height = 9.38)
+ggsave('./output/Supplementary_Figure_6/v52_figures/PAB_RV_CM_mitocarto_volcano.pdf',
+       p_volcano, width = 6, height = 9.38)
+
+
+###############################################################################
+##############  FIGURE S6J — Cross-species CM concordance panels  #############
+###############################################################################
+## v54 legend J: cross-species concordance of 3 CM programs
+## (FAO, failure/fetal, GR/NR3C1).
+## (i)   CM-subtype composition shift, mouse Nor/Mod/Sev vs human NF/pRV/RVF
+## (ii)  FAO program score per-subject (mouse + human)
+## (iii) Failure/fetal program score per-subject (NPPA/NPPB/ANKRD1/MYH7/XIRP1/ACTA1/BAG3)
+## (iv)  GR axis: FKBP5 + NR3C1 per-subject
+
+mouse_cmp <- list(c('Nor','Mod'), c('Nor','Sev'), c('Mod','Sev'))
+human_cmp <- list(c('NF','pRV'), c('NF','RVF'), c('pRV','RVF'))
+
+.subject_mean <- function(obj, meta_col, group_levels) {
+  df <- aggregate(
+    list(value = obj@meta.data[[meta_col]]),
+    by  = list(patient = as.character(obj$patient),
+               group   = as.character(obj$group)),
+    FUN = mean
+  )
+  df$group <- factor(df$group, levels = group_levels)
+  df
+}
+
+.subject_box <- function(df, palette, title, ylab, comparisons) {
+  ggplot(df, aes(x = group, y = value, fill = group)) +
+    geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
+    geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
+    scale_fill_manual(values = palette) +
+    ggpubr::stat_compare_means(comparisons = comparisons,
+                                method = 'wilcox.test', label = 'p.format',
+                                size = 2.2 * PS$text_mm) +
+    labs(title = title, x = NULL, y = ylab) +
+    theme_v52(COMP_W) +
+    theme(legend.position = 'none',
+          plot.title  = element_text(size = 2.2 * PS$base_pt),
+          axis.title  = element_text(size = 2.2 * PS$base_pt),
+          axis.text   = element_text(size = 2.2 * PS$base_pt))
+}
+
+## (i) CM-subtype composition shift
+.mouse_comp <- as.data.frame(prop.table(
+  table(group = M2$group, subtype = M2$predicted.celltype), 1))
+.human_comp <- as.data.frame(prop.table(
+  table(group = M3$group, subtype = M3$Subnames), 1))
+.mouse_comp$group <- factor(.mouse_comp$group, levels = c('Nor','Mod','Sev'))
+.human_comp$group <- factor(.human_comp$group, levels = c('NF','pRV','RVF'))
+write.csv(.mouse_comp, './output/Supplementary_Figure_6/PAB_mouse_CM_subtype_composition.csv', row.names=FALSE)
+write.csv(.human_comp, './output/Supplementary_Figure_6/RV_human_CM_subtype_composition.csv', row.names=FALSE)
+
+p_comp_mouse <- ggplot(.mouse_comp, aes(x = group, y = Freq, fill = subtype)) +
+  geom_col(width = 0.7, colour = 'black', linewidth = PS$linewidth_mm) +
+  labs(title = 'Mouse PAB — CM composition', x = NULL, y = 'Fraction of CMs') +
+  theme_v52(COMP_W) +
+  theme(legend.key.size = PS$legend_key, legend.title = element_blank())
+p_comp_human <- ggplot(.human_comp, aes(x = group, y = Freq, fill = subtype)) +
+  geom_col(width = 0.7, colour = 'black', linewidth = PS$linewidth_mm) +
+  labs(title = 'Human RV — CM composition', x = NULL, y = 'Fraction of CMs') +
+  theme_v52(COMP_W) +
+  theme(legend.key.size = PS$legend_key, legend.title = element_blank())
+ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_composition.pdf',
+       p_comp_mouse / p_comp_human, width = 4, height = 5.5)
+ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_composition.pdf',
+       p_comp_mouse / p_comp_human, width = 4, height = 5.5)
+
+## (ii) FAO program score per-subject
+fao_genes <- c('HMGCS2','HADHA','HADHB','ACADM','ACADVL','ACADL',
+               'CPT1A','CPT1B','CPT2','ACOX1','ECH1','ECHS1','ETFDH','SLC25A20')
+M2 <- AddModuleScore(M2, list(intersect(fao_genes, rownames(M2))),
+                     name = 'FAO', ctrl = 50)
+M3 <- AddModuleScore(M3, list(intersect(fao_genes, rownames(M3))),
+                     name = 'FAO')
+.mouse_fao <- .subject_mean(M2, 'FAO1', c('Nor','Mod','Sev'))
+.human_fao <- .subject_mean(M3, 'FAO1', c('NF','pRV','RVF'))
+write.csv(.mouse_fao, './output/Supplementary_Figure_6/PAB_mouse_CM_FAO_per_animal.csv', row.names=FALSE)
+write.csv(.human_fao, './output/Supplementary_Figure_6/RV_human_CM_FAO_per_patient.csv', row.names=FALSE)
+
+p_fao_mouse <- .subject_box(.mouse_fao, mhc_pal_mouse,
+  'Mouse PAB — FAO program', 'Per-animal mean score', mouse_cmp)
+p_fao_human <- .subject_box(.human_fao, mhc_pal_human,
+  'Human RV — FAO program', 'Per-patient mean score', human_cmp)
+p_fao <- p_fao_mouse | p_fao_human
+pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_FAO.pdf', width = 5, height = 3)
+print(p_fao); dev.off()
+ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_FAO.pdf',
+       p_fao, width = 5, height = 3)
+
+## (iii) Failure / fetal-program score per-subject
+fail_genes <- c('NPPA','NPPB','ANKRD1','MYH7','XIRP1','ACTA1','BAG3')
+M2 <- AddModuleScore(M2, list(intersect(fail_genes, rownames(M2))),
+                     name = 'Failure', ctrl = 50)
+M3 <- AddModuleScore(M3, list(intersect(fail_genes, rownames(M3))),
+                     name = 'Failure')
+.mouse_fail <- .subject_mean(M2, 'Failure1', c('Nor','Mod','Sev'))
+.human_fail <- .subject_mean(M3, 'Failure1', c('NF','pRV','RVF'))
+write.csv(.mouse_fail, './output/Supplementary_Figure_6/PAB_mouse_CM_Failure_per_animal.csv', row.names=FALSE)
+write.csv(.human_fail, './output/Supplementary_Figure_6/RV_human_CM_Failure_per_patient.csv', row.names=FALSE)
+
+p_fail_mouse <- .subject_box(.mouse_fail, mhc_pal_mouse,
+  'Mouse PAB — Failure program', 'Per-animal mean score', mouse_cmp)
+p_fail_human <- .subject_box(.human_fail, mhc_pal_human,
+  'Human RV — Failure program', 'Per-patient mean score', human_cmp)
+p_fail <- p_fail_mouse | p_fail_human
+pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_Failure_program.pdf', width = 5, height = 3)
+print(p_fail); dev.off()
+ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_Failure_program.pdf',
+       p_fail, width = 5, height = 3)
+
+## (iv) GR axis: FKBP5 + NR3C1 per-subject (single-gene module scores)
+M2 <- AddModuleScore(M2, list('FKBP5'), name = 'FKBP5score', ctrl = 50)
+M3 <- AddModuleScore(M3, list('FKBP5'), name = 'FKBP5score')
+M2 <- AddModuleScore(M2, list('NR3C1'), name = 'NR3C1score', ctrl = 50)
+M3 <- AddModuleScore(M3, list('NR3C1'), name = 'NR3C1score')
+.mouse_fkbp5 <- .subject_mean(M2, 'FKBP5score1', c('Nor','Mod','Sev'))
+.human_fkbp5 <- .subject_mean(M3, 'FKBP5score1', c('NF','pRV','RVF'))
+.mouse_nr3c1 <- .subject_mean(M2, 'NR3C1score1', c('Nor','Mod','Sev'))
+.human_nr3c1 <- .subject_mean(M3, 'NR3C1score1', c('NF','pRV','RVF'))
+.mouse_gr <- rbind(cbind(.mouse_fkbp5, gene = 'FKBP5'),
+                   cbind(.mouse_nr3c1, gene = 'NR3C1'))
+.human_gr <- rbind(cbind(.human_fkbp5, gene = 'FKBP5'),
+                   cbind(.human_nr3c1, gene = 'NR3C1'))
+write.csv(.mouse_gr, './output/Supplementary_Figure_6/PAB_mouse_CM_GR_axis_per_animal.csv', row.names=FALSE)
+write.csv(.human_gr, './output/Supplementary_Figure_6/RV_human_CM_GR_axis_per_patient.csv', row.names=FALSE)
+
+.gr_box <- function(df, palette, title, comparisons) {
+  ggplot(df, aes(x = group, y = value, fill = group)) +
+    geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
+    geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
+    scale_fill_manual(values = palette) +
+    ggpubr::stat_compare_means(comparisons = comparisons,
+                                method = 'wilcox.test', label = 'p.format',
+                                size = 2.2 * PS$text_mm) +
+    facet_wrap(~ gene, scales = 'free_y') +
+    labs(title = title, x = NULL, y = 'Module score') +
+    theme_v52(COMP_W) +
+    theme(legend.position = 'none',
+          plot.title    = element_text(size = 2.2 * PS$base_pt),
+          axis.title    = element_text(size = 2.2 * PS$base_pt),
+          axis.text     = element_text(size = 2.2 * PS$base_pt),
+          strip.text    = element_text(size = 2.2 * PS$base_pt))
+}
+p_gr_mouse <- .gr_box(.mouse_gr, mhc_pal_mouse, 'Mouse PAB — GR axis', mouse_cmp)
+p_gr_human <- .gr_box(.human_gr, mhc_pal_human, 'Human RV — GR axis', human_cmp)
+p_gr <- p_gr_mouse | p_gr_human
+pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_GR_axis.pdf', width = 7, height = 3)
+print(p_gr); dev.off()
+ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_GR_axis.pdf',
+       p_gr, width = 7, height = 3)
+
+
+## Combined small-panels strip: FAO | Failure | NR3C1 only (drop FKBP5).
+## Build a NR3C1-only pair so all three sections have the same column count
+## and patchwork gives them equal widths in the strip.
+.mouse_nr3c1_only <- subset(.mouse_gr, gene == 'NR3C1')
+.human_nr3c1_only <- subset(.human_gr, gene == 'NR3C1')
+.mouse_nr3c1_only$gene <- NULL
+.human_nr3c1_only$gene <- NULL
+p_nr3c1_mouse <- .subject_box(.mouse_nr3c1_only, mhc_pal_mouse,
+  'Mouse PAB — NR3C1', 'Module score', mouse_cmp)
+p_nr3c1_human <- .subject_box(.human_nr3c1_only, mhc_pal_human,
+  'Human RV — NR3C1', 'Module score', human_cmp)
+p_nr3c1 <- p_nr3c1_mouse | p_nr3c1_human
+
+## Flatten to 6 plots in one row with explicit equal widths so each box plot
+## gets exactly 1/6 of the figure regardless of axis-label length.
+p_small_combined <- patchwork::wrap_plots(
+  p_fao_mouse,   p_fao_human,
+  p_fail_mouse,  p_fail_human,
+  p_nr3c1_mouse, p_nr3c1_human,
+  nrow = 1
+) + patchwork::plot_layout(widths = rep(1, 6))
+
+ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_small_panels_combined.pdf',
+       p_small_combined, width = 9, height = 3)
+ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_small_panels_combined.pdf',
+       p_small_combined, width = 9, height = 3)
+
+#######################################
+##########  FIGURE S6I — PAB Sirius Red  ##########
+#######################################
+## v54 legend I: Cardiac fibrosis Sirius Red % area per animal
+## (Sham n=6, Mod n=7, Sev n=5; Wilcoxon).
+## Fibrosis quantified as Sirius Red % area by PAB stage.
+## Source: ./dependencies/shared/PAB_Sirius.xlsx (Sham / PAB Mod / PAB Sev,
+## 7 animals per group laid out wide; some reps NA).
+library(readxl)
+library(ggpubr)
+
+.sirius_raw <- read_excel('./dependencies/shared/PAB_Sirius.xlsx', sheet = 1)
+sirius_long <- data.frame(
+  group  = factor(rep(c('Sham','Mod','Sev'), each = 7),
+                  levels = c('Sham','Mod','Sev')),
+  sirius = as.numeric(unlist(.sirius_raw[1, ]))
+)
+sirius_long <- sirius_long[!is.na(sirius_long$sirius), ]
+write.csv(sirius_long, './output/Supplementary_Figure_6/PAB_Sirius_long.csv', row.names = FALSE)
+
+sirius_pal <- setNames(disease_pal[c('NF','pRV','RVF')], c('Sham','Mod','Sev'))
+
+p_sirius <- ggplot(sirius_long, aes(x = group, y = sirius, fill = group)) +
+  geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
+  geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
+  scale_fill_manual(values = sirius_pal) +
+  ggpubr::stat_compare_means(
+    comparisons = list(c('Sham','Mod'), c('Sham','Sev'), c('Mod','Sev')),
+    method      = 'wilcox.test',
+    label       = 'p.format',
+    size        = PS$text_mm
+  ) +
+  labs(title = 'Cardiac fibrosis (Sirius Red)',
+       x = NULL, y = 'Sirius Red (% area)') +
+  theme_v52(COMP_W) +
+  theme(legend.position = 'none')
+
+save_figure(p_sirius, 'PAB_Sirius_box.pdf', width = 2.4, height = 2.1)
+ggsave('./output/Supplementary_Figure_6/S6I_PAB_Sirius_box.pdf', p_sirius, width = 2.4, height = 2.1)
+
+p_final <- (p_volcano | p_sirius) + patchwork::plot_layout(widths = c(3, 1))
+save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
+
+# TODO v52: add other PAB echo/histology panels (new data)
 
 
 
 #######################################
-#############  FIGURE S6H  ############
+##  FIGURE S6H — handled inside S6D (within-mouse FC trajectories)  ##
 #######################################
-
-# Was calculated in S6D
-
-
-
+## v54 legend H lives inside the S6D Severe-vs-Sham/Mod-vs-Sham/
+## Severe-vs-Mod trajectory scatter (r^2 reporting). No separate plot.
 
 
 
@@ -392,17 +951,17 @@ dev.off()
 
 # p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
 
-# pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
 
-# pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -492,7 +1051,7 @@ dev.off()
 
 
 
-# M2 <- readRDS('./output/PAB_data_clean.rds')
+# M2 <- readRDS('./output/Supplementary_Figure_6/PAB_data_clean.rds')
 
 # M2 <- SetIdent(M2, value = "Names")
 # M2$group <- M2$orig.ident
@@ -734,7 +1293,7 @@ dev.off()
 #       plot.margin = margin(0,0,0,0)
 #     )
 
-# pdf(paste0('./output/rMac_hubgene_umap_ggplot.pdf'), width=8, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/rMac_hubgene_umap_ggplot.pdf'), width=8, height=8)
 # print(p)
 # dev.off()
 
@@ -751,7 +1310,7 @@ dev.off()
 
 # EnrichrBarPlot(
 #   M2,
-#   outdir = "./output/Myeloid_rMac_consensus_modules", # name of output directory
+#   outdir = "./output/Supplementary_Figure_6/Myeloid_rMac_consensus_modules", # name of output directory
 #   n_terms = 10, # number of enriched terms to show (sometimes more show if there are ties!!!)
 #   plot_size = c(5,7), # width, height of the output .pdfs
 #   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -767,7 +1326,7 @@ dev.off()
 # cat(rownames(subset(modules,module=='rMac-CM11')),sep='\n')
 # cat(rownames(subset(modules,module=='rMac-CM12')),sep='\n')
 
-# write.csv(modules,"./output/consensusWGCNA_rMac_modules.csv")
+# write.csv(modules,"./output/Supplementary_Figure_6/consensusWGCNA_rMac_modules.csv")
 
 # modules <- GetModules(M2)
 # color_df <- modules %>% subset(module!='grey') %>%
@@ -790,7 +1349,7 @@ dev.off()
 # idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
 
 # selected_terms<-selected_terms[idx_top_1,]
-# #key_terms <- read.csv('./output/bulkRNA_GOterms_ofinterest.csv')
+# #key_terms <- read.csv('./output/Supplementary_Figure_6/bulkRNA_GOterms_ofinterest.csv')
 # #selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 # #selected_terms <- subset(combined_output, Term %in% selected_terms$Term & P.value < 0.05)
 
@@ -866,7 +1425,7 @@ dev.off()
 #   )
 
 
-# pdf(paste0('./output/Consensus_WGNCA_rMac_selected_GO_terms.pdf'), width=13, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/Consensus_WGNCA_rMac_selected_GO_terms.pdf'), width=13, height=8)
 # p / colorbar #+ plot_layout(heights=c(20,1))
 # dev.off()
 
@@ -977,7 +1536,7 @@ dev.off()
 #       plot.margin = margin(0,0,0,0)
 #     )
 
-# pdf(paste0('./output/HLA_hubgene_umap_ggplot.pdf'), width=8, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/HLA_hubgene_umap_ggplot.pdf'), width=8, height=8)
 # print(p)
 # dev.off()
 
@@ -996,7 +1555,7 @@ dev.off()
 
 # EnrichrBarPlot(
 #   M2,
-#   outdir = "./output/Myeloid_HLA_consensus_modules", # name of output directory
+#   outdir = "./output/Supplementary_Figure_6/Myeloid_HLA_consensus_modules", # name of output directory
 #   n_terms = 10, # number of enriched terms to show (sometimes more show if there are ties!!!)
 #   plot_size = c(5,7), # width, height of the output .pdfs
 #   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -1004,7 +1563,7 @@ dev.off()
 
 # modules <- GetModules(M2) %>% subset(module != 'grey')
 
-# write.csv(modules,"./output/consensusWGCNA_HLA_modules.csv")
+# write.csv(modules,"./output/Supplementary_Figure_6/consensusWGCNA_HLA_modules.csv")
 
 # cat(rownames(subset(modules,module=='HLA-CM10')),sep='\n')
 # cat(rownames(subset(modules,module=='HLA-CM20')),sep='\n')
@@ -1031,7 +1590,7 @@ dev.off()
 # idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
 
 # selected_terms<-selected_terms[idx_top_1,]
-# #key_terms <- read.csv('./output/bulkRNA_GOterms_ofinterest.csv')
+# #key_terms <- read.csv('./output/Supplementary_Figure_6/bulkRNA_GOterms_ofinterest.csv')
 # #selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 # #selected_terms <- subset(combined_output, Term %in% selected_terms$Term & P.value < 0.05)
 
@@ -1107,7 +1666,7 @@ dev.off()
 #   )
 
 
-# pdf(paste0('./output/Consensus_WGNCA_HLA_selected_GO_terms.pdf'), width=13, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/Consensus_WGNCA_HLA_selected_GO_terms.pdf'), width=13, height=8)
 # p / colorbar #+ plot_layout(heights=c(20,1))
 # dev.off()
 
@@ -1121,7 +1680,7 @@ dev.off()
 # #1632,1467 RVF
 # #1681 1691 1697 NF
 
-# M1 <- readRDS('./output/PAB_data_clean.rds')
+# M1 <- readRDS('./output/Supplementary_Figure_6/PAB_data_clean.rds')
 
 # M1 <- SetIdent(M1, value = "Names")
 # M1$group <- M1$orig.ident
@@ -1223,7 +1782,7 @@ dev.off()
 
 # p1 <- DimPlot(M1, reduction = "umap", group.by = "Names", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
@@ -1280,7 +1839,7 @@ dev.off()
 # bulk$group <- paste0(bulk$Origin,'_',bulk$Type)
 # p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "group", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + ggtitle("Query transferred labels")
-# pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
@@ -1304,7 +1863,7 @@ dev.off()
 
 # cor(dataset[,1],dataset[,2])
 
-# pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
 # ggplot(dataset, aes(x = sn, y=bulk)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=25) + theme_classic()
 # dev.off()
@@ -1352,7 +1911,7 @@ dev.off()
 # human2mouse<-human2mouse[idx,]
 # colnames(human2mouse) <-c('human_name', 'mouse_name')
 
-# consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+# consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 # consensus_modules <- consensus_modules[,1:3]
 
 # idx_match<- match(consensus_modules$gene_name,human2mouse$human_name)
@@ -1380,7 +1939,7 @@ dev.off()
 
 # modules_int <- c('M1','M3','M4',"M8")
 
-# pdf(paste0('./output/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
 
 # p <- DotPlot(M2,paste0('module_',modules_int),group.by='Subnames',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
 #   RotatedAxis() + ylab('')+ xlab('')+
@@ -1397,7 +1956,7 @@ dev.off()
 
 
 
-# pdf(paste0('./output/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
 
 # p <- DotPlot(M2,paste0('module_',modules_int),group.by='group',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
 #   RotatedAxis() + ylab('')+ xlab('')+
@@ -1416,7 +1975,7 @@ dev.off()
 # M2 <- AddModuleScore(M2,list(c('Ciita','Cd74','H2-Ab1','H2-Aa',
 # 	'H2-Eb1','H2-Eb2','H2-Ob','H2-DMb1','H2-DMb2','H2-DMa','H2-Oa')),name='MHCII')
 
-# pdf(paste0('./output/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
 
 # VlnPlot(subset(M2,Subnames=='HLA'),'MHCII1',group.by='group',pt.size=0)
 # dev.off()
@@ -1433,13 +1992,13 @@ dev.off()
 # M2 <- AddModuleScore(M2,list(gluc_response_mouse),name='nr3c1')
 
 
-# pdf(paste0('./output/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
 
 # VlnPlot(M2,'nr3c11',group.by='group',pt.size=0)
 # dev.off()
 
 # M1$group <- M1$orig.ident
-# pdf(paste0('./output/', 'Wnt1.pdf'), width=3, height=3)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'Wnt1.pdf'), width=3, height=3)
 # DimPlot(M1)
 # dev.off()
 
@@ -1536,7 +2095,7 @@ dev.off()
 
 # gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==1)$gene_name)
 
-# pdf(paste0('./output/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 # EnhancedVolcano(gene_set,lab=rownames(gene_set),
 # 	x='avg_log2FC',y='p_val_adj',
@@ -1545,7 +2104,7 @@ dev.off()
 
 # gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==8)$gene_name)
 
-# pdf(paste0('./output/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 # EnhancedVolcano(gene_set,lab=rownames(gene_set),
 # 	x='avg_log2FC',y='p_val_adj',
@@ -1567,7 +2126,7 @@ dev.off()
 # M2$Names <- M2@active.ident
 # markers<-FindAllMarkers(M2,recorrect_umi=F)
 
-# pdf(paste0('./output/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -1762,17 +2321,17 @@ dev.off()
 
 # p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
 
-# pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
 
-# pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -1798,7 +2357,7 @@ dev.off()
 
 # M2$predicted.celltype <- factor(M2$predicted.celltype,levels=levels(M3))
 
-# pdf(paste0('./output/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
 
 # DotPlot(M2,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
 # 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),
@@ -1811,7 +2370,7 @@ dev.off()
 # 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),col.min = 0) +
 # scale_x_discrete(labels=c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10'))
 
-# pdf(paste0('./output/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
 # VlnPlot(M2,'map_score',group.by='predicted.celltype',pt.size=0)
 # dev.off()
 
@@ -1832,7 +2391,7 @@ dev.off()
 # #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 # dev.off()
@@ -1847,7 +2406,7 @@ dev.off()
 # #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 # dev.off()
@@ -1862,7 +2421,7 @@ dev.off()
 # #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 # dev.off()
@@ -1877,7 +2436,7 @@ dev.off()
 # labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
 # dev.off()
@@ -1885,7 +2444,7 @@ dev.off()
 # #############  FIGURE S6M  ############
 # #######################################
 
-# consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
+# consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 # consensus_modules <- consensus_modules[,1:3]
 # consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
 # consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name), consensus_modules$gene_name),]
@@ -1908,7 +2467,7 @@ dev.off()
 # M2$group <- factor(M2$group,levels=c('Nor','Mod','Sev'))
 
 
-# pdf(paste0('./output/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
 
 # p <- DotPlot(M2,paste0('module_',
 #   c('M2','M10','M12','M25','M26','M28')),dot.min=0,col.min=0,col.max=2,group.by='group') +
@@ -1938,7 +2497,7 @@ dev.off()
 # p1<-VlnPlot(M2,'mito1',group.by='group',pt.size=0)
 # p2<-VlnPlot(M3,'mito1',group.by='group',pt.size=0)
 
-# pdf(paste0('./output/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
 
 # p1 / p2
 # dev.off()
@@ -1961,7 +2520,7 @@ dev.off()
 
 
 # library(EnhancedVolcano)
-# pdf(paste0('./output/', 'CM_RV_Mito.pdf'), width=6, height=11)
+# pdf(paste0('./output/Supplementary_Figure_6/', 'CM_RV_Mito.pdf'), width=6, height=11)
 
 # EnhancedVolcano(a,lab=rownames(a),
 #   x='avg_log2FC',y='p_val_adj',

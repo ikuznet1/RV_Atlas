@@ -1,101 +1,148 @@
-library(Seurat)
-library(hdWGCNA)
-library(ggeasy)
-library(dplyr)
-library(EnhancedVolcano)
+###############################################################################
+## Supplementary Figure 8 (v54 draft) -- Adult vs pediatric NF RV comparison
+##
+## Panels (from RV_snRNASeq_v54_draft.{md,docx} S8 legend):
+##   (A) UMAP co-embedding of healthy pediatric + adult RV snRNA-seq datasets
+##   (B) Cell-type abundance by dataset origin (CM/FB/EC/Myeloid box plots,
+##       one-way ANOVA per cell type)
+##   (C) Bulk WGCNA module expression by cell type and dataset origin
+##       (DotPlot of module scores split on CombinedNames x origin)
+##   (D) Volcano of CM pseudobulk DEGs (adult vs ped NF, DESeq2)
+##   (E) PCA embedding of CM pseudobulk counts (PC1/PC2 by origin)
+##   (F) GO Biological Process enrichment for top-ranked
+##       CM-pediatric-up and CM-adult-up gene sets
+##
+## Source: ported from legacy ./Supplementary_Figure_8.R (repo root) into the
+##         new_scripts v54 house style (pub_scales / theme_v52 / save_figure)
+##         on 2026-05-10. The legacy v52 Xenium QC content that previously
+##         occupied this slot has been moved to new_scripts/_legacy_xenium_qc.R.
+##
+## Output: ./output/Supplementary_Figure_8/v52_figures/SupplementaryFigure_8.pdf
+###############################################################################
 
-source('./dependencies/shared/spatial_functions.R')
+source('./helper_scripts/_shared_helpers.R')
+
+## Per-figure output directory (introduced for consistent output paths)
+V52_FIG_DIR <- './output/Supplementary_Figure_8'
+dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 
 
+## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
+## that's outside an explicit pdf() ... dev.off() envelope.
+pdf(NULL)
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(hdWGCNA)
+  library(ggeasy)
+  library(dplyr)
+  library(EnhancedVolcano)
+  library(ggpubr)
+  library(DESeq2)
+  library(stringr)
+  library(enrichR)
+  library(forcats)
+  library(viridis)
+  library(ggplot2)
+  library(patchwork)
+})
 
-########################################
-#############  FIGURE S8A  #############
-########################################
-M2 <- readRDS('./dependencies/Figure_8/RV_Peds_merge.rds')
-M2$condition[M2$condition == "NF"] = "pRV" 
-M2$condition[M2$condition == "Donor"] = "NF" 
-M2$condition[M2$condition == "SystolicHF"] = "RVF" 
+source('./helper_scripts/spatial_functions.R')
+
+COMP_W <- 14
+COMP_H <- 28
+
+## Publication scaling constants (geom linewidths, point sizes, text mm, etc.)
+PS <- pub_scales(COMP_W)
+
+## ---- Local helpers reused by panels D/F -----------------------------------
+parse_ratio <- function(ratio) {
+  ratio <- sub("^\\s*", "", as.character(ratio))
+  ratio <- sub("\\s*$", "", ratio)
+  numerator   <- as.numeric(sub("/\\d+$", "", ratio))
+  denominator <- as.numeric(sub("^\\d+/", "", ratio))
+  numerator / denominator
+}
+
+wrapText <- function(x, len) {
+  sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
+}
+
+###############################################################################
+## Load merged adult+pediatric RV snRNA-seq object (NF subset)
+###############################################################################
+M2 <- readRDS('./dependencies/Figure_8/RV_Peds_merge_shrunk.rds')
+M2$condition[M2$condition == "NF"]         <- "pRV"
+M2$condition[M2$condition == "Donor"]      <- "NF"
+M2$condition[M2$condition == "SystolicHF"] <- "RVF"
 
 M2$group[is.na(M2$group)] <- M2$condition[is.na(M2$group)]
 
-M1 <- subset(M2,group=='NF')
+## NF-only subset used for panels A-C
+M1 <- subset(M2, group == 'NF')
+rm(M2); invisible(gc())
 
-rm(M2)
+## origin in this object is logical (TRUE = Peds, FALSE = Adult).
+## Coerce to character labels up-front so all panels (A/B/C/D/E/F) see the
+## same Adult/Peds factor (otherwise PCA/scale_colour_manual mismatch).
+M1$origin <- ifelse(as.logical(M1$origin), 'Peds', 'Adult')
 
-pdf(paste0('./output/', 'sn_Peds_adult_NF.pdf'), width=5, height=5)
-PlotEmbedding(M1,group.by='origin',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
-dev.off()
+###############################################################################
+## Panel A -- UMAP co-embedding (adult vs pediatric NF)
+###############################################################################
+p_S8A <- PlotEmbedding(
+  M1, group.by = 'origin',
+  point_size = PS$umap_pt,
+  plot_under = TRUE,
+  plot_theme = umap_theme() + NoLegend(),
+  raster_dpi = 400, raster_scale = 0.5
+) +
+  ggtitle('Adult vs pediatric NF (co-embedded)') +
+  theme_v52(COMP_W) +
+  theme(plot.title = element_text(family = FONT_FAMILY, size = PS$base_pt))
 
-
-
-########################################
-#############  FIGURE S8B  #############
-########################################
-
-t(table(M1$CombinedNames,M1$origin))/rowSums(t(table(M1$CombinedNames,M1$origin)))
-
-
-
-cells <- table(M1$CombinedNames,M1$patient)
-cells <- cells[c('CM','FB','EC','Myeloid'),]
-cells <- sweep(cells,2,colSums(cells),'/')
+###############################################################################
+## Panel B -- Cell-type abundance by dataset origin (per-patient frequencies,
+##            one-way ANOVA per cell type)
+###############################################################################
+cells <- table(M1$CombinedNames, M1$patient)
+cells <- cells[c('CM', 'FB', 'EC', 'Myeloid'), ]
+cells <- sweep(cells, 2, colSums(cells), '/')
 cells <- data.frame(cells)
+cells$origin <- M1$origin[match(cells$Var2, M1$patient)]
+cells$origin <- as.factor(cells$origin)
 
-cells$origin<-M1$origin[match(cells$Var2,M1$patient)]
+p_S8B <- ggboxplot(
+  cells[length(cells$origin):1, ],
+  x = "origin", y = "Freq",
+  fill = "origin", group = "origin"
+) +
+  facet_wrap(~ Var1, ncol = 7) +
+  stat_compare_means(aes(group = origin), method = "anova") +
+  labs(color = 'Group', x = "Dataset origin", y = 'Frequency') +
+  theme_v52(COMP_W) +
+  theme(legend.key.size = PS$legend_key)
 
-cells$origin<-as.factor(cells$origin)
+###############################################################################
+## Panel C -- Bulk WGCNA module expression by cell type x origin
+###############################################################################
+M2 <- M1  ## reuse alias for ProjectModules call below
 
-library(ggpubr)
-pdf('./output/Peds_RV_NF_clust_freq.pdf',width=8,height=5)
-p <- ggboxplot(cells[length(cells$origin):1,],x="origin",y="Freq",fill="origin",group="origin")+
-  theme_classic() + 
-  theme(axis.text.x=element_text(size=16),
-  axis.text.y=element_text(size=16),
-  axis.title.x=element_text(size=16),
-  axis.title.y=element_text(size=16),
-  legend.title=element_text(size=16),
-  legend.text=element_text(size=16),
-  text=element_text(color='black'),
-  axis.text=element_text(color='black')) + 
-  labs(color='Group',x="Disease",y='Frequency') + 
-  facet_wrap(~Var1,ncol=7) + 
-  stat_compare_means(aes(group=origin),method="anova")
-p
-dev.off()
-
-
-########################################
-#############  FIGURE S8C  #############
-########################################
-
-
-########Embed bulk in single nuc peds
-
-
-######Load module
-consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
-consensus_modules <- consensus_modules[,1:3]
-consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
-
-
-# remove duplicate gene names
-consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name), consensus_modules$gene_name),]
-
-
-M2 <- M1
-
-#A bit hacky since ref here should be NULL and wgcna_name should be None but function errors then. This will be overwritten by modules=consensus_modules anyway
 DefaultAssay(M2) <- 'RNA'
-M2<-FindVariableFeatures(M2)
-M2 <- ScaleData(M2,block.size=1000)
+M2 <- FindVariableFeatures(M2)
+M2 <- ScaleData(M2, block.size = 1000)
+
+consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
+consensus_modules <- consensus_modules[, 1:3]
+consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
+consensus_modules <- consensus_modules[
+  match(unique(consensus_modules$gene_name), consensus_modules$gene_name), ]
 
 M2 <- SetupForWGCNA(
   M2,
-  gene_select = "fraction", # the gene selection approach
-  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
-  wgcna_name = "Cardiomyocyte" # the name of the hdWGCNA experiment
+  gene_select = "fraction",
+  fraction = 0.05,
+  wgcna_name = "Cardiomyocyte"
 )
-
 
 M2 <- ProjectModules(
   M2,
@@ -106,728 +153,160 @@ M2 <- ProjectModules(
   wgcna_name_proj = 'bulk2sn'
 )
 
-
-
 M2 <- SetActiveWGCNA(M2, 'bulk2sn')
 mapping <- labels2colors(1:100)
-MEs <- GetMEs(M2, harmonized=TRUE)
+MEs <- GetMEs(M2, harmonized = TRUE)
 mods <- colnames(MEs); mods <- mods[mods != 'grey']
-mods_num <- paste0('M',match(mods,mapping))
-all_signif <- c('M1','M2','M3','M4','M5','M8','M10','M11','M12','M14','M20','M25','M26','M28')
+all_signif <- c('M1', 'M2', 'M3', 'M4', 'M5', 'M8', 'M10',
+                'M11', 'M12', 'M14', 'M20', 'M25', 'M26', 'M28')
 
-
-colnames(MEs)<-paste0('M',match(colnames(MEs),mapping))
-M2@meta.data <- cbind(M2@meta.data, MEs)
+colnames(MEs) <- paste0('M', match(colnames(MEs), mapping))
+M2@meta.data  <- cbind(M2@meta.data, MEs)
 M2 <- SetIdent(M2, value = "CombinedNames")
 
-library(dplyr)
-score_calc <- consensus_modules %>% group_by(module) %>% group_split()
-module_colors <- unique(unlist(lapply(score_calc,'[[','module')))
-module_colors <- paste0('M',match(module_colors,mapping))
-#saveRDS(M2, '~/Downloads/hdWGCNA_TOM/scWGCNA_RV_Peds_bulk2sn_projection.rds')
-#M2<- readRDS('~/Downloads/hdWGCNA_TOM/scWGCNA_RV_Peds_bulk2sn_projection.rds')
+score_calc    <- consensus_modules %>% group_by(module) %>% group_split()
+module_colors <- unique(unlist(lapply(score_calc, '[[', 'module')))
+module_colors <- paste0('M', match(module_colors, mapping))
 
 DefaultAssay(M2) <- 'SCT'
-
-
-
-#rm(seurat_ref)
-#gc()
-#seurat_ref<-readRDS('/Volumes/Extreme SSD/Final_Analysis/CellTypes/Post_R3_FINAL_with_counts.rds')
-#seurat_ref <- SetIdent(seurat_ref, value = "Names")
-#seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs)
-
-
-
-M2 <- AddModuleScore(M2,lapply(score_calc,'[[','gene_name'),name="module_score")
-
+M2 <- AddModuleScore(M2, lapply(score_calc, '[[', 'gene_name'),
+                     name = "module_score")
 
 cols_current <- colnames(M2@meta.data)
-cols_current[startsWith(colnames(M2@meta.data),'module_score')] <- paste0('module_',module_colors)
+cols_current[startsWith(colnames(M2@meta.data), 'module_score')] <-
+  paste0('module_', module_colors)
 colnames(M2@meta.data) <- cols_current
 
-M2$origin[M2$origin] = 'Peds'
-M2$origin[M2$origin == FALSE] = 'Adult'
+## origin in this object is logical (TRUE = Peds, FALSE = Adult). Coerce to chars.
+M2$origin <- ifelse(as.logical(M2$origin), 'Peds', 'Adult')
+M2$CombinedNamesSplit <- paste0(M2$CombinedNames, '_', M2$origin)
 
-M2$CombinedNamesSplit <- paste0(M2$CombinedNames,'_',M2$origin)
-
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_NF_Dot.pdf'), width=7, height=5)
-p <- DotPlot(M2,paste0('module_',all_signif),group.by='CombinedNamesSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
-  RotatedAxis() + ylab('')+ xlab('')+
-  scale_color_gradient2(high='red', mid='grey95', low='blue') +
+p_S8C <- DotPlot(
+  M2,
+  paste0('module_',
+         c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),
+  group.by = 'CombinedNamesSplit',
+  dot.min = 0, col.min = 0, col.max = 2,
+  idents = c("CM", "EC", "FB", "Myeloid", "PC", "SM")
+) +
+  RotatedAxis() + ylab('') + xlab('') +
+  scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
+  theme_v52(COMP_W) +
   theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
-p
-dev.off()
+    panel.border = element_rect(linewidth = PS$geom_lw, fill = NA, color = 'black'),
+    axis.line.x  = element_blank(),
+    axis.line.y  = element_blank(),
+    legend.key.size = PS$legend_key
+  )
 
-
-pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Dot_NF_ordered.pdf'), width=7, height=5)
-
-p <- DotPlot(M2,paste0('module_',c('M20','M5','M1','M3','M4','M8','M2','M12','M25','M26','M10','M28','M14','M11')),group.by='CombinedNamesSplit',dot.min=0,col.min=0,col.max=2,idents=c("CM","EC","FB","Myeloid","PC","SM")) +
-  RotatedAxis() + ylab('')+ xlab('')+
-  scale_color_gradient2(high='red', mid='grey95', low='blue') +
-  theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
-p
-dev.off()
-
-########################################
-#############  FIGURE S8D  #############
-########################################
+###############################################################################
+## Panel D -- CM pseudobulk DESeq2 (adult vs ped NF) volcano
+###############################################################################
 M1 <- SetIdent(M1, value = "origin")
-slot(M1$SCT@SCTModel.list[[1]], 'median_umi') = median(M1$SCT@SCTModel.list[[1]]@cell.attributes$umi)
+slot(M1$SCT@SCTModel.list[[1]], 'median_umi') <-
+  median(M1$SCT@SCTModel.list[[1]]@cell.attributes$umi)
 
-M2 <- subset(M1, CombinedNames == 'CM')
+M_cm <- subset(M1, CombinedNames == 'CM')
 
+M_pb <- AggregateExpression(M_cm, assays = "RNA",
+                            return.seurat = FALSE,
+                            group.by = c("origin", "patient"))
+pseudo_counts <- M_pb$RNA
 
-M3 <- AggregateExpression(M2, assays = "RNA", return.seurat = F, group.by = c("origin","patient"))
-pseudo_counts <- M3$RNA
-
-library(DESeq2)
-library(stringr)
 col_data <- data.frame(colnames(pseudo_counts))
-col_data$origin <- str_split_i(col_data[,1],'_',1)
+col_data$origin <- str_split_i(col_data[, 1], '_', 1)
 
-dds <- DESeqDataSetFromMatrix(countData = pseudo_counts,
-                              colData = col_data,
-                              design = ~ origin) # Adjust design
-
+dds <- DESeqDataSetFromMatrix(
+  countData = pseudo_counts,
+  colData   = col_data,
+  design    = ~ origin
+)
 dds <- DESeq(dds)
 res <- results(dds)
+res$padj[res$padj < 1e-50] <- 1e-50
 
-res$padj[res$padj < 1e-50] = 1e-50
+p_S8D <- EnhancedVolcano(
+  res, lab = rownames(res),
+  x = 'log2FoldChange', y = 'padj',
+  FCcutoff = 1, xlim = c(-10, 10),
+  title = 'CM pseudobulk: adult vs pediatric NF',
+  subtitle = NULL
+) +
+  theme_v52(COMP_W) +
+  theme(legend.position = 'top', legend.key.size = PS$legend_key)
 
-pdf(paste0('./output/', 'Peds_vs_Adult_volcano.pdf'), width=8, height=8)
-p1<-EnhancedVolcano(res,lab=rownames(res),
-  x='log2FoldChange',y='padj',
-  FCcutoff = 1,xlim = c(-10,10))
-p1
-dev.off()
+###############################################################################
+## Panel E -- PCA of CM pseudobulk (vst transform)
+###############################################################################
+vsdata <- vst(dds, blind = FALSE)
 
-########################################
-#############  FIGURE S8E  #############
-########################################
+pca_obj <- plotPCA(vsdata, intgroup = "origin", returnData = TRUE)
+pct_var <- round(100 * attr(pca_obj, "percentVar"))
 
-vsdata <- vst(dds, blind=FALSE)
+p_S8E <- ggplot(pca_obj, aes(x = PC1, y = PC2, color = origin)) +
+  geom_point(size = PS$scatter_pt * 3) +   # PS$pt_size doesn't exist; use scatter_pt
+  scale_colour_manual(values = c(Adult = '#E41A1C', Peds = '#377EB8'),
+                      name = NULL) +
+  labs(x = paste0('PC1 (', pct_var[1], '%)'),
+       y = paste0('PC2 (', pct_var[2], '%)'),
+       title = 'PCA: CM pseudobulk (adult vs ped NF)') +
+  theme_v52(COMP_W) +
+  theme(legend.key.size = PS$legend_key)
 
-pdf(paste0('./output/', 'Peds_vs_Adult_pca.pdf'), width=5, height=8)
+###############################################################################
+## Panel F -- GO BP enrichment for CM-pediatric-up and CM-adult-up gene sets
+###############################################################################
+g <- read.csv('./dependencies/shared/human2mouse.csv', header = FALSE)$V1
 
-plotPCA(vsdata, intgroup="origin")
-dev.off()
+peds_cm_up  <- rownames(subset(res, log2FoldChange >  1 & padj < 0.05))
+adult_cm_up <- rownames(subset(res, log2FoldChange < -1 & padj < 0.05))
 
+peds_cm_up  <- peds_cm_up[!startsWith(peds_cm_up,  'MT-')]
+peds_cm_up  <- peds_cm_up[peds_cm_up  %in% g]
+adult_cm_up <- adult_cm_up[!startsWith(adult_cm_up, 'MT-')]
+adult_cm_up <- adult_cm_up[adult_cm_up %in% g]
 
-########################################
-#############  FIGURE S8F  #############
-########################################
+dbs <- c("ChEA_2022", "WikiPathway_2023_Human",
+         "Reactome_2016", "GO_Biological_Process_2025")
 
-g <- read.csv('./dependencies/shared/human2mouse.csv',header=F)$V1
-
-
-peds_cm_marks_s_u <- rownames(subset(res,log2FoldChange > 1 & padj < 0.05))
-adult_cm_marks_s_u <- rownames(subset(res,log2FoldChange < 1 & padj < 0.05))
-
-peds_cm_marks_s_u <- peds_cm_marks_s_u[!startsWith(peds_cm_marks_s_u,'MT-')]
-peds_cm_marks_s_u <- peds_cm_marks_s_u[peds_cm_marks_s_u %in% g]
-
-adult_cm_marks_s_u <- adult_cm_marks_s_u[!startsWith(adult_cm_marks_s_u,'MT-')]
-adult_cm_marks_s_u <- adult_cm_marks_s_u[adult_cm_marks_s_u %in% g]
-
-
-
-
-dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2025")
-
-library(enrichR)
-library(forcats)
-library(viridis)
-
-parse_ratio <- function(ratio) {
-    ratio <- sub("^\\s*", "", as.character(ratio))
-    ratio <- sub("\\s*$", "", ratio)
-    numerator <- as.numeric(sub("/\\d+$", "", ratio))
-    denominator <- as.numeric(sub("^\\d+/", "", ratio))
-    return(numerator/denominator)
+.go_dot <- function(gene_set, title) {
+  enriched <- enrichr(gene_set, dbs)
+  go_bp <- subset(enriched[[4]], Adjusted.P.value < 0.05)
+  if (nrow(go_bp) == 0) {
+    return(ggplot() + ggtitle(paste0(title, ' (no GO BP hits)')) +
+             theme_v52(COMP_W))
+  }
+  go_bp <- go_bp[order(go_bp$Combined.Score, decreasing = TRUE), ]
+  top3  <- go_bp[rev(seq_len(min(3, nrow(go_bp)))), ]
+  ggplot(top3,
+         aes(x = Combined.Score,
+             y = fct_inorder(Term),
+             color = as.numeric(Adjusted.P.value),
+             size  = parse_ratio(Overlap))) +
+    geom_point() +
+    xlab('Combined Score') + ylab('Term') +
+    labs(color = "P value", size = "Overlap", title = title) +
+    scale_y_discrete(labels = fct_inorder(wrapText(
+      sapply(strsplit(top3$Term, " \\(GO"), `[`, 1), 35))) +
+    scale_color_stepsn(colors = rev(magma(256))) +
+    theme_v52(COMP_W) +
+    theme(axis.text = element_text(colour = "black"),
+          legend.key.size = PS$legend_key)
 }
 
-wrapText <- function(x, len) {
-    sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
-}
-
-
-enriched <- enrichr(adult_cm_marks_s_u, dbs)
-enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Adults_vs_Peds_Adult_up.pdf',width=5,height=2.5)
-p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO BP') + 
-  scale_y_discrete(labels= fct_inorder(
-    wrapText(sapply(
-      strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
-  scale_color_stepsn(colors=rev(magma(256)))
-p1
-dev.off()
-
-enriched <- enrichr(peds_cm_marks_s_u, dbs)
-enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/CM_Adults_vs_Peds_Peds_up.pdf',width=5,height=2.5)
-p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO BP') + 
-  scale_y_discrete(labels= fct_inorder(
-    wrapText(sapply(
-      strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-         `[`, 1),35))) + 
-  theme(axis.text=element_text(colour="black"))+
-  scale_color_stepsn(colors=rev(magma(256)))
-p1
-dev.off()
-
-
-
-
-
-
-
-
-
-
-# library(VennDiagram)
-
-# cm_peds <- colnames(subset(M1, origin==TRUE & CombinedNames == 'CM'))
-# all_other_peds <- colnames(subset(M1, origin==TRUE & CombinedNames != 'CM'))
-# cm_adult <- colnames(subset(M1, origin==FALSE & CombinedNames == 'CM'))
-# all_other_adult <- colnames(subset(M1, origin==FALSE & CombinedNames != 'CM'))
-
-
-# peds_cm_marks <- FindMarkers(M1, ident.1 = cm_peds, ident.2 = all_other_peds,recorrect_umi = FALSE,logfc.threshold=0)
-# adult_cm_marks <- FindMarkers(M1, ident.1 = cm_adult, ident.2 = all_other_adult,recorrect_umi = FALSE,logfc.threshold=0)
-
-# peds_cm_marks_s <- subset(peds_cm_marks,p_val_adj < 0.05)
-# adult_cm_marks_s <- subset(adult_cm_marks,p_val_adj < 0.05)
-
-
-# x <- list(adult = rownames(adult_cm_marks_s), peds = rownames(peds_cm_marks_s))
-
-# venn.diagram(x, filename = paste0(',/output/', 'RV_Peds_CM_Venn.png'),
-# 	imagetype = "png",fill = c("#56B4E9", "#E69F00"))
-
-
-# shared <- intersect(rownames(adult_cm_marks_s),rownames(peds_cm_marks_s))
-# adult_unique <- setdiff(rownames(adult_cm_marks_s),shared)
-# peds_unique <- setdiff(rownames(peds_cm_marks_s),shared)
-
-# dataset1 <- data.frame(Peds=peds_cm_marks[adult_unique,]$avg_log2FC,Adult=adult_cm_marks[adult_unique,]$avg_log2FC)
-# rownames(dataset1) <- adult_unique
-# dataset1 <- dataset1[complete.cases(dataset1), ]
-
-
-# pdf(paste0('./output/', 'Peds_vs_Adult_Adult_CM_Specific.pdf'), width=8, height=8)
-# ggplot(dataset1, aes(x = Peds, y=Adult)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset1),max.overlaps = 10) + theme_classic()
-# dev.off()
-
-# dataset2 <- data.frame(Peds=peds_cm_marks[peds_unique,]$avg_log2FC,Adult=adult_cm_marks[peds_unique,]$avg_log2FC)
-# rownames(dataset2) <- peds_unique
-# dataset2 <- dataset2[complete.cases(dataset2), ]
-
-
-# pdf(paste0('./output/', 'Peds_vs_Adult_Peds_CM_Specific.pdf'), width=8, height=8)
-# ggplot(dataset2, aes(x = Peds, y=Adult)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset2),max.overlaps = 10) + theme_classic()
-# dev.off()
-
-
-# dataset1$origin <- 'Adult'
-# dataset2$origin <- 'Peds'
-# dataset <- rbind(dataset1,dataset2)
-
-# pdf(paste0('./output/', 'Peds_vs_Adult_CM_Specific.pdf'), width=10, height=8)
-# ggplot(dataset, aes(x = Adult, y=Peds,color = origin)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset),max.overlaps = 15) + theme_classic() + 
-#   scale_colour_manual(name="",values = c("Adult" = "red","Peds" = "blue"))
-# dev.off()
-
-
-
-
-# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-
-# library(enrichR)
-# library(forcats)
-# library(viridis)
-
-# parse_ratio <- function(ratio) {
-#     ratio <- sub("^\\s*", "", as.character(ratio))
-#     ratio <- sub("\\s*$", "", ratio)
-#     numerator <- as.numeric(sub("/\\d+$", "", ratio))
-#     denominator <- as.numeric(sub("^\\d+/", "", ratio))
-#     return(numerator/denominator)
-# }
-
-# wrapText <- function(x, len) {
-#     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
-# }
-
-# adult_cm_marks_s_u <- subset(adult_cm_marks_s,avg_log2FC > 0)
-# adult_cm_marks_s_d <- subset(adult_cm_marks_s,avg_log2FC < 0)
-
-
-# peds_cm_marks_s_u <- subset(peds_cm_marks_s,avg_log2FC > 0)
-# peds_cm_marks_s_d <- subset(peds_cm_marks_s,avg_log2FC < 0)
-
-# adult_unique_u <- rownames(adult_cm_marks_s_u[intersect(adult_unique,rownames(adult_cm_marks_s_u)),])
-# adult_unique_d <- rownames(adult_cm_marks_s_d[intersect(adult_unique,rownames(adult_cm_marks_s_d)),])
-
-# # Make sure genes actually exist in peds dataset
-# adult_unique_u <- intersect(adult_unique_u,rownames(peds_cm_marks))
-# adult_unique_d <- intersect(adult_unique_d,rownames(peds_cm_marks))
-
-
-# peds_unique_u <- rownames(peds_cm_marks_s_u[intersect(peds_unique,rownames(peds_cm_marks_s_u)),])
-# peds_unique_d <- rownames(peds_cm_marks_s_d[intersect(peds_unique,rownames(peds_cm_marks_s_d)),])
-
-# # Make sure genes actually exist in adult dataset
-# peds_unique_u <- intersect(peds_unique_u,rownames(adult_cm_marks))
-# peds_unique_d <- intersect(peds_unique_d,rownames(adult_cm_marks))
-
-
-# enriched <- enrichr(adult_unique_u, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_au <- enriched
-# pdf('./output/CM_Adults_vs_Peds_Adult_unique_up.pdf',width=5,height=2.5)
-# p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p1
-# dev.off()
-
-# enriched <- enrichr(adult_unique_d, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_ad <- enriched
-# pdf('./output/CM_Adults_vs_Peds_Adult_unique_down.pdf',width=5,height=2.5)
-# p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p2
-# dev.off()
-
-# enriched <- enrichr(peds_unique_u, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_pu <- enriched
-# pdf('./output/CM_Adults_vs_Peds_Peds_unique_up.pdf',width=5,height=2.5)
-# p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p1
-# dev.off()
-
-# enriched <- enrichr(peds_unique_d, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_pd <- enriched
-# pdf('./output/CM_Adults_vs_Peds_Peds_unique_down.pdf',width=5,height=2.5)
-# p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p2
-# dev.off()
-
-
-
-
-
-
-# #######################################
-# #############  FIGURE 8F  #############
-# #######################################
-# library(VennDiagram)
-
-# cm_peds <- colnames(subset(M1, origin==TRUE & CombinedNames == 'Myeloid'))
-# all_other_peds <- colnames(subset(M1, origin==TRUE & CombinedNames != 'Myeloid'))
-# cm_adult <- colnames(subset(M1, origin==FALSE & CombinedNames == 'Myeloid'))
-# all_other_adult <- colnames(subset(M1, origin==FALSE & CombinedNames != 'Myeloid'))
-
-
-# peds_cm_marks <- FindMarkers(M1, ident.1 = cm_peds, ident.2 = all_other_peds,recorrect_umi = FALSE,logfc.threshold=0)
-# adult_cm_marks <- FindMarkers(M1, ident.1 = cm_adult, ident.2 = all_other_adult,recorrect_umi = FALSE,logfc.threshold=0)
-
-# peds_cm_marks_s <- subset(peds_cm_marks,p_val_adj < 0.05)
-# adult_cm_marks_s <- subset(adult_cm_marks,p_val_adj < 0.05)
-
-
-# x <- list(adult = rownames(adult_cm_marks_s), peds = rownames(peds_cm_marks_s))
-
-# venn.diagram(x, filename = paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_Myeloid_Venn.png'),
-# 	imagetype = "png",fill = c("#56B4E9", "#E69F00"))
-
-
-# shared <- intersect(rownames(adult_cm_marks_s),rownames(peds_cm_marks_s))
-# adult_unique <- setdiff(rownames(adult_cm_marks_s),shared)
-# peds_unique <- setdiff(rownames(peds_cm_marks_s),shared)
-
-# dataset1 <- data.frame(Peds=peds_cm_marks[adult_unique,]$avg_log2FC,Adult=adult_cm_marks[adult_unique,]$avg_log2FC)
-# rownames(dataset1) <- adult_unique
-# dataset1 <- dataset1[complete.cases(dataset1), ]
-
-
-# pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_Adult_Adult_Myeloid_Specific.pdf'), width=8, height=8)
-# ggplot(dataset1, aes(x = Peds, y=Adult)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset1),max.overlaps = 10) + theme_classic()
-# dev.off()
-
-# dataset2 <- data.frame(Peds=peds_cm_marks[peds_unique,]$avg_log2FC,Adult=adult_cm_marks[peds_unique,]$avg_log2FC)
-# rownames(dataset2) <- peds_unique
-# dataset2 <- dataset2[complete.cases(dataset2), ]
-
-
-# pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_Adult_Peds_Myeloid_Specific.pdf'), width=8, height=8)
-# ggplot(dataset2, aes(x = Peds, y=Adult)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset2),max.overlaps = 10) + theme_classic()
-# dev.off()
-
-
-# dataset1$origin <- 'Adult'
-# dataset2$origin <- 'Peds'
-# dataset <- rbind(dataset1,dataset2)
-
-# pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_Adult_Myeloid_Specific.pdf'), width=10, height=8)
-# ggplot(dataset, aes(x = Adult, y=Peds,color = origin)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset),max.overlaps = 15) + theme_classic() + 
-#   scale_colour_manual(name="",values = c("Adult" = "red","Peds" = "blue"))
-# dev.off()
-
-
-
-# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-
-# library(enrichR)
-# library(forcats)
-# library(viridis)
-
-# parse_ratio <- function(ratio) {
-#     ratio <- sub("^\\s*", "", as.character(ratio))
-#     ratio <- sub("\\s*$", "", ratio)
-#     numerator <- as.numeric(sub("/\\d+$", "", ratio))
-#     denominator <- as.numeric(sub("^\\d+/", "", ratio))
-#     return(numerator/denominator)
-# }
-
-# wrapText <- function(x, len) {
-#     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
-# }
-
-# adult_cm_marks_s_u <- subset(adult_cm_marks_s,avg_log2FC > 0)
-# adult_cm_marks_s_d <- subset(adult_cm_marks_s,avg_log2FC < 0)
-
-
-# peds_cm_marks_s_u <- subset(peds_cm_marks_s,avg_log2FC > 0)
-# peds_cm_marks_s_d <- subset(peds_cm_marks_s,avg_log2FC < 0)
-
-# adult_unique_u <- rownames(adult_cm_marks_s_u[intersect(adult_unique,rownames(adult_cm_marks_s_u)),])
-# adult_unique_d <- rownames(adult_cm_marks_s_d[intersect(adult_unique,rownames(adult_cm_marks_s_d)),])
-
-# # Make sure genes actually exist in peds dataset
-# adult_unique_u <- intersect(adult_unique_u,rownames(peds_cm_marks))
-# adult_unique_d <- intersect(adult_unique_d,rownames(peds_cm_marks))
-
-
-# peds_unique_u <- rownames(peds_cm_marks_s_u[intersect(peds_unique,rownames(peds_cm_marks_s_u)),])
-# peds_unique_d <- rownames(peds_cm_marks_s_d[intersect(peds_unique,rownames(peds_cm_marks_s_d)),])
-
-# # Make sure genes actually exist in adult dataset
-# peds_unique_u <- intersect(peds_unique_u,rownames(adult_cm_marks))
-# peds_unique_d <- intersect(peds_unique_d,rownames(adult_cm_marks))
-
-
-# enriched <- enrichr(adult_unique_u, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_au <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/Myeloid_Adults_vs_Peds_Adult_unique_up.pdf',width=5,height=2.5)
-# p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p1
-# dev.off()
-
-# enriched <- enrichr(adult_unique_d, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_ad <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/Myeloid_Adults_vs_Peds_Adult_unique_down.pdf',width=5,height=2.5)
-# p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p2
-# dev.off()
-
-# enriched <- enrichr(peds_unique_u, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_pu <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/Myeloid_Adults_vs_Peds_Peds_unique_up.pdf',width=5,height=2.5)
-# p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p1
-# dev.off()
-
-# enriched <- enrichr(peds_unique_d, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_pd <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/Myeloid_Adults_vs_Peds_Peds_unique_down.pdf',width=5,height=2.5)
-# p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p2
-# dev.off()
-
-
-
-
-# #######################################
-# #############  FIGURE 8G  #############
-# #######################################
-# library(VennDiagram)
-
-# cm_peds <- colnames(subset(M1, origin==TRUE & CombinedNames == 'EC'))
-# all_other_peds <- colnames(subset(M1, origin==TRUE & CombinedNames != 'EC'))
-# cm_adult <- colnames(subset(M1, origin==FALSE & CombinedNames == 'EC'))
-# all_other_adult <- colnames(subset(M1, origin==FALSE & CombinedNames != 'EC'))
-
-
-# peds_cm_marks <- FindMarkers(M1, ident.1 = cm_peds, ident.2 = all_other_peds,recorrect_umi = FALSE,logfc.threshold=0)
-# adult_cm_marks <- FindMarkers(M1, ident.1 = cm_adult, ident.2 = all_other_adult,recorrect_umi = FALSE,logfc.threshold=0)
-
-# peds_cm_marks_s <- subset(peds_cm_marks,p_val_adj < 0.05)
-# adult_cm_marks_s <- subset(adult_cm_marks,p_val_adj < 0.05)
-
-
-# x <- list(adult = rownames(adult_cm_marks_s), peds = rownames(peds_cm_marks_s))
-
-# venn.diagram(x, filename = paste0('~/Downloads/hdWGCNA_TOM/', 'RV_Peds_EC_Venn.png'),
-# 	imagetype = "png",fill = c("#56B4E9", "#E69F00"))
-
-
-# shared <- intersect(rownames(adult_cm_marks_s),rownames(peds_cm_marks_s))
-# adult_unique <- setdiff(rownames(adult_cm_marks_s),shared)
-# peds_unique <- setdiff(rownames(peds_cm_marks_s),shared)
-
-# dataset1 <- data.frame(Peds=peds_cm_marks[adult_unique,]$avg_log2FC,Adult=adult_cm_marks[adult_unique,]$avg_log2FC)
-# rownames(dataset1) <- adult_unique
-# dataset1 <- dataset1[complete.cases(dataset1), ]
-
-
-# pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_Adult_Adult_EC_Specific.pdf'), width=8, height=8)
-# ggplot(dataset1, aes(x = Peds, y=Adult)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset1),max.overlaps = 10) + theme_classic()
-# dev.off()
-
-# dataset2 <- data.frame(Peds=peds_cm_marks[peds_unique,]$avg_log2FC,Adult=adult_cm_marks[peds_unique,]$avg_log2FC)
-# rownames(dataset2) <- peds_unique
-# dataset2 <- dataset2[complete.cases(dataset2), ]
-
-
-# pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_Adult_Peds_EC_Specific.pdf'), width=8, height=8)
-# ggplot(dataset2, aes(x = Peds, y=Adult)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset2),max.overlaps = 10) + theme_classic()
-# dev.off()
-
-
-# dataset1$origin <- 'Adult'
-# dataset2$origin <- 'Peds'
-# dataset <- rbind(dataset1,dataset2)
-
-# pdf(paste0('~/Downloads/hdWGCNA_TOM/', 'Peds_vs_Adult_EC_Specific.pdf'), width=10, height=8)
-# ggplot(dataset, aes(x = Adult, y=Peds,color = origin)) + geom_point() + 
-#   geom_text_repel(label=rownames(dataset),max.overlaps = 15) + theme_classic() + 
-#   scale_colour_manual(name="",values = c("Adult" = "red","Peds" = "blue"))
-# dev.off()
-
-
-
-# dbs <- c("ChEA_2022","WikiPathway_2023_Human","Reactome_2016","GO_Biological_Process_2023")
-
-# library(enrichR)
-# library(forcats)
-# library(viridis)
-
-# parse_ratio <- function(ratio) {
-#     ratio <- sub("^\\s*", "", as.character(ratio))
-#     ratio <- sub("\\s*$", "", ratio)
-#     numerator <- as.numeric(sub("/\\d+$", "", ratio))
-#     denominator <- as.numeric(sub("^\\d+/", "", ratio))
-#     return(numerator/denominator)
-# }
-
-# wrapText <- function(x, len) {
-#     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
-# }
-
-# adult_cm_marks_s_u <- subset(adult_cm_marks_s,avg_log2FC > 0)
-# adult_cm_marks_s_d <- subset(adult_cm_marks_s,avg_log2FC < 0)
-
-
-# peds_cm_marks_s_u <- subset(peds_cm_marks_s,avg_log2FC > 0)
-# peds_cm_marks_s_d <- subset(peds_cm_marks_s,avg_log2FC < 0)
-
-# adult_unique_u <- rownames(adult_cm_marks_s_u[intersect(adult_unique,rownames(adult_cm_marks_s_u)),])
-# adult_unique_d <- rownames(adult_cm_marks_s_d[intersect(adult_unique,rownames(adult_cm_marks_s_d)),])
-
-# # Make sure genes actually exist in peds dataset
-# adult_unique_u <- intersect(adult_unique_u,rownames(peds_cm_marks))
-# adult_unique_d <- intersect(adult_unique_d,rownames(peds_cm_marks))
-
-
-# peds_unique_u <- rownames(peds_cm_marks_s_u[intersect(peds_unique,rownames(peds_cm_marks_s_u)),])
-# peds_unique_d <- rownames(peds_cm_marks_s_d[intersect(peds_unique,rownames(peds_cm_marks_s_d)),])
-
-# # Make sure genes actually exist in adult dataset
-# peds_unique_u <- intersect(peds_unique_u,rownames(adult_cm_marks))
-# peds_unique_d <- intersect(peds_unique_d,rownames(adult_cm_marks))
-
-
-# enriched <- enrichr(adult_unique_u, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_au <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/EC_Adults_vs_Peds_Adult_unique_up.pdf',width=5,height=2.5)
-# p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p1
-# dev.off()
-
-# enriched <- enrichr(adult_unique_d, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_ad <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/EC_Adults_vs_Peds_Adult_unique_down.pdf',width=5,height=2.5)
-# p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p2
-# dev.off()
-
-# enriched <- enrichr(peds_unique_u, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_pu <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/EC_Adults_vs_Peds_Peds_unique_up.pdf',width=5,height=2.5)
-# p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p1
-# dev.off()
-
-# enriched <- enrichr(peds_unique_d, dbs)
-# enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-# enriched_pd <- enriched
-# pdf('~/Downloads/hdWGCNA_TOM/EC_Adults_vs_Peds_Peds_unique_down.pdf',width=5,height=2.5)
-# p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),], 
-#   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-#   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-#   ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-#   ggtitle('GO BP') + 
-#   scale_y_discrete(labels= fct_inorder(
-#     wrapText(sapply(
-#       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:3),]$Term," \\(GO"),
-#          `[`, 1),35))) + 
-#   theme(axis.text=element_text(colour="black"))+
-#   scale_color_stepsn(colors=rev(magma(256)))
-# p2
-# dev.off()
-
+p_S8F_peds  <- .go_dot(peds_cm_up,  'CM pediatric up')
+p_S8F_adult <- .go_dot(adult_cm_up, 'CM adult up')
+p_S8F <- p_S8F_peds | p_S8F_adult
+
+###############################################################################
+## Assemble Supplementary Figure 8
+###############################################################################
+fig_S8 <- (p_S8A / p_S8B / p_S8C / p_S8D / p_S8E / p_S8F) +
+  plot_annotation(
+    tag_levels = 'A',
+    theme = theme(plot.tag = element_text(
+      family = FONT_FAMILY, size = PS$tag_pt, face = "bold"))
+  )
+
+save_figure(fig_S8, 'SupplementaryFigure_8.pdf', width = 14, height = 28)
+message('Supplementary Figure 8 (v54: adult vs pediatric NF) complete.')

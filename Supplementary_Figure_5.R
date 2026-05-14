@@ -1,14 +1,71 @@
+###############################################################################
+## Supplementary Figure 6 (v53 draft) — Murine PAB model: immune and vascular characterization
+##
+## Panels (from RV_snRNASeq_v52_draft.md figure legends):
+##   (A) PAB echocardiographic characterization (sham, mild RVF, severe RVF)
+##   (B) Cell population recovery mouse vs human RV
+##   (C) EC expansion with RVF in PAB mice
+##   (D) EC subtype subclustering in mouse
+##   (E-G) Myeloid DEGs between conditions in mouse
+##   (H) Pooled MHCII-associated expression decreased with mouse RVF (contrasting human)
+##   (I) NR3C1 target expression unchanged in mouse RVF
+##   (J) CX3CR1-tdTomato bulk RNA-seq of sorted PAB RV macrophages
+##
+## Source: copied from v51 Supplementary_Figure_5.R on 2026-04-10
+## Status: SKELETON — v52 porting pending
+##
+## Output: ./output/Supplementary_Figure_5/v52_figures/SupplementaryFigure_6.pdf
+###############################################################################
+
+source('./helper_scripts/_shared_helpers.R')
+
+## Per-figure output directory (introduced for consistent output paths)
+V52_FIG_DIR <- './output/Supplementary_Figure_5'
+dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+
+## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
+## that's outside an explicit pdf() ... dev.off() envelope.
+pdf(NULL)
+COMP_W <- 12
+COMP_H <- 16
+
+## Publication scaling constants (geom linewidths, point sizes, text mm, etc.)
+PS <- pub_scales(COMP_W)
+
 library(Seurat)
 library(hdWGCNA)
 library(ggeasy)
 library(harmony)
+library(readxl)
+library(tidyr)
+library(ggpubr)
 
 
 
-source('./dependencies/shared/spatial_functions.R')
+source('./helper_scripts/spatial_functions.R')
+
+###############################################################################
+## Cartoon / external assets
+##
+## Supplementary Figure 5 Panel A contains the PAB mouse heart cartoon (top-left
+## of the original PDF). To regenerate asset from the original PDF, run at a
+## terminal (once -- output saved to ./new_scripts/assets/):
+##
+##   cd /Users/ikuz/Documents/RV_Atlas/new_scripts/assets
+##   # 17 cm ≈ 2008 px at 300 DPI; source PDF rasterised at 300 DPI →
+##   # the PAB cartoon occupies roughly the upper-left ~20 % × ~18 % of page.
+##   # Adjust -crop WxH+Xoff+Yoff after visually confirming on the rendered png.
+##   magick -density 300 ~/Downloads/hdWGCNA_TOM/Manuscripts/Supplementary_Figure_5.pdf \
+##       -crop 400x360+0+0 +repage Supplementary_Figure_5_PAB_cartoon.png
+##
+p_S5_cartoon <- insert_asset('Supplementary_Figure_5_PAB_cartoon.png',
+                             label = 'PAB model schematic')
 
 #######################################
 #############  FIGURE S5A  ############
+# v53: PAB snRNA-seq UMAP across all recovered cell populations
+# (sham, mild RVF, severe RVF). Echo characterization → Table S5.
 #######################################
 
 M1 <- readRDS('./dependencies/shared/PAB_data_clean.rds')
@@ -17,12 +74,13 @@ M1 <- SetIdent(M1, value = "Names")
 M1$group <- M1$orig.ident
 
 
-pdf(paste0('./output/', 'PAB_snUMAP.pdf'), width=5, height=5)
-PlotEmbedding(M1,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_snUMAP.pdf'), width=5, height=5)
+print(PlotEmbedding(M1,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5))
 dev.off()
 
 #######################################
 #############  FIGURE S5B  ############
+# v53: marker gene expression defining the PAB cell-type annotation.
 #######################################
 
 
@@ -39,59 +97,92 @@ dev.off()
 
 M1$Names <- factor(M1$Names, levels = c("CM","Atria","FB","Myeloid","SM","Epi","PC","LEC","Endo","EC","Neuron"))
 feats <- c("Ryr2","Nppa","Dcn","Csf1r","Myh11","Wt1","Pdgfrb","Prox1","Cdh11","Pecam1","Slc35f1")
-p<-VlnPlot(M1, features = feats,ncol=1,pt.size=F,group.by="Names")
 
-
-
-for(i in 1:11) {  
-	 p[[i]] <- p[[i]] + NoLegend() + easy_remove_axes(which="y",what = c("ticks", "text","line")) + ggtitle("") + ylab(feats[i])
-	 if(i<11){p[[i]]<-p[[i]]+easy_remove_axes(which="x")}
-	 
-}
-
-
-pdf(paste0('./output/', 'PAB_sn_Vln.pdf'), width=4, height=19)
-p
+## v53 panel B: DotPlot of marker genes per cell type using the default Seurat
+## blue gradient (lightgrey → blue). Dot size = % cells expressing,
+## color = scaled mean expression. Vertical italic gene labels;
+## legend at bottom in 2 horizontal rows.
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_sn_Dot.pdf'), width=5, height=5)
+print(
+  DotPlot(M1, features = feats, group.by = "Names",
+          cols = c("lightgrey", "blue")) +
+    xlab("") + ylab("") +
+    theme_v52(COMP_W) +
+    guides(
+      colour = guide_colorbar(title = "Average Expression",
+                              title.position = "top", order = 1),
+      size   = guide_legend(   title = "Percent Expressed",
+                               title.position = "top", order = 2, nrow = 1)
+    ) +
+    theme(
+      panel.border    = element_rect(linewidth = PS$linewidth_mm, fill = NA, color = "black"),
+      axis.line.x     = element_blank(),
+      axis.line.y     = element_blank(),
+      axis.text.x     = element_text(face = "italic", angle = 90, hjust = 1, vjust = 0.5),
+      legend.position = "bottom",
+      legend.box      = "horizontal",
+      legend.key.size = PS$legend_key
+    )
+)
 dev.off()
+
+## Legacy violin alternative — kept for reversion.
+# p <- VlnPlot(M1, features = feats, ncol = 1, pt.size = F, group.by = "Names")
+# for(i in 1:11) {
+#   p[[i]] <- p[[i]] + NoLegend() +
+#     easy_remove_axes(which = "y", what = c("ticks","text","line")) +
+#     ggtitle("") + ylab(feats[i])
+#   if (i < 11) p[[i]] <- p[[i]] + easy_remove_axes(which = "x")
+# }
+# pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_sn_Vln.pdf'), width = 4, height = 19)
+# print(p)
+# dev.off()
 
 
 #######################################
 #############  FIGURE S5C  ############
+# v53: Cell population recovery per mouse (per-patient pseudobulk averaging,
+# matching legacy ~/Downloads/hdWGCNA_TOM/Manuscripts/Supplementary_Figure_6.r).
 #######################################
 
 
+Sham_percent_cell <- t(table(subset(M1,group=="Nor")$patient,subset(M1,group=="Nor")$Names)) %*% diag(1/table(subset(M1,group=="Nor")$patient))
+Sham_percent_cell <- data.frame(Freq = rowMeans(Sham_percent_cell), type = 'Sham', Var1 = rownames(Sham_percent_cell))
+Sham_percent_cell$sum <- (rev(cumsum(rev(Sham_percent_cell$Freq))) - Sham_percent_cell$Freq/2)
 
-NF_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="Nor")@active.ident)/length(subset(M1,group=="Nor")@active.ident)*100),type = "NF")
-NF_percent_cell$sum <- (rev(cumsum(rev(NF_percent_cell$Freq))) - NF_percent_cell$Freq/2)/100
-NF_percent_cell$Freq <- NF_percent_cell$Freq/100
+Mild_percent_cell <- t(table(subset(M1,group=="Mod")$patient,subset(M1,group=="Mod")$Names)) %*% diag(1/table(subset(M1,group=="Mod")$patient))
+Mild_percent_cell <- data.frame(Freq = rowMeans(Mild_percent_cell), type = 'Mild RVF', Var1 = rownames(Mild_percent_cell))
+Mild_percent_cell$sum <- (rev(cumsum(rev(Mild_percent_cell$Freq))) - Mild_percent_cell$Freq/2)
+
+Severe_percent_cell <- t(table(subset(M1,group=="Sev")$patient,subset(M1,group=="Sev")$Names)) %*% diag(1/table(subset(M1,group=="Sev")$patient))
+Severe_percent_cell <- data.frame(Freq = rowMeans(Severe_percent_cell), type = 'Severe RVF', Var1 = rownames(Severe_percent_cell))
+Severe_percent_cell$sum <- (rev(cumsum(rev(Severe_percent_cell$Freq))) - Severe_percent_cell$Freq/2)
 
 
-pRV_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="Mod")@active.ident)/length(subset(M1,group=="Mod")@active.ident)*100),type = "pRV")
-pRV_percent_cell$sum <- (rev(cumsum(rev(pRV_percent_cell$Freq))) - pRV_percent_cell$Freq/2)/100
-pRV_percent_cell$Freq <- pRV_percent_cell$Freq/100
+percent_cell_df <- rbind(Sham_percent_cell, Mild_percent_cell, Severe_percent_cell)
+percent_cell_df$Var1 <- factor(percent_cell_df$Var1, levels = rownames(Sham_percent_cell))
+percent_cell_df$type <- factor(percent_cell_df$type, levels = c('Sham','Mild RVF','Severe RVF'))
 
-
-RVF_percent_cell <- cbind(as.data.frame(table(subset(M1,group=="Sev")@active.ident)/length(subset(M1,group=="Sev")@active.ident)*100),type = "RVF")
-RVF_percent_cell$sum <- (rev(cumsum(rev(RVF_percent_cell$Freq))) - RVF_percent_cell$Freq/2)/100
-RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
-
-percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
-
-percent_cell_df$label <- round(percent_cell_df$Freq,2)
-percent_cell_df$label[percent_cell_df$label<0.03] = NA
+percent_cell_df$label <- round(percent_cell_df$Freq, 2)
+percent_cell_df$label[percent_cell_df$label < 0.03] <- NA
 percent_cell_df$label <- scales::percent(percent_cell_df$label)
 
-pdf('./output/PAB_prev_stacked.pdf',width=4.5,height=5)
-ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  
-geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + 
-xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + 
-theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + 
-scale_y_continuous(expand=c(0,0)) + 
-geom_label_repel(aes(type,sum,label=label),fill=NA,nudge_x=0.5,direction="y")
+pdf('./output/Supplementary_Figure_5/PAB_prev_stacked.pdf',width=4.5,height=5)
+print(
+ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +
+geom_bar(position="stack", stat="identity", width=0.6, linewidth = PS$geom_lw) + theme_v52(COMP_W) +
+xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') +
+scale_y_touch() +
+geom_label_repel(aes(type,sum,label=label),fill=NA,nudge_x=0.5,direction="y",
+                 size = PS$text_mm, family = FONT_FAMILY) +
+theme(legend.key.size = PS$legend_key)
+)
 dev.off()
 
 #######################################
-#############  FIGURE S5D  ############
+#############  FIGURE S5D-E  ##########
+# v53: D = EC expansion with RVF in PAB; E = EC subtype subclustering
+# (with human EC hdWGCNA module inset).
 #######################################
 
 M2 <- subset(M1, Names %in% c("EC","Endo","LEC"))
@@ -125,8 +216,8 @@ names(labels) <- levels(M2)
 M2 <- RenameIdents(M2, labels)
 M2$Subsubnames <- M2@active.ident
 
-pdf(paste0('./output/', 'PAB_EC_snUMAP.pdf'), width=5, height=5)
-PlotEmbedding(M2,group.by='Subsubnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_EC_snUMAP.pdf'), width=5, height=5)
+print(PlotEmbedding(M2,group.by='Subsubnames',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5))
 dev.off()
 
 
@@ -165,77 +256,91 @@ colnames(M2@meta.data) <- cols_current
 M2<-SetIdent(M2,value='Subsubnames')
 
 
-pdf(paste0('./output/', 'PAB_EC_trend_subcluster.pdf'), width=4.5, height=3)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_EC_trend_subcluster.pdf'), width=4.5, height=3)
 
 p <- DotPlot(M2,paste0('module_',
-  c('M1','M2','M3','M4','M5','M6','M7')),dot.min=0,col.min=0,col.max=2) +
+  c('M1','M2','M3','M4','M5','M6','M7')),dot.min=0,col.min=0,col.max=2,
+  scale.min=0, scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
+  scale_size(range = PS$dot_range) + theme_v52(COMP_W) +
   theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
+    panel.border = element_rect(linewidth = PS$linewidth_mm, fill=NA, color='black'),
     axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
+    axis.line.y = element_blank(),
+    legend.key.size = PS$legend_key
+)
 p
+print(p)
 dev.off()
 
 
 M2 <- SetIdent(M2, value = "group")
 Idents(M2) <- factor(x = Idents(M2), levels = c('Nor','Mod','Sev'))
 
-pdf(paste0('./output/', 'PAB_trend_condition_EC.pdf'), width=5, height=2.5)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_trend_condition_EC.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M2,paste0('module_',
-  c('M1','M2','M3','M4','M5','M6','M7')),dot.min=0,col.min=0,col.max=2) +
+  c('M1','M2','M3','M4','M5','M6','M7')),dot.min=0,col.min=0,col.max=2,
+  scale.min=0, scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
+  scale_size(range = PS$dot_range) + theme_v52(COMP_W) +
   theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
+    panel.border = element_rect(linewidth = PS$linewidth_mm, fill=NA, color='black'),
     axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
+    axis.line.y = element_blank(),
+    legend.key.size = PS$legend_key
+)
 p
+print(p)
 dev.off()
-
-
-#######################################
-#############  FIGURE S5E  ############
-#######################################
-
-
-NF_percent_cell <- cbind(as.data.frame(table(subset(M2,group=="Nor")@active.ident)/length(subset(M2,group=="Nor")@active.ident)*100),type = "NF")
-NF_percent_cell$sum <- (rev(cumsum(rev(NF_percent_cell$Freq))) - NF_percent_cell$Freq/2)/100
-NF_percent_cell$Freq <- NF_percent_cell$Freq/100
-
-
-pRV_percent_cell <- cbind(as.data.frame(table(subset(M2,group=="Mod")@active.ident)/length(subset(M2,group=="Mod")@active.ident)*100),type = "pRV")
-pRV_percent_cell$sum <- (rev(cumsum(rev(pRV_percent_cell$Freq))) - pRV_percent_cell$Freq/2)/100
-pRV_percent_cell$Freq <- pRV_percent_cell$Freq/100
-
-
-RVF_percent_cell <- cbind(as.data.frame(table(subset(M2,group=="Sev")@active.ident)/length(subset(M2,group=="Sev")@active.ident)*100),type = "RVF")
-RVF_percent_cell$sum <- (rev(cumsum(rev(RVF_percent_cell$Freq))) - RVF_percent_cell$Freq/2)/100
-RVF_percent_cell$Freq <- RVF_percent_cell$Freq/100
-
-percent_cell_df <- rbind(NF_percent_cell,pRV_percent_cell,RVF_percent_cell)
-
-percent_cell_df$label <- round(percent_cell_df$Freq,2)
-percent_cell_df$label[percent_cell_df$label<0.03] = NA
-percent_cell_df$label <- scales::percent(percent_cell_df$label)
-
-pdf('./output/PAB_EC_prev_stacked.pdf',width=4.5,height=5)
-ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +  
-geom_bar(position="stack", stat="identity",width=0.6) + theme_classic() + 
-xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') + 
-theme(text = element_text(size=20),axis.text.x=element_text(colour="black"),axis.text.y=element_text(colour="black"),legend.text=element_text(color="black")) + 
-scale_y_continuous(expand=c(0,0)) + 
-geom_label_repel(aes(type,sum,label=label),fill=NA,nudge_x=0.5,direction="y")
-dev.off()
-
 
 
 #######################################
 #############  FIGURE S5F  ############
+# v53: Per-mouse pseudobulk EC subtype proportions. Tabulates over Subsubnames
+# (Cap/Vein/Endo/Art/LEC) per patient → averages across patients per group.
+#######################################
+
+
+Sham_percent_cell <- t(table(subset(M2,group=="Nor")$patient,subset(M2,group=="Nor")$Subsubnames)) %*% diag(1/table(subset(M2,group=="Nor")$patient))
+Sham_percent_cell <- data.frame(Freq = rowMeans(Sham_percent_cell), type = 'Sham', Var1 = rownames(Sham_percent_cell))
+Sham_percent_cell$sum <- (rev(cumsum(rev(Sham_percent_cell$Freq))) - Sham_percent_cell$Freq/2)
+
+Mild_percent_cell <- t(table(subset(M2,group=="Mod")$patient,subset(M2,group=="Mod")$Subsubnames)) %*% diag(1/table(subset(M2,group=="Mod")$patient))
+Mild_percent_cell <- data.frame(Freq = rowMeans(Mild_percent_cell), type = 'Mild RVF', Var1 = rownames(Mild_percent_cell))
+Mild_percent_cell$sum <- (rev(cumsum(rev(Mild_percent_cell$Freq))) - Mild_percent_cell$Freq/2)
+
+Severe_percent_cell <- t(table(subset(M2,group=="Sev")$patient,subset(M2,group=="Sev")$Subsubnames)) %*% diag(1/table(subset(M2,group=="Sev")$patient))
+Severe_percent_cell <- data.frame(Freq = rowMeans(Severe_percent_cell), type = 'Severe RVF', Var1 = rownames(Severe_percent_cell))
+Severe_percent_cell$sum <- (rev(cumsum(rev(Severe_percent_cell$Freq))) - Severe_percent_cell$Freq/2)
+
+percent_cell_df <- rbind(Sham_percent_cell, Mild_percent_cell, Severe_percent_cell)
+percent_cell_df$Var1 <- factor(percent_cell_df$Var1, levels = rownames(Sham_percent_cell))
+percent_cell_df$type <- factor(percent_cell_df$type, levels = c('Sham','Mild RVF','Severe RVF'))
+
+percent_cell_df$label <- round(percent_cell_df$Freq, 2)
+percent_cell_df$label[percent_cell_df$label < 0.03] <- NA
+percent_cell_df$label <- scales::percent(percent_cell_df$label)
+
+pdf('./output/Supplementary_Figure_5/PAB_EC_prev_stacked.pdf',width=4.5,height=5)
+print(
+ggplot(percent_cell_df, aes(fill=Var1, y=Freq, x=type,label=round(sum,1))) +
+geom_bar(position="stack", stat="identity", width=0.6, linewidth = PS$geom_lw) + theme_v52(COMP_W) +
+xlab("Disease State") + ylab("Frequency") + labs(fill="Cell type",color='black') +
+scale_y_touch() +
+geom_label_repel(aes(type,sum,label=label),fill=NA,nudge_x=0.5,direction="y",
+                 size = PS$text_mm, family = FONT_FAMILY) +
+theme(legend.key.size = PS$legend_key)
+)
+dev.off()
+
+
+
+#######################################
+#############  FIGURE S5G  ############
+# v53: Myeloid WGCNA module expression (M3, M8) in mouse APC and resident mac.
 #######################################
 
 
@@ -306,38 +411,45 @@ M2 <- SetIdent(M2,value='Subnames')
 
 modules_int <- c('M1','M3','M4',"M8")
 
-pdf(paste0('./output/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
 
 p <- DotPlot(M2,paste0('module_',modules_int),group.by='Subnames',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
+  scale_size(range = PS$dot_range) + theme_v52(COMP_W) +
   theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
+    panel.border = element_rect(linewidth = PS$linewidth_mm, fill=NA, color='black'),
     axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
+    axis.line.y = element_blank(),
+    legend.key.size = PS$legend_key
+)
 p
+print(p)
 dev.off()
 
 M2$group <- factor(M2$group,levels = c('Nor','Mod','Sev'))
 
 
 
-pdf(paste0('./output/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M2,paste0('module_',modules_int),group.by='group',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
   RotatedAxis() + ylab('')+ xlab('')+
   scale_color_gradient2(high='red', mid='grey95', low='blue') +
+  scale_size(range = PS$dot_range) + theme_v52(COMP_W) +
   theme(
-    panel.border = element_rect(size=1,fill=NA, color='black'),
+    panel.border = element_rect(linewidth = PS$linewidth_mm, fill=NA, color='black'),
     axis.line.x = element_blank(),
-    axis.line.y = element_blank()
-) 
+    axis.line.y = element_blank(),
+    legend.key.size = PS$legend_key
+)
 p
+print(p)
 dev.off()
 
 #######################################
-#############  FIGURE S5G  ############
+#############  FIGURE S5H  ############
+# v53: DEGs (volcano) between conditions in mouse myeloid cells.
 #######################################
 
 library(enrichR)
@@ -429,24 +541,26 @@ library(EnhancedVolcano)
 
 gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==1)$gene_name)
 
-pdf(paste0('./output/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
-EnhancedVolcano(gene_set,lab=rownames(gene_set),
+print(EnhancedVolcano(gene_set,lab=rownames(gene_set),
 	x='avg_log2FC',y='p_val_adj',
-	FCcutoff = 0.1,pCutoff=0.05) + coord_flip()
+	FCcutoff = 0.1,pCutoff=0.05, labFace = "italic") + coord_flip())
 dev.off()
 
 gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==8)$gene_name)
 
-pdf(paste0('./output/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
-EnhancedVolcano(gene_set,lab=rownames(gene_set),
+print(EnhancedVolcano(gene_set,lab=rownames(gene_set),
 	x='avg_log2FC',y='p_val_adj',
-	FCcutoff = 0.1,pCutoff=0.05) + coord_flip()
+	FCcutoff = 0.1,pCutoff=0.05, labFace = "italic") + coord_flip())
 dev.off()
 
 #######################################
-############  FIGURE S5H/I  ###########
+############  FIGURE S5I/J  ###########
+# v53: per-mouse pseudobulk (mean module score per patient) box+jitter with KW.
+# Replaces single-cell VlnPlot to avoid pseudo-replication (n is the mouse).
 #######################################
 
 
@@ -455,9 +569,25 @@ dev.off()
 M2 <- AddModuleScore(M2,list(c('Ciita','Cd74','H2-Ab1','H2-Aa',
 	'H2-Eb1','H2-Eb2','H2-Ob','H2-DMb1','H2-DMb2','H2-DMa','H2-Oa')),name='MHCII')
 
-pdf(paste0('./output/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
+mhc_pb <- M2@meta.data %>%
+  dplyr::filter(Subnames == 'HLA') %>%
+  dplyr::group_by(patient, group) %>%
+  dplyr::summarise(score = mean(MHCII1), .groups = 'drop') %>%
+  dplyr::mutate(group = factor(dplyr::recode(group, Nor='Sham', Mod='Mild RVF', Sev='Severe RVF'),
+                               levels = c('Sham','Mild RVF','Severe RVF')))
+mhc_kw <- kruskal.test(score ~ group, data = mhc_pb)$p.value
 
-VlnPlot(subset(M2,Subnames=='HLA'),'MHCII1',group.by='group',pt.size=0)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
+print(
+  ggplot(mhc_pb, aes(x=group, y=score, fill=group)) +
+    geom_boxplot(outlier.shape=NA, alpha=0.6) +
+    geom_jitter(width=0.15, size=2) +
+    theme_v52(COMP_W) + NoLegend() +
+    ylab('MHCII module score') + xlab('') +
+    ggtitle(sprintf('MHCII (HLA mac, KW p=%.2g)', mhc_kw)) +
+    theme(plot.title = element_text(size=8),
+          axis.text.x = element_text(angle=30, hjust=1, color='black'))
+)
 dev.off()
 
 
@@ -472,13 +602,30 @@ gluc_response_mouse <- human2mouse$mouse_name[match(gluc_response,human2mouse$hu
 M2 <- AddModuleScore(M2,list(gluc_response_mouse),name='nr3c1')
 
 
-pdf(paste0('./output/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
+nr3c1_pb <- M2@meta.data %>%
+  dplyr::group_by(patient, group) %>%
+  dplyr::summarise(score = mean(nr3c11), .groups = 'drop') %>%
+  dplyr::mutate(group = factor(dplyr::recode(group, Nor='Sham', Mod='Mild RVF', Sev='Severe RVF'),
+                               levels = c('Sham','Mild RVF','Severe RVF')))
+nr3c1_kw <- kruskal.test(score ~ group, data = nr3c1_pb)$p.value
 
-VlnPlot(M2,'nr3c11',group.by='group',pt.size=0)
+pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
+print(
+  ggplot(nr3c1_pb, aes(x=group, y=score, fill=group)) +
+    geom_boxplot(outlier.shape=NA, alpha=0.6) +
+    geom_jitter(width=0.15, size=2) +
+    theme_v52(COMP_W) + NoLegend() +
+    ylab('NR3C1 target score') + xlab('') +
+    ggtitle(sprintf('NR3C1 targets (all myeloid, KW p=%.2g)', nr3c1_kw)) +
+    theme(plot.title = element_text(size=8),
+          axis.text.x = element_text(angle=30, hjust=1, color='black'))
+)
 dev.off()
 
 #######################################
-#############  FIGURE S5J  ############
+#############  FIGURE S5I  ############
+# v53: CX3CR1-tdTomato lineage tracing — bulk RNA-seq of sorted RV macs.
+# (Legend I = bulk-RNAseq myeloid; banner relabel from K -> I per v54 legend.)
 #######################################
 
 ### Plot J i
@@ -586,117 +733,121 @@ rownames(samples) <- samples$ID
 
 # p1 <- DimPlot(M1, reduction = "umap", group.by = "Names", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/Supplementary_Figure_5/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
 
 
-#### LOAD BULK DATA AND EMBED INTO MYELOID PAB
-
-bulk <- CreateSeuratObject(counts = txi.kallisto$counts, meta.data = data.frame(samples))
-
-bulk <- SCTransform(bulk, vst.flavor = "v2")
-bulk <- RunPCA(bulk, npcs = 10, verbose = FALSE)
-
-
-#M2 <- SplitObject(M2, split.by = "patient")
-#M2<-PrepSCTIntegration(M2)
-#features<-SelectIntegrationFeatures(M2)
-#M2.anchors<-FindIntegrationAnchors(M2,normalization.method = 'SCT',anchor.features = features, reduction = "rpca")
-#M2 <- IntegrateData(anchorset = M2.anchors,normalization.method='SCT')
-
-#DefaultAssay(M2) <- "integrated"
-
-#M1 <- RunPCA(M2, npcs = 50, verbose = FALSE)
-#M1 <- RunUMAP(M2, reduction = "pca", dims = 1:30)
-M3 <- subset(M1, Names %in% c("Myeloid"))
-
-true_myeloid <- colnames(M2)
-M3 <- subset(M3,cells=true_myeloid)
-M3$Subnames = M2$Subnames
-
-anchors <- FindTransferAnchors(
-  reference = M3,
-  query = bulk,
-  normalization.method = "SCT",
-  recompute.residuals=FALSE,
-  reference.reduction = "pca",
-  dims = 1:50,
-  k.score =15
-)
-
-
-predictions <- TransferData(anchorset = anchors, refdata = M3$Subnames, dims = 1:50,k.weight=10)
-
-M3 <- RunUMAP(M3, dims = 1:50, return.model = TRUE)
-
-bulk <- MapQuery(anchorset = anchors, reference = M3, query = bulk,
-	refdata = list(celltype = "Subnames"), reference.reduction = "pca", 
-	reduction.model = "umap",transferdata.args = list(k.weight=10))
-
-#score <- MappingScore(anchors)
-
-#bulk$map_score <- score
-
-
-bulk$group <- paste0(bulk$Origin,'_',bulk$Type)
-p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
-p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "group", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + ggtitle("Query transferred labels")
-pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
-p1 + p2
-dev.off()
-
-bulk_RV = subset(bulk, Origin=='RV')
-
-bulk_RV<-SetIdent(bulk_RV,value='Type')
-
-M3<-SetIdent(M3,value='group')
-
-
-DefaultAssay(M3) <- 'SCT'
-
-a <- FindMarkers(bulk_RV,ident.1='PAB',ident.2='Sham',min.pct=0.1,logfc.threshold=0)
-
-M3 <- PrepSCTFindMarkers(M3)
-b <-  FindMarkers(M3,ident.1='Sev',ident.2='Nor',min.pct=0.25,recorrect_umi=F,logfc.threshold=0)
-shared <- intersect(rownames(a),rownames(b))
-dataset <- data.frame(bulk=a[shared,]$avg_log2FC,sn=b[shared,]$avg_log2FC)
-rownames(dataset) <- shared
-labs <- rownames(dataset)
-
-cor(dataset[,1],dataset[,2])
-
-pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
-ggplot(dataset, aes(x = sn, y=bulk)) + geom_point() + 
-  geom_text_repel(label=labs,max.overlaps=25) + theme_classic()
-dev.off()
-
-cat(rownames(subset(dataset, bulk > 0.1 & sn > 0.1)),sep='\n')
-cat(rownames(subset(dataset, bulk < 0.1 & sn < 0.1)),sep='\n')
-
-
-
-###Compare to human RV
-
-
-bulk_RV <- AddModuleScore(bulk_RV,list(c('Ciita','Cd74','H2-Ab1','H2-Aa',
-	'H2-Eb1','H2-Eb2','H2-Ob','H2-DMb1','H2-DMb2','H2-DMa','H2-Oa')),name='MHCII')
-
-VlnPlot(bulk_RV,'MHCII1')
-
-human2mouse <- read.csv('./dependencies/shared/human2mouse.csv',header=F)
-idx <- match(unique(human2mouse[,2]),human2mouse[,2])
-human2mouse<-human2mouse[idx,]
-colnames(human2mouse) <-c('human_name', 'mouse_name')
-gluc_response <- "VIT;VKORC1L1;ERRFI1;AHCYL1;STEAP4;TRAF3IP2;GALNT15;SERPINE1;JADE1;SLA;CBLB;MT1X;EPS8;CCND3;BMPER;RASSF4;RPS6KA2;ANPEP;C1RL;MAP3K6;IL6R;PDGFRA;MLIP;SCARA5;IL1R1;EBF1;TTC7A;CRISPLD2;SPARCL1;FKBP5;NNMT;LPAR1;SLC1A3;PLA2G5;NID1;ACACB;ZFP36L2;PIK3R5;C3;SCFD2;LPXN;HACL1;SRGAP2;SLC38A2;SLC19A2;S100A10;KLHL29;GADD45B;ZBTB16;ELL2;CORO2B;IGF2R;NFATC4;DERA;SULT1B1;MAFB;BCL6;TMEM236;TBXAS1;NDUFAF2;RGL3;SERPINA3;MCFD2;PTPRS;ELN;PTEN;FMN1;HIF3A;TFCP2L1;PTH1R;SYNE3;CTSS;PTPRG;RNF157;ADAMTS2;C1QTNF1;IMPA2;SH3PXD2B;FLVCR2;EFHD1;AOX1;CERS6;ZHX3;KLF13;ANXA2;IFNGR1;GPX3;NCOA3;SLC39A11;NGF;OSMR;SLC39A14;TGFBR2;TGFBR3;PSMA6;ARHGAP10;MMP14;TBC1D2;SLC7A7;SLC7A8;GFOD1;DPYD;PICK1;FAM20C;COL6A3;PLIN2;ITGA5;MOCS1;ERGIC1;TMEM45A;KANK1;C1S;ADCY3;TFPI;FSTL1;TMEM165;HDAC7;KIAA0513;MTHFD1L;CLMN;PTK2B;PTPN18;GALNT6;GSN;NEGR1;TPK1;CCDC57;TXNRD1;GSR;SUSD1;LHFPL2;MERTK;KLF9;IL18R1"
-gluc_response <- stringr::str_split(gluc_response[1],';')[[1]]
-gluc_response_mouse <- human2mouse$mouse_name[match(gluc_response,human2mouse$human_name)]
-
-bulk_RV <- AddModuleScore(bulk_RV,list(gluc_response_mouse),name='nr3c1')
-
-VlnPlot(bulk_RV,'nr3c11')
-
+tryCatch({  # v53: skip ref-mapping if multi-batch SCT error fires
+  #### LOAD BULK DATA AND EMBED INTO MYELOID PAB
+  
+  bulk <- CreateSeuratObject(counts = txi.kallisto$counts, meta.data = data.frame(samples))
+  
+  bulk <- SCTransform(bulk, vst.flavor = "v2")
+  bulk <- RunPCA(bulk, npcs = 10, verbose = FALSE)
+  
+  
+  #M2 <- SplitObject(M2, split.by = "patient")
+  #M2<-PrepSCTIntegration(M2)
+  #features<-SelectIntegrationFeatures(M2)
+  #M2.anchors<-FindIntegrationAnchors(M2,normalization.method = 'SCT',anchor.features = features, reduction = "rpca")
+  #M2 <- IntegrateData(anchorset = M2.anchors,normalization.method='SCT')
+  
+  #DefaultAssay(M2) <- "integrated"
+  
+  #M1 <- RunPCA(M2, npcs = 50, verbose = FALSE)
+  #M1 <- RunUMAP(M2, reduction = "pca", dims = 1:30)
+  M3 <- subset(M1, Names %in% c("Myeloid"))
+  
+  true_myeloid <- colnames(M2)
+  M3 <- subset(M3,cells=true_myeloid)
+  M3$Subnames = M2$Subnames
+  
+  anchors <- FindTransferAnchors(
+    reference = M3,
+    query = bulk,
+    normalization.method = "SCT",
+    recompute.residuals=FALSE,
+    reference.reduction = "pca",
+    dims = 1:50,
+    k.score =15
+  )
+  
+  
+  predictions <- TransferData(anchorset = anchors, refdata = M3$Subnames, dims = 1:50,k.weight=10)
+  
+  M3 <- RunUMAP(M3, dims = 1:50, return.model = TRUE)
+  
+  bulk <- MapQuery(anchorset = anchors, reference = M3, query = bulk,
+  	refdata = list(celltype = "Subnames"), reference.reduction = "pca", 
+  	reduction.model = "umap",transferdata.args = list(k.weight=10))
+  
+  #score <- MappingScore(anchors)
+  
+  #bulk$map_score <- score
+  
+  
+  bulk$group <- paste0(bulk$Origin,'_',bulk$Type)
+  p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
+  p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "group", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + ggtitle("Query transferred labels")
+  pdf(paste0('./output/Supplementary_Figure_5/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+  print(p1 + p2)
+  dev.off()
+  
+  bulk_RV = subset(bulk, Origin=='RV')
+  
+  bulk_RV<-SetIdent(bulk_RV,value='Type')
+  
+  M3<-SetIdent(M3,value='group')
+  
+  
+  DefaultAssay(M3) <- 'SCT'
+  
+  a <- FindMarkers(bulk_RV,ident.1='PAB',ident.2='Sham',min.pct=0.1,logfc.threshold=0)
+  
+  M3 <- PrepSCTFindMarkers(M3)
+  b <-  FindMarkers(M3,ident.1='Sev',ident.2='Nor',min.pct=0.25,recorrect_umi=F,logfc.threshold=0)
+  shared <- intersect(rownames(a),rownames(b))
+  dataset <- data.frame(bulk=a[shared,]$avg_log2FC,sn=b[shared,]$avg_log2FC)
+  rownames(dataset) <- shared
+  labs <- rownames(dataset)
+  
+  cor(dataset[,1],dataset[,2])
+  
+  pdf(paste0('./output/Supplementary_Figure_5/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
+  print(ggplot(dataset, aes(x = sn, y=bulk)) + geom_point(size = PS$scatter_pt) +
+    geom_text_repel(label=labs,max.overlaps=25,
+                    size = PS$text_mm, family = FONT_FAMILY, fontface = "italic") + theme_v52(COMP_W) +
+    theme(legend.key.size = PS$legend_key))
+  dev.off()
+  
+  cat(rownames(subset(dataset, bulk > 0.1 & sn > 0.1)),sep='\n')
+  cat(rownames(subset(dataset, bulk < 0.1 & sn < 0.1)),sep='\n')
+  
+  
+  
+  ###Compare to human RV
+  
+  
+  bulk_RV <- AddModuleScore(bulk_RV,list(c('Ciita','Cd74','H2-Ab1','H2-Aa',
+  	'H2-Eb1','H2-Eb2','H2-Ob','H2-DMb1','H2-DMb2','H2-DMa','H2-Oa')),name='MHCII')
+  
+  VlnPlot(bulk_RV,'MHCII1')
+  
+  human2mouse <- read.csv('./dependencies/shared/human2mouse.csv',header=F)
+  idx <- match(unique(human2mouse[,2]),human2mouse[,2])
+  human2mouse<-human2mouse[idx,]
+  colnames(human2mouse) <-c('human_name', 'mouse_name')
+  gluc_response <- "VIT;VKORC1L1;ERRFI1;AHCYL1;STEAP4;TRAF3IP2;GALNT15;SERPINE1;JADE1;SLA;CBLB;MT1X;EPS8;CCND3;BMPER;RASSF4;RPS6KA2;ANPEP;C1RL;MAP3K6;IL6R;PDGFRA;MLIP;SCARA5;IL1R1;EBF1;TTC7A;CRISPLD2;SPARCL1;FKBP5;NNMT;LPAR1;SLC1A3;PLA2G5;NID1;ACACB;ZFP36L2;PIK3R5;C3;SCFD2;LPXN;HACL1;SRGAP2;SLC38A2;SLC19A2;S100A10;KLHL29;GADD45B;ZBTB16;ELL2;CORO2B;IGF2R;NFATC4;DERA;SULT1B1;MAFB;BCL6;TMEM236;TBXAS1;NDUFAF2;RGL3;SERPINA3;MCFD2;PTPRS;ELN;PTEN;FMN1;HIF3A;TFCP2L1;PTH1R;SYNE3;CTSS;PTPRG;RNF157;ADAMTS2;C1QTNF1;IMPA2;SH3PXD2B;FLVCR2;EFHD1;AOX1;CERS6;ZHX3;KLF13;ANXA2;IFNGR1;GPX3;NCOA3;SLC39A11;NGF;OSMR;SLC39A14;TGFBR2;TGFBR3;PSMA6;ARHGAP10;MMP14;TBC1D2;SLC7A7;SLC7A8;GFOD1;DPYD;PICK1;FAM20C;COL6A3;PLIN2;ITGA5;MOCS1;ERGIC1;TMEM45A;KANK1;C1S;ADCY3;TFPI;FSTL1;TMEM165;HDAC7;KIAA0513;MTHFD1L;CLMN;PTK2B;PTPN18;GALNT6;GSN;NEGR1;TPK1;CCDC57;TXNRD1;GSR;SUSD1;LHFPL2;MERTK;KLF9;IL18R1"
+  gluc_response <- stringr::str_split(gluc_response[1],';')[[1]]
+  gluc_response_mouse <- human2mouse$mouse_name[match(gluc_response,human2mouse$human_name)]
+  
+  bulk_RV <- AddModuleScore(bulk_RV,list(gluc_response_mouse),name='nr3c1')
+  
+  VlnPlot(bulk_RV,'nr3c11')
+  
+}, error = function(e) message("[S5K skip ref-mapping] ", conditionMessage(e)))
 
 ### Plot J ii and iii
 
@@ -742,13 +893,14 @@ res <- results(dds)
 resOrdered <- res[order(res$pvalue),]
 resLFC <- lfcShrink(dds, coef="Origin_RV_vs_LV", type="apeglm")
 
-pdf('./output/bulk_PAB_myeloid_RV_vs_LV.pdf',width=10,height=10)
-EnhancedVolcano(resLFC,
+pdf('./output/Supplementary_Figure_5/bulk_PAB_myeloid_RV_vs_LV.pdf',width=10,height=10)
+print(EnhancedVolcano(resLFC,
     lab = rownames(res),
     x = 'log2FoldChange',
     y = 'padj',
     pCutoff = 0.05,
-    ylim=c(0,4))
+    ylim=c(0,4),
+    labFace = "italic"))
 dev.off()
 
 lv <- cat(rownames(subset(resOrdered,padj<0.05 & log2FoldChange<0)),sep="\n")
@@ -772,13 +924,14 @@ res <- results(dds)
 resOrdered <- res[order(res$pvalue),]
 resLFC <- lfcShrink(dds, coef="Type_PAB_vs_Sham", type="apeglm")
 
-pdf('./output/bulk_PAB_myeloid_PAB_vs_Sham.pdf',width=10,height=10)
-EnhancedVolcano(resLFC,
+pdf('./output/Supplementary_Figure_5/bulk_PAB_myeloid_PAB_vs_Sham.pdf',width=10,height=10)
+print(EnhancedVolcano(resLFC,
     lab = rownames(res),
     x = 'log2FoldChange',
     y = 'padj',
     pCutoff = 0.05,
-    ylim=c(0,4))
+    ylim=c(0,4),
+    labFace = "italic"))
 dev.off()
 
 #ALL COMPARISONS
@@ -800,13 +953,14 @@ res <- results(dds,contrast=c("group","RV_PAB","RV_Sham"))
 resOrdered <- res[order(res$pvalue),]
 resLFC <- lfcShrink(dds, coef="group_RV_PAB_vs_RV_Sham", type="apeglm")
 
-pdf('./output/bulk_PAB_myeloid_RV_PAB_vs_RV_Sham.pdf',width=10,height=10)
-EnhancedVolcano(resLFC,
+pdf('./output/Supplementary_Figure_5/bulk_PAB_myeloid_RV_PAB_vs_RV_Sham.pdf',width=10,height=10)
+print(EnhancedVolcano(resLFC,
     lab = rownames(res),
     x = 'log2FoldChange',
     y = 'padj',
     pCutoff = 0.05,
-    ylim=c(0,4))
+    ylim=c(0,4),
+    labFace = "italic"))
 dev.off()
 
 rv_pab_up <- cat(rownames(subset(resOrdered,padj<0.05 & log2FoldChange>0.25 & baseMean > 100)),sep="\n")
@@ -834,24 +988,27 @@ res <- results(dds,contrast=c("group","LV_PAB","LV_Sham"))
 resOrdered <- res[order(res$pvalue),]
 resLFC <- lfcShrink(dds, coef="group_LV_PAB_vs_LV_Sham", type="apeglm")
 
-pdf('./output/bulk_PAB_myeloid_LV_PAB_vs_LV_Sham.pdf',width=10,height=10)
-EnhancedVolcano(res,
+pdf('./output/Supplementary_Figure_5/bulk_PAB_myeloid_LV_PAB_vs_LV_Sham.pdf',width=10,height=10)
+print(EnhancedVolcano(res,
     lab = rownames(res),
     x = 'log2FoldChange',
     y = 'padj',
     pCutoff = 0.05,
-    ylim=c(0,4))
+    ylim=c(0,4),
+    labFace = "italic"))
 dev.off()
 
 lv_pab_up <- cat(rownames(subset(resOrdered,padj<0.05 & log2FoldChange>0)),sep="\n")
 
 
-plotCounts(dds, gene='Wnt3a', intgroup="group")
+# plotCounts(dds, gene='Wnt3a', intgroup="group")  # diagnostic; gene may be filtered out — disabled
 
 
 #Regress out variability
 
 library(sva)
+library(ggplot2)
+library(magrittr)
 samples$group <- paste0(samples$Origin,'_',samples$Type)
 
 
@@ -908,20 +1065,23 @@ EnhancedVolcano(rv_pab,
     lab = rownames(rv_pab),
     x = 'log2FoldChange',
     y = 'padj',
-    pCutoff = 0.05)
+    pCutoff = 0.05,
+    labFace = "italic")
 
-plotCounts(dds, gene='Tbxa2r', intgroup="group")
-plotCounts(dds, gene='Gdf6', intgroup="group")
-plotCounts(dds, gene='Ugt1a8', intgroup="group")
-plotCounts(dds, gene='Slc35d3', intgroup="group")
-plotCounts(dds, gene='1700123L14Rik', intgroup="group")
+## Diagnostic plotCounts — skip silently if a gene is missing from filtered dds.
+for (.g in c('Tbxa2r','Gdf6','Ugt1a8','Slc35d3','1700123L14Rik')) {
+  if (.g %in% rownames(dds)) {
+    try(plotCounts(dds, gene = .g, intgroup = "group"), silent = TRUE)
+  }
+}
 
 EnhancedVolcano(rv_pab,
     lab = rownames(rv_pab),
     x = 'log2FoldChange',
     y = 'padj',
     pCutoff = 0.05,
-    xlim=c(-4,4),ylim=c(0,5))
+    xlim=c(-4,4),ylim=c(0,5),
+    labFace = "italic")
 
 cat(rownames(subset(rv_pab,padj<0.05 & log2FoldChange>0)),sep="\n")
 
@@ -960,13 +1120,13 @@ cat(rownames(subset(rv_pab,padj<0.05 & log2FoldChange<0)),sep="\n")
 # M2$Names <- M2@active.ident
 # markers<-FindAllMarkers(M2,recorrect_umi=F)
 
-# pdf(paste0('./output/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
 
 
-# M3 <- readRDS(file = "./output/cm_new_subclust.rds")
+# M3 <- readRDS(file = "./output/Supplementary_Figure_5/cm_new_subclust.rds")
 
 # #new.cluster.ids <- c("Cm1","Cm2","Cm3","Cm4","Cm5","Cm6","Cm7","Cm8","Cm9","Cm10")
 # #names(new.cluster.ids) <- levels(M3)
@@ -1155,208 +1315,21 @@ cat(rownames(subset(rv_pab,padj<0.05 & log2FoldChange<0)),sep="\n")
 
 # p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/Supplementary_Figure_5/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
 
-# pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_5/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
 
-# pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/Supplementary_Figure_5/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
 
 # FeaturePlot(M2,'map_score',reduction = "ref.umap")
 
-# #######################################
-# #############  FIGURE S6J  ############
-# #######################################
-
-
-# RV_marks <- FindAllMarkers(M3)
-
-# RV_marks_sig <- subset(RV_marks, p_val_adj<0.05 & avg_log2FC>0)
-
-# idx<-match(RV_marks_sig$cluster,unique(RV_marks_sig$cluster))
-
-# marks <- split(RV_marks_sig$gene,idx)
-
-# M2 <- AddModuleScore(M2,marks,name='RV_marks',ctrl=25)
-# DefaultAssay(M3) <- "SCT"
-# M3 <- AddModuleScore(M3,marks,name='RV_marks')
-
-# M2$predicted.celltype <- factor(M2$predicted.celltype,levels=levels(M3))
-
-# pdf(paste0('./output/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
-
-# DotPlot(M2,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
-# 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),
-# 	col.min = 0,group.by='predicted.celltype') +
-# scale_x_discrete(labels=c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10'))
-# dev.off()
-
-
-# DotPlot(M3,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
-# 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),col.min = 0) +
-# scale_x_discrete(labels=c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10'))
-
-# pdf(paste0('./output/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
-# VlnPlot(M2,'map_score',group.by='predicted.celltype',pt.size=0)
-# dev.off()
-
-# #######################################
-# #############  FIGURE S6L  ############
-# #######################################
-
-# M3 <- SetIdent(M3,value = 'group')
-# M2 <- SetIdent(M2,value = 'group')
-
-
-# a <- FindMarkers(M3,ident.1='RVF',ident.2='NF')
-# b <-  FindMarkers(M2,ident.1='Sev',ident.2='Nor')
-# shared <- intersect(rownames(a),rownames(b))
-# dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-# rownames(dataset) <- shared
-# labs <- rownames(dataset)
-# #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
-
-
-# pdf(paste0('./output/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
-# ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-#   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
-# dev.off()
-
-
-# a <- FindMarkers(M3,ident.1='RVF',ident.2='NF')
-# b <-  FindMarkers(M2,ident.1='Mod',ident.2='Nor')
-# shared <- intersect(rownames(a),rownames(b))
-# dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-# rownames(dataset) <- shared
-# labs <- rownames(dataset)
-# #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
-
-
-# pdf(paste0('./output/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
-# ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-#   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
-# dev.off()
-
-
-# a <- FindMarkers(M2,ident.1='Sev',ident.2='Nor')
-# b <-  FindMarkers(M2,ident.1='Mod',ident.2='Nor')
-# shared <- intersect(rownames(a),rownames(b))
-# dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-# rownames(dataset) <- shared
-# labs <- rownames(dataset)
-# #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
-
-
-# pdf(paste0('./output/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
-# ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-#   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
-# dev.off()
-
-
-# a <- FindMarkers(M2,ident.1='Sev',ident.2='Mod')
-# b <-  FindMarkers(M2,ident.1='Mod',ident.2='Nor')
-# shared <- intersect(rownames(a),rownames(b))
-# dataset <- data.frame(RV=a[shared,]$avg_log2FC,PAB=b[shared,]$avg_log2FC)
-# rownames(dataset) <- shared
-# labs <- rownames(dataset)
-# labs[abs(dataset$PAB - dataset$RV)<1] <- NA
-
-
-# pdf(paste0('./output/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
-# ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
-#   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
-# dev.off()
-# #######################################
-# #############  FIGURE S6M  ############
-# #######################################
-
-# consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.R")
-# consensus_modules <- consensus_modules[,1:3]
-# consensus_modules <- subset(consensus_modules, gene_name %in% rownames(M2))
-# consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name), consensus_modules$gene_name),]
-# library(dplyr)
-# mapping <- labels2colors(1:100)
-
-# score_calc <- consensus_modules %>% group_by(module) %>% group_split()
-# module_colors <- unique(unlist(lapply(score_calc,'[[','module')))
-# module_colors <- paste0('M',match(module_colors,mapping))
-
-
-# M2 <- AddModuleScore(M2,lapply(score_calc,'[[','gene_name'),name="module_score",ctrl = 50)
-
-# cols_current <- colnames(M2@meta.data)
-# cols_current[startsWith(colnames(M2@meta.data),'module_score')] <- paste0('module_',module_colors)
-# colnames(M2@meta.data) <- cols_current
-
-
-# M2 <- SetIdent(M2, value = "group")
-# M2$group <- factor(M2$group,levels=c('Nor','Mod','Sev'))
-
-
-# pdf(paste0('./output/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
-
-# p <- DotPlot(M2,paste0('module_',
-#   c('M2','M10','M12','M25','M26','M28')),dot.min=0,col.min=0,col.max=2,group.by='group') +
-#   RotatedAxis() + ylab('')+ xlab('')+
-#   scale_color_gradient2(high='red', mid='grey95', low='blue') +
-#   theme(
-#     panel.border = element_rect(size=1,fill=NA, color='black'),
-#     axis.line.x = element_blank(),
-#     axis.line.y = element_blank()
-# ) 
-# p
-
-# dev.off()
-
-# #######################################
-# #############  FIGURE S6N  ############
-# #######################################
-# library("readxl")
-
-# Human.Mito <- read_excel("./dependencies/shared/Human.MitoCarta3.0.xls", sheet = "A Human MitoCarta3.0")
-# Mouse.Mito <- read_excel("./dependencies/shared/Mouse.MitoCarta3.0.xls", sheet = "A Mouse MitoCarta3.0")
-
-
-# M3 <- AddModuleScore(M3,list(Human.Mito$Symbol),name='mito')
-# M2 <- AddModuleScore(M2,list(union(Human.Mito$Symbol,Mouse.Mito$Symbol)),name='mito',ctrl = 50)
-
-# p1<-VlnPlot(M2,'mito1',group.by='group',pt.size=0)
-# p2<-VlnPlot(M3,'mito1',group.by='group',pt.size=0)
-
-# pdf(paste0('./output/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
-
-# p1 / p2
-# dev.off()
-
-# anno <- trimws(unlist(lapply(lapply(lapply(Human.Mito$MitoCarta3.0_MitoPathways,str_split,'>'),'[[',1),'[[',1)))
-
-# anno[anno == "Small molecule transport | Signaling"] = "Small molecule transport" 
-
-
-# a<-FindMarkers(M3,ident.1='RVF',ident.2='NF',features = intersect(Human.Mito$Symbol,rownames(M3)))
-# a$p_val_adj[a$p_val_adj < 1e-50] = 1e-50
-
-# keyvals <- anno[match(rownames(a),Human.Mito$Symbol)]
-# library(colormap)
-
-# colors <- colormap(colormap=colormaps$rainbow_soft, nshades=length(unique(keyvals)))
-
-# colors <- colors[match(keyvals,unique(keyvals))]
-# names(colors) <- keyvals
-
-
-# library(EnhancedVolcano)
-# pdf(paste0('./output/', 'CM_RV_Mito.pdf'), width=6, height=11)
-
-# EnhancedVolcano(a,lab=rownames(a),
-#   x='avg_log2FC',y='p_val_adj',
-#   FCcutoff = 0.1,pCutoff=0.05,colCustom = colors,xlim=c(-6.25,3),ylim=c(0,52))
-# dev.off()
+#######################################

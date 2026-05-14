@@ -17,7 +17,7 @@ library(harmony)
 #M1 <- SetIdent(M1, value = "group")
 
 
-M1<-readRDS('./dependencies/shared/Post_R3_FINAL_with_counts.rds')
+M1<-readRDS('./dependencies/shared/RV_data.rds')
 M1 <- subset(M1, Names == 'CM')
 
 
