@@ -2,19 +2,33 @@
 
 **Human Adult and Pediatric Single-Nucleus Transcriptomic Atlas of Progression from Pressure Loaded to Failing Right Ventricle**
 
-*Kuznetsov IA, Li K, Guedira Y, Simonson B, Chaffin M, Bedi KC Jr., Thome T, Zhao W, Zhu W, Zhou W, Yang Y, Kadyrov F, Amrute JM, Lai L, Griffin J, Li L, Li J, Miyamoto SD, Ellinor P, Margulies KB, Lavine KJ, Arany Z\*, Edwards JJ\**
+*Ivan A. Kuznetsov¹, Kristina Li², Yasmine Guedira³, Bridget Simonson³, Mark Chaffin³, Yonathan T. Aberra⁴, Kenneth C. Bedi Jr.¹, Trace Thome¹, Yijun Yang¹, Kirsten Branch¹, Wencao Zhao¹, Wenkai Zhu², Wei Zhou¹, Farid Kadyrov⁵, Junedh M. Amrute⁵, Ling Lai¹, Joanna Griffin¹, Li Li¹, Jian Li¹, Shelley D. Miyamoto⁶, Patrick Ellinor³, Kenneth B. Margulies¹, Kory J. Lavine⁵, Zoltan Arany¹,\*,†, Jonathan J. Edwards⁴,\*,†*
+
+¹ Cardiovascular Institute, University of Pennsylvania, Philadelphia, PA, USA
+² Department of Bioengineering, University of Pennsylvania, Philadelphia, PA, USA
+³ Cardiovascular Disease Initiative, The Broad Institute, Cambridge, MA, USA
+⁴ Cardiovascular Institute, Children's Hospital of Philadelphia, Philadelphia, PA, USA
+⁵ Center for Cardiovascular Research, Department of Medicine, Cardiovascular Division, Washington University School of Medicine, St. Louis, MO, USA
+⁶ Department of Pediatrics, University of Colorado Anschutz Medical Campus, Children's Hospital Colorado, Aurora, CO, USA
+
+\* Contributed equally
+† Corresponding Authors: Jonathan J. Edwards (EdwardsJ6@chop.edu) and Zoltan Arany (zarany@pennmedicine.upenn.edu)
 
 ---
 
 ## About
 
-This repository contains the R analysis code used to generate all figures in the manuscript. The paper characterizes the transcriptional landscape of healthy, pressure-overloaded, and failing human right ventricles (RVs) using a multi-modal approach: bulk RNA-seq (n=142), single-nucleus RNA-seq (snRNA-seq; n=11 adult, n=14 pediatric), and spatial transcriptomics (10X Xenium). Key findings include:
+This repository contains the R analysis code used to generate all figures in the manuscript. The paper presents a multi-modal atlas of human RV pressure-loading and failure: bulk RNA-seq (n=142), single-nucleus RNA-seq (n=11 adult, n=14 pediatric) and Xenium spatial transcriptomics (n=9) in adults, plus a murine pulmonary-artery-banding (PAB) cohort. Subclustering resolved **34 cell subtypes across 12 lineages** along a **two-phase trajectory**:
 
-- **Cardiomyocytes** downregulate nuclear-encoded mitochondrial transcripts and show reduced mitochondrial respiration in RV failure (RVF)
-- **Myeloid cells** upregulate MHCII-associated genes, indicating a shift toward antigen presentation and a pro-inflammatory state in RVF
-- **Endothelial cells** expand in RVF, driven by capillary and arterial subtypes in adults and venous subtypes in pediatric hearts — an expansion not seen in left ventricular failure
-- A murine pulmonary artery-banding (PAB) model of RVF recapitulates EC expansion but diverges from human RVF in myeloid and cardiomyocyte transcriptional programs, cautioning against its uncritical use
-- Pediatric RVF (hypoplastic left heart syndrome) largely mirrors adult RVF transcriptionally, with notable differences in mitochondrial and endothelial programs
+- **Phase 1 (NF → pRV)** dominates bulk/nuclear signal: loss of resident-macrophage identity, fibroblast activation, and erosion of tissue-protective programs.
+- **Phase 2 (pRV → RVF)** is bulk-quiet but spatially rich: multi-lineage fibrotic, endothelial-activation, and cardiomyocyte-reactivation programs; ligand–receptor signaling shifts from homeostatic cadherin adhesion to TGFβ-driven fibrosis and chemotaxis.
+
+Key findings:
+
+- **Mitochondrial respirometry** confirms respiratory dysfunction in adult and murine RVF but is preserved in pediatric HLHS-palliated RVs.
+- **Cross-comparison with PAH-associated RVF** reveals shared mitochondrial and interferon signatures alongside etiology-specific macrophage differences.
+- **The PAB mouse** recapitulates EC expansion but diverges from human RVF in myeloid and cardiomyocyte programs, cautioning against uncritical translational use.
+- **Multi-lineage remodeling of the cardiac microenvironment** emerges as the central molecular program of RV disease.
 
 ## Repository purpose
 
@@ -56,29 +70,24 @@ The script renders informative placeholders in these positions when the files ar
 
 ### PREPROCESSING PIPELINE ###
 
-Raw CellBender-corrected H5 files are processed through a four-step pipeline in `preprocess_pipeline/` before figure generation. Steps must be run in order; each saves intermediate `.rds` files to `./output/`.
+Raw inputs are processed by two consolidated R scripts in `./preprocess_pipeline/`. (These replace an earlier four-step `STEP0`–`STEP3` pipeline; the consolidation preserves the same logic and outputs in a single script per modality.)
 
-**STEP1_Preprocess.R** — Per-sample QC, doublet scoring, and initial clustering
-Reads CellBender H5 files from `./dependencies/CellBender_Final/`. For each of the 11 adult samples (1343, 1392, 1467, 1561, 1567, 1618, 1632, 1681, 1691, 1692, 1697) it:
-- Assigns disease group labels: NF (non-failing), pRV (pressure-overloaded RV), or RVF (RV failure)
-- Computes per-nuclei QC metrics: mitochondrial fraction (`percent.mt`), exonic fraction (`percent.exon`), and transcriptional entropy using `scrinvex` output and the `ndd` Python library
-- Scores doublets using Scrublet (via `reticulate`; requires the `scrublet` conda environment)
-- Clusters each sample individually and removes low-quality nuclei using IQR-based outlier thresholds on `percent.mt`, `percent.exon`, and entropy — applied per cluster
-- Applies a second outlier-removal pass using sklearn's `EllipticEnvelope` (contamination = 0.05) on the three QC metrics jointly
-- Applies hard cutoffs: `nFeature_RNA > 200`, `percent.mt < 1`, `entropy > 5`, `percent.exon < 0.25`
-- Outputs: `./output/dataset_post_clipping_qc.rds`
+**`preprocess_pipeline/preprocess_sn.R`** — Full snRNA-seq preprocessing (4 internal steps)
+Reads CellBender-corrected H5 files from `./dependencies/CellBender_Final/{patient_id}_filtered.h5` (11 adult patients: 1343, 1392, 1467, 1561, 1567, 1618, 1632, 1681, 1691, 1692, 1697). Estimated RAM: 256 GB recommended for the cell-type-resolved stages.
+- **STEP 1** — Per-patient QC, Scrublet doublet scoring (via `reticulate`), and ambient-gene clipping. QC metrics: `percent.mt`, `percent.exon`, transcriptional entropy (`ndd`); IQR-based per-cluster outlier removal + sklearn `EllipticEnvelope` joint outlier pass; hard cutoffs `nFeature_RNA > 200`, `percent.mt < 1`, `entropy > 5`, `percent.exon < 0.25`. → `dataset_post_clipping_qc.rds`
+- **STEP 2** — SCTransform + Harmony patient integration (80 PCs; UMAP + Leiden). → `BroadData_Harmony_SCTransform_with_Doublets.rds`
+- **STEP 3** — Per-lineage subclustering (12 cell types: CM, FB, EC, Endo, Adipo, Myeloid, SM, Neuron, Epi, LEC, PC, NKT) with marker-based doublet removal across three rounds; manual `CellSelector` cleanup in round 2. → per-lineage RDS in `CellTypes/` plus `CellTypes/integrated_no_doublets.rds`
+- **STEP 4** — DecontX ambient-RNA removal (`celda`) with cell-type + patient-batch priors; new `decontXcounts` assay; re-merge + Harmony re-integration; final three-round cell-type cleanup. → `Post_R3_FINAL.rds` (shipped to figure scripts as `./dependencies/shared/RV_data.rds`)
 
-**STEP0_Integration.R** — Cross-sample integration with Harmony
-Reads `./output/dataset_post_clipping_qc.rds`. For each sample applies SCTransform (regressing out `percent.mt`), PCA (80 PCs), and UMAP. Merges all 11 samples, selects 2,000 integration features, and runs Harmony batch correction on patient ID. Re-embeds with UMAP and Leiden clustering.
-Outputs: `./output/BroadData_Harmony_SCTransform_with_Doublets.rds`
-
-**STEP2_Doublet_removal.R** — Cell-type isolation and doublet purification
-Reads the Harmony-integrated object. Iteratively extracts each of 12 cell types (CM, FB, EC, Endocardial, Adipo, Myeloid, SM, Neuron, Epicardial, LEC, PC, NKT, Proliferating) by their cluster identities, re-clusters each subset with SCTransform + Harmony, and removes contaminating nuclei identified by canonical marker expression (e.g., VWF for EC contamination in CMs, DCN for fibroblast contamination). A second round of refinement is performed after merging all clean cells. The process runs for three rounds total, with manual cell selection (`CellSelector`) used for fine-grained cleanup in round 2.
-Outputs per cell type to `./output/CellTypes/` and final cleaned object to `./output/CellTypes/integrated_no_doublets.rds`
-
-**STEP3_Decontaminate_ambient.R** — Ambient RNA removal and final integration
-Reads `./output/CellTypes/integrated_no_doublets.rds`. Converts to SingleCellExperiment and runs `decontX` (from the `celda` package) with cell-type and patient-batch labels to model and remove ambient RNA contamination. The decontaminated count matrix is stored as a new `decontXcounts` assay. Samples are split, re-merged, and re-integrated with SCTransform + Harmony. A final three-round cell-type re-extraction and cleanup produces the publication-ready object.
-Final output: `./output/Post_R3_FINAL.rds` (used as `./dependencies/shared/RV_data.rds` by figure scripts)
+**`preprocess_pipeline/preprocess_xenium.R`** — Full Xenium spatial transcriptomics preprocessing (7 internal steps)
+Estimated RAM: 256 GB recommended (BPCells on-disk merge).
+- **STEP 1** — Convert Proseg-resegmented SpatialData zarr stores to per-patient Seurat RDS (`spatialdata2seurat.py`, shell).
+- **STEP 2** — Merge multi-region sub-sections per patient (`transfer_seg_idents.py`, shell).
+- **STEP 3** — Per-patient Harmony integration → `Xenium_resegmented_corrected.rds`.
+- **STEP 4** — RCTD cell-type annotation in doublet mode, using `Post_R3_FINAL.rds` as reference.
+- **STEP 5** — BPCells on-disk merge + SpaGE gene imputation + Harmony integration → `Xenium_resegmented_imputed_final.rds`.
+- **STEP 6** — MapQuery projection of imputed cells onto the corrected UMAP.
+- **STEP 7** — CellNEST cell–cell communication export (`seurat2cellnest.py`, shell).
 
 ---
 

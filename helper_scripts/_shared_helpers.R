@@ -183,8 +183,10 @@ italic_gene_axis <- function(axis = c('y', 'x')) {
 }
 
 ## ── Asset directory for cropped cartoons / external panels ────────────────
+## Default path; insert_asset() uses file.exists() so missing assets fall back
+## to placeholder. Not auto-created — leaving a stray ./new_scripts/assets/
+## around when the user has otherwise removed new_scripts/ is noise.
 ASSET_DIR <- './new_scripts/assets'
-dir.create(ASSET_DIR, showWarnings = FALSE, recursive = TRUE)
 
 ## Insert a cropped asset image as a ggplot grob for patchwork composition.
 ## asset_file: filename inside ASSET_DIR (e.g., "Figure_1_heart_cartoon.png")
