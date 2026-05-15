@@ -8,8 +8,8 @@
 ##   conda activate rv_atlas
 ##
 ## After activation, install packages NOT available (or unsolvable) on conda channels:
-##   Rscript -e 'BiocManager::install(c("decoupleR","OmnipathR","WGCNA"), update = FALSE, ask = FALSE)'
-##   Rscript -e 'install.packages(c("colormap","harmony"), repos = "https://cloud.r-project.org")'
+##   Rscript -e 'BiocManager::install(c("decoupleR","OmnipathR","WGCNA","rhdf5"), update = FALSE, ask = FALSE)'
+##   Rscript -e 'install.packages(c("colormap","harmony","ashr","ClusterR"), repos = "https://cloud.r-project.org")'
 ##   Rscript -e 'remotes::install_github("smorabit/hdWGCNA",        ref = "dev")'
 ##   Rscript -e 'remotes::install_github("satijalab/seurat-wrappers")'
 ##   Rscript -e 'remotes::install_github("bnprks/BPCells",          subdir = "r")'

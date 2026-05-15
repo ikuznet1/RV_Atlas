@@ -392,6 +392,15 @@ options(future.globals.maxSize = 16 * 1024^3)
 .cm_recluster_path  <- './output/Supplementary_Figure_2/cm_subclust_new_new.rds'
 .cm_stage2_path     <- './output/Supplementary_Figure_2/cm_subclust_stage2.rds'
 .cm_high_res_path   <- './output/Supplementary_Figure_2/cm_subclust_high_res.rds'
+
+## Skip ALL 3 regeneration stages if the canonical cm_subclust_new_new.rds is
+## already provided in dependencies/shared/ (the common case). Stages 1+2 are
+## intermediates; we only need them to produce stage 3.
+.cm_canonical_dep <- './dependencies/shared/cm_subclust_new_new.rds'
+.have_canonical_cm <- file.exists(.cm_canonical_dep)
+if (.have_canonical_cm) {
+  message('Canonical cm_subclust_new_new.rds found in dependencies — skipping CM rebuild stages 1-3.')
+}
 .cm_high_res_marks  <- './output/Supplementary_Figure_2/cm_recluster_high_res_markers.csv'
 
 # Manual cluster identity assignment (from marker review of cm_recluster_cleaned_markers.csv).
@@ -426,7 +435,7 @@ options(future.globals.maxSize = 16 * 1024^3)
 .doublet_cluster_ids <- c('10','11','18','19','20')   # 10=fibroblast/Schwann, 11=endothelial (VWF/PECAM1), 18=macrophage (CD163/MRC1/F13A1), 19=pericyte/SMC (RGS5/PDGFRB/CARMN), 20=pericyte/SMC (CARMN/LDB2/PLA2G5/EBF1)
 
 # ---------- Stage 1: heavy SCT / PCA / Harmony / high-res clustering -------
-if (!file.exists(.cm_high_res_path)) {
+if (!.have_canonical_cm && !file.exists(.cm_high_res_path)) {
   cat('=== Stage 1: building', .cm_high_res_path, '(heavy: 30-60 min) ===\n')
 
   RV_data <- readRDS('./dependencies/shared/RV_data.rds')
@@ -484,7 +493,7 @@ if (!file.exists(.cm_high_res_path)) {
 
 # ---------- Stage 2: drop doublets, re-integrate, FindAllMarkers ----------
 # No hclust merging — final cluster unification is done manually in Stage 3.
-if (!file.exists(.cm_stage2_path)) {
+if (!.have_canonical_cm && !file.exists(.cm_stage2_path)) {
   cat('=== Stage 2: re-integrate cleaned cells ===\n')
   RV_data <- readRDS(.cm_high_res_path)
 
@@ -543,7 +552,7 @@ if (!file.exists(.cm_stage2_path)) {
 # transcriptionally closest to cluster 0 (Pearson 0.996, lowest Euclidean).
 # Merge it in, renumber 0..9, run FindAllMarkers on the final 10 clusters,
 # and apply CM_* biological labels to $Subnames.
-if (!file.exists(.cm_recluster_path)) {
+if (!.have_canonical_cm && !file.exists(.cm_recluster_path)) {
   cat('=== Stage 3: merge 1 → 0, label, FindAllMarkers ===\n')
   RV_data <- readRDS(.cm_stage2_path)
 
@@ -593,7 +602,8 @@ if (!file.exists(.cm_recluster_path)) {
 ##############################################
 ##############################################
 
-.cm_cache_for_inset <- './output/Supplementary_Figure_2/cm_subclust_new_new.rds'
+## Prefer the canonical dep; fall back to S2's regenerated output if present.
+.cm_cache_for_inset <- if (file.exists('./dependencies/shared/cm_subclust_new_new.rds')) './dependencies/shared/cm_subclust_new_new.rds' else './output/Supplementary_Figure_2/cm_subclust_new_new.rds'
 if (file.exists(.cm_cache_for_inset)) {
   message('Figure S2A inset: loading cached CM subcluster object')
   .cm_for_inset <- readRDS(.cm_cache_for_inset)
@@ -643,7 +653,13 @@ RV_data <- RunUMAP(RV_data, reduction = 'harmony', dims = 1:30)
 RV_data <- FindNeighbors(RV_data, reduction = 'harmony', dims = 1:30)
 RV_data <- FindClusters(RV_data, resolution = 0.3)
 
-RV_data <- subset(RV_data, idents = c('4', '8'), invert = TRUE)
+## Only remove clusters that actually exist (Louvain cluster count varies by run)
+.bad_clusters <- intersect(c('4', '8'), levels(Idents(RV_data)))
+if (length(.bad_clusters) > 0) {
+  RV_data <- subset(RV_data, idents = .bad_clusters, invert = TRUE)
+} else {
+  message('S2 cleanup pass 1: clusters 4/8 not present in current Louvain output — skipping.')
+}
 
 RV_data <- SCTransform(RV_data, vst.flavor = 'v2', assay = 'decontXcounts',
                        vars.to.regress = c('nFeature_RNA', 'percent.mt'))
@@ -653,7 +669,12 @@ RV_data <- FindNeighbors(RV_data, reduction = 'harmony', dims = 1:30)
 RV_data <- RunUMAP(RV_data, reduction = 'harmony', dims = 1:30)
 RV_data <- FindClusters(RV_data, resolution = 0.3)
 
-RV_data <- subset(RV_data, idents = c('8'), invert = TRUE)
+.bad_clusters <- intersect(c('8'), levels(Idents(RV_data)))
+if (length(.bad_clusters) > 0) {
+  RV_data <- subset(RV_data, idents = .bad_clusters, invert = TRUE)
+} else {
+  message('S2 cleanup pass 2: cluster 8 not present in current Louvain output — skipping.')
+}
 
 feats <- setdiff(rownames(RV_data), c('XIST','TTTY14','TTTY10','UTY'))
 feats <- setdiff(feats, grep('^LINC', feats, value = TRUE))
@@ -707,7 +728,7 @@ dev.off()
 ##############################################
 ##############################################
 
-RV_data <- readRDS('./output/Supplementary_Figure_2/cm_subclust_new_new.rds')
+RV_data <- readRDS('./dependencies/shared/cm_subclust_new_new.rds')
 
 # Markers in cm_label_map order (CM_Baseline..CM_NPP). Reduced to one per
 # subtype where the second marker was non-specific (per review).
@@ -781,7 +802,7 @@ dev.off()
 
 library(enrichR)
 
-M1 <- readRDS(file = './output/Supplementary_Figure_2/cm_subclust_new_new.rds')
+M1 <- readRDS(file = './dependencies/shared/cm_subclust_new_new.rds')
 a  <- FindAllMarkers(M1)
 
 dbs <- c('GO_Biological_Process_2023','GO_Cellular_Component_2021',
@@ -891,7 +912,7 @@ dev.off()
 ##############################################
 ##############################################
 
-seurat_ref <- readRDS(file = './output/Supplementary_Figure_2/cm_subclust_new_new.rds')
+seurat_ref <- readRDS(file = './dependencies/shared/cm_subclust_new_new.rds')
 seurat_ref <- SetIdent(seurat_ref, value = 'Subnames')
 
 modules_up   <- c('M2','M12','M28')
@@ -944,7 +965,7 @@ dev.off()
 
 suppressPackageStartupMessages(library(readxl))
 
-RV_data <- readRDS('./output/Supplementary_Figure_2/cm_subclust_new_new.rds')
+RV_data <- readRDS('./dependencies/shared/cm_subclust_new_new.rds')
 
 .mc_path <- './dependencies/shared/Human.MitoCarta3.0.xls'
 mito_genes_all <- tryCatch({
@@ -1004,7 +1025,7 @@ dev.off()
 # HMGCS2 violin + ketogenesis / FAO / glycolysis / OXPHOS gene-set scores
 # across the 10 snRNA CM subtypes. Anchors the metabolic-loss axis.
 
-RV_data <- readRDS('./output/Supplementary_Figure_2/cm_subclust_new_new.rds')
+RV_data <- readRDS('./dependencies/shared/cm_subclust_new_new.rds')
 
 ketogenesis_genes <- c('HMGCS2','BDH1','BDH2','OXCT1','OXCT2','ACAT1','HMGCL','ACAT2','ACSS2')
 fao_genes         <- c('CPT1A','CPT1B','CPT2','ACADM','ACADL','ACADVL','ACADS','HADHA','HADHB','ECH1','ECHS1','ACAA2','ACSL1','ACSL3','SLC25A20','PPARA')
@@ -1050,7 +1071,7 @@ dev.off()
 # Both surface in CM_HAND2 and expand with disease — one of the three
 # disease-induced stress-reactivation axes.
 
-RV_data <- readRDS('./output/Supplementary_Figure_2/cm_subclust_new_new.rds')
+RV_data <- readRDS('./dependencies/shared/cm_subclust_new_new.rds')
 
 # Composite Subnames × group identity for a 30-row × 2-column dot plot.
 RV_data$Subnames_group <- factor(
@@ -1071,6 +1092,12 @@ dev.off()
 
 ##############################################
 ##############################################
+## Supplementary: CM sn_subtype spatial tiles (Figure 3D-style composite).
+## This block depends on `.df` / `.df_nb` / `.legend_grob` / `sn_cols` which
+## are constructed in the NPPA/NPPB section further below — earlier cleanup
+## passes left this render block ahead of its inputs. Wrapped in tryCatch so
+## the ordering issue can't halt S2's lettered panels (A-J already written).
+tryCatch({
   ## Figure 3D-style composite (NF/pRV/RVF columns, single physical scale,
   ## tiles sized to FULL tissue bboxes so cross-tissue scale is comparable).
   .tissue_bboxes <- .get_xenium_tissue_bboxes()
@@ -1099,7 +1126,9 @@ dev.off()
   }
 
   cat('  per-patient sn_subtype tiles in', .tile_dir, '\n')
-}
+}, error = function(e) {
+  message('Supplementary CM sn_subtype spatial tiles skipped: ', conditionMessage(e))
+})
 
 
 ##############################################

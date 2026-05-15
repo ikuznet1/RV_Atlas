@@ -108,7 +108,7 @@ consensus_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
 consensus_modules <- consensus_modules[,1:3]
 
 
-seurat_ref <- readRDS('./output/Supplementary_Figure_2/cm_subclust_new_new.rds')
+seurat_ref <- readRDS('./dependencies/shared/cm_subclust_new_new.rds')
 
 # Gene-presence filter deferred until cm_subclust_new_new is loaded:
 # AddModuleScore (called below) only scores genes in rownames(seurat_ref),
@@ -136,7 +136,7 @@ seurat_ref@meta.data <- cbind(seurat_ref@meta.data, MEs[idx,])
 
 
 
-.cache_module_score <- './output/Figure_5/fig4_module_score_cache.rds'
+.cache_module_score <- './output/Figure_5/fig5_module_score_cache.rds'
 if (file.exists(.cache_module_score)) {
   message('Loading cached AddModuleScore columns...')
   .module_score_cols <- readRDS(.cache_module_score)
@@ -166,7 +166,7 @@ if (file.exists(.cache_module_score)) {
 .cm_dot_color <- scale_color_gradient(low = 'grey95', high = 'red',
                                       limits = c(0, 2), name = 'Avg Exp')
 
-pdf(paste0('./output/Figure_5/', 'CM_dot_subclust_up.pdf'), width=5, height=5)
+pdf(paste0('./output/Figure_5/', 'Figure_5_panel_A_dot_subclust_up.pdf'), width=5, height=5)
 
 print({
 p <- DotPlot(seurat_ref,paste0('module_',modules_up),group.by='Subnames',dot.min=0,col.min=0,col.max=2) +
@@ -178,7 +178,7 @@ p
 })
 dev.off()
 
-pdf(paste0('./output/Figure_5/', 'CM_dot_subclust_down.pdf'), width=5, height=5)
+pdf(paste0('./output/Figure_5/', 'Figure_5_panel_A_dot_subclust_down.pdf'), width=5, height=5)
 
 print({
 p <- DotPlot(seurat_ref,paste0('module_',modules_down),group.by='Subnames',dot.min=0,col.min=0,col.max=2) +
@@ -195,7 +195,7 @@ seurat_ref <- SetIdent(seurat_ref, value = "group")
 my_levels <- c("NF","pRV","RVF")
 Idents(seurat_ref) <- factor(Idents(seurat_ref), levels= my_levels)
 
-pdf(paste0('./output/Figure_5/', 'sc_seurat_RV_trend_CM.pdf'), width=4.5, height=2)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_sc_trend_CM.pdf'), width=4.5, height=2)
 
 print({
 p <- DotPlot(seurat_ref,paste0('module_',
@@ -211,7 +211,7 @@ dev.off()
 seurat_ref <- SetIdent(seurat_ref, value = "Subnames")
 
 
-pdf(paste0('./output/Figure_5/', 'sc_seurat_RV_trend_CM_subnames.pdf'), width=4.5, height=5)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_sc_trend_CM_subnames.pdf'), width=4.5, height=5)
 
 print({
 p <- DotPlot(seurat_ref,paste0('module_',
@@ -234,7 +234,7 @@ dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_
 
 
 #Run enrichment by cell type
-.cache_4B <- './output/Figure_5/fig4_4B_findmarkers_enrichr_cache.rds'
+.cache_4B <- './output/Figure_5/fig5_4B_findmarkers_enrichr_cache.rds'
 if (file.exists(.cache_4B)) {
   message('Loading cached Fig4B FindMarkers + enrichR results...')
   .cache_4B_data <- readRDS(.cache_4B)
@@ -431,7 +431,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/Figure_5/', 'CM_by_cluster_terms_cell_type_up_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/Figure_5/', 'Figure_5_panel_B_GO_modules_up.pdf'), width=6, height=4)
 print({
 p / colorbar
 })
@@ -549,7 +549,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/Figure_5/', 'CM_by_cluster_terms_cell_type_down_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/Figure_5/', 'Figure_5_panel_B_GO_modules_down.pdf'), width=6, height=4)
 print({
 p / colorbar
 })
@@ -665,7 +665,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/Figure_5/', 'CM_by_cluster_terms_cell_type_both_RVF_vs_NF.pdf'), width=6, height=4)
+pdf(paste0('./output/Figure_5/', 'Figure_5_panel_B_GO_modules_both.pdf'), width=6, height=4)
 print({
 p / colorbar
 })
@@ -685,7 +685,7 @@ bulk_modules$module <- match(bulk_modules$module,mapping)
 #RVF vs NF
 Idents(seurat_ref) <- "group"
 
-.cache_4C_NF <- './output/Figure_5/fig4_4C_findmarkers_RVF_vs_NF_cache.rds'
+.cache_4C_NF <- './output/Figure_5/fig5_4C_findmarkers_RVF_vs_NF_cache.rds'
 if (file.exists(.cache_4C_NF)) {
   message('Loading cached Fig4C FindMarkers (RVF vs NF)...')
   combined_set <- readRDS(.cache_4C_NF)
@@ -731,7 +731,7 @@ wrapText <- function(x, len) {
     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-.cache_enrichr_M2_up_NF <- './output/Figure_5/fig4_enrichr_M2_genes_up_RVF_vs_NF_cache.rds'
+.cache_enrichr_M2_up_NF <- './output/Figure_5/fig5_enrichr_M2_genes_up_RVF_vs_NF_cache.rds'
 if (file.exists(.cache_enrichr_M2_up_NF)) {
   message('Loading cached enrichR M2_genes_up (RVF vs NF)...')
   enriched <- readRDS(.cache_enrichr_M2_up_NF)
@@ -740,7 +740,7 @@ if (file.exists(.cache_enrichr_M2_up_NF)) {
   saveRDS(enriched, .cache_enrichr_M2_up_NF)
 }
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/Figure_5/CM_RV_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/Figure_5/Figure_5_panel_C_M2_up_RVF_vs_NF.pdf',width=5,height=2.5)
 print({
 p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
@@ -758,7 +758,7 @@ p1
 dev.off()
 
 
-.cache_enrichr_M12_up_NF <- './output/Figure_5/fig4_enrichr_M12_genes_up_RVF_vs_NF_cache.rds'
+.cache_enrichr_M12_up_NF <- './output/Figure_5/fig5_enrichr_M12_genes_up_RVF_vs_NF_cache.rds'
 if (file.exists(.cache_enrichr_M12_up_NF)) {
   message('Loading cached enrichR M12_genes_up (RVF vs NF)...')
   enriched <- readRDS(.cache_enrichr_M12_up_NF)
@@ -767,7 +767,7 @@ if (file.exists(.cache_enrichr_M12_up_NF)) {
   saveRDS(enriched, .cache_enrichr_M12_up_NF)
 }
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/Figure_5/CM_RV_M12_enrichr_up_solo.pdf',width=5,height=2.5)
+pdf('./output/Figure_5/Figure_5_supp_M12_enrichr_up_solo.pdf',width=5,height=2.5)
 print({
 p2<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
@@ -784,13 +784,13 @@ p2
 })
 dev.off()
 
-pdf('./output/Figure_5/CM_RV_M12_enrichr_up.pdf',width=5,height=5)
+pdf('./output/Figure_5/Figure_5_supp_M12_enrichr_up.pdf',width=5,height=5)
 print({
 p1/p2
 })
 dev.off()
 
-.cache_enrichr_M2_down_NF <- './output/Figure_5/fig4_enrichr_M2_genes_down_RVF_vs_NF_cache.rds'
+.cache_enrichr_M2_down_NF <- './output/Figure_5/fig5_enrichr_M2_genes_down_RVF_vs_NF_cache.rds'
 if (file.exists(.cache_enrichr_M2_down_NF)) {
   message('Loading cached enrichR M2_genes_down (RVF vs NF)...')
   enriched <- readRDS(.cache_enrichr_M2_down_NF)
@@ -798,7 +798,7 @@ if (file.exists(.cache_enrichr_M2_down_NF)) {
   enriched <- .safe_enrichr(M2_genes_down, dbs)
   saveRDS(enriched, .cache_enrichr_M2_down_NF)
 }
-pdf('./output/Figure_5/CM_RV_M2_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/Figure_5/Figure_5_panel_C_M2_down_RVF_vs_NF.pdf',width=5,height=2.5)
 print({
 p3<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
@@ -816,7 +816,7 @@ p3
 dev.off()
 
 
-.cache_enrichr_M12_down_NF <- './output/Figure_5/fig4_enrichr_M12_genes_down_RVF_vs_NF_cache.rds'
+.cache_enrichr_M12_down_NF <- './output/Figure_5/fig5_enrichr_M12_genes_down_RVF_vs_NF_cache.rds'
 if (file.exists(.cache_enrichr_M12_down_NF)) {
   message('Loading cached enrichR M12_genes_down (RVF vs NF)...')
   enriched <- readRDS(.cache_enrichr_M12_down_NF)
@@ -824,7 +824,7 @@ if (file.exists(.cache_enrichr_M12_down_NF)) {
   enriched <- .safe_enrichr(M12_genes_down, dbs)
   saveRDS(enriched, .cache_enrichr_M12_down_NF)
 }
-pdf('./output/Figure_5/CM_RV_M12_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/Figure_5/Figure_5_supp_M12_enrichr_down.pdf',width=5,height=2.5)
 print({
 p4<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
@@ -851,9 +851,9 @@ bulk_modules$module <- match(bulk_modules$module,mapping)
 #RVF vs pRV
 Idents(seurat_ref) <- "group"
 
-.cache_4C_pRV <- './output/Figure_5/fig4_4C_findmarkers_RVF_vs_pRV_cache.rds'
+.cache_4C_pRV <- './output/Figure_5/fig5_4C_findmarkers_pRV_vs_NF_cache.rds'
 if (file.exists(.cache_4C_pRV)) {
-  message('Loading cached Fig4C FindMarkers (RVF vs pRV)...')
+  message('Loading cached Fig4C FindMarkers (pRV vs NF)...')
   combined_set <- readRDS(.cache_4C_pRV)
 } else {
   combined_set <- data.frame()
@@ -861,7 +861,7 @@ if (file.exists(.cache_4C_pRV)) {
   for (i in mods_idx){
     key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
     key_genes <- key_genes[key_genes %in% rownames(seurat_ref)]
-    gene_set <- FindMarkers(seurat_ref, ident.1 = "RVF", ident.2 = "pRV",features=key_genes)
+    gene_set <- FindMarkers(seurat_ref, ident.1 = "pRV", ident.2 = "NF",features=key_genes)
     gene_set<-subset(gene_set,p_val_adj<0.05)
     gene_set$module <- paste0('M',i)
     gene_set$color <- mapping[i]
@@ -897,16 +897,16 @@ wrapText <- function(x, len) {
     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-.cache_enrichr_M2_up_pRV <- './output/Figure_5/fig4_enrichr_M2_genes_up_RVF_vs_pRV_cache.rds'
+.cache_enrichr_M2_up_pRV <- './output/Figure_5/fig5_enrichr_M2_genes_up_pRV_vs_NF_cache.rds'
 if (file.exists(.cache_enrichr_M2_up_pRV)) {
-  message('Loading cached enrichR M2_genes_up (RVF vs pRV)...')
+  message('Loading cached enrichR M2_genes_up (pRV vs NF)...')
   enriched <- readRDS(.cache_enrichr_M2_up_pRV)
 } else {
   enriched <- .safe_enrichr(M2_genes_up, dbs)
   saveRDS(enriched, .cache_enrichr_M2_up_pRV)
 }
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/Figure_5/CM_RV_RVF_vs_pRV_M2_enrichr_up.pdf',width=5,height=2.5)
+pdf('./output/Figure_5/Figure_5_panel_C_M2_up_pRV_vs_NF.pdf',width=5,height=2.5)
 print({
 p5<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
@@ -924,16 +924,16 @@ p5
 dev.off()
 
 
-.cache_enrichr_M2_down_pRV <- './output/Figure_5/fig4_enrichr_M2_genes_down_RVF_vs_pRV_cache.rds'
+.cache_enrichr_M2_down_pRV <- './output/Figure_5/fig5_enrichr_M2_genes_down_pRV_vs_NF_cache.rds'
 if (file.exists(.cache_enrichr_M2_down_pRV)) {
-  message('Loading cached enrichR M2_genes_down (RVF vs pRV)...')
+  message('Loading cached enrichR M2_genes_down (pRV vs NF)...')
   enriched <- readRDS(.cache_enrichr_M2_down_pRV)
 } else {
   enriched <- .safe_enrichr(M2_genes_down, dbs)
   saveRDS(enriched, .cache_enrichr_M2_down_pRV)
 }
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
-pdf('./output/Figure_5/CM_RV_RVF_vs_pRV_M2_enrichr_down.pdf',width=5,height=2.5)
+pdf('./output/Figure_5/Figure_5_panel_C_M2_down_pRV_vs_NF.pdf',width=5,height=2.5)
 print({
 p6<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
@@ -950,7 +950,7 @@ p6
 })
 dev.off()
 
-pdf('./output/Figure_5/CM_RV_RVF_vs_NF_and_RVF_vs_pRV_M2_enrichr_up.pdf',width=5,height=4.5)
+pdf('./output/Figure_5/Figure_5_panel_C_M2_up_composite.pdf',width=5,height=4.5)
 print({
 p1/p5
 })
@@ -959,10 +959,17 @@ dev.off()
 
 
 #######################################
-#############  FIGURE 5D  #############
-#######################################
-
-
+###########################################################################
+## LEGACY (was Panel 5D in v54) — single-cell-level M2 volcano.
+## v57 Panel D is the per-patient pseudobulk DESeq2 + ashr volcano below;
+## this single-cell version under-reports p-values by treating each nucleus
+## as independent. Outputs go to *_supp_singlecell_volcano_*.
+##
+## Wrapped in tryCatch because in some Seurat/EnhancedVolcano combinations
+## this block surfaces an opaque parse-error during plot construction; the
+## failure must not block real Panel D / E / F / G / H / I / J downstream.
+###########################################################################
+tryCatch({
 library(EnhancedVolcano)
 
 temp_set <- combined_set[!grepl('MT-',rownames(combined_set)),]
@@ -975,7 +982,7 @@ temp_set$avg_log2FC[temp_set$avg_log2FC > 5] = 5
 
 
 
-pdf(paste0('./output/Figure_5/', 'CM_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_singlecell_volcano_M2_RVF_vs_pRV.pdf'), width=8, height=6)
 
 print({
 EnhancedVolcano(temp_set,lab=rownames(temp_set),
@@ -984,11 +991,12 @@ EnhancedVolcano(temp_set,lab=rownames(temp_set),
 })
 dev.off()
 
-pdf(paste0('./output/Figure_5/', 'CM_ACTA1_vln.pdf'), width=3, height=2.8)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_ACTA1_vln.pdf'), width=3, height=2.8)
 print({
 VlnPlot(seurat_ref,'ACTA1',group.by='group')
 })
 dev.off()
+}, error = function(e) message('LEGACY Panel 5D single-cell volcano skipped: ', conditionMessage(e)))
 
 
 
@@ -1039,7 +1047,7 @@ temp_set$avg_log2FC[temp_set$avg_log2FC > 5] = 5
 
 #LRRC39,TNNI3,BMPR2,MYH7,TNNI3K
 
-pdf(paste0('./output/Figure_5/', 'CM_M12_key_vln.pdf'), width=6, height=3)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_M12_key_vln.pdf'), width=6, height=3)
 
 print({
 VlnPlot(seurat_ref,c('TNNI3','MYH7','BMPR2','TNNI3K'),group.by='group',ncol=4)
@@ -1152,7 +1160,7 @@ combined_set <- combined_set[!grepl('MT-',rownames(combined_set)),]
 keyvals <- combined_set$color
 names(keyvals)  <- combined_set$module
 
-pdf(paste0('./output/Figure_5/', 'CM_module_volcano_all.pdf'), width=8, height=6)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_singlecell_volcano_M2_RVF_vs_NF.pdf'), width=8, height=6)
 
 print({
 EnhancedVolcano(combined_set,lab=rownames(combined_set),
@@ -1168,7 +1176,7 @@ sub_set <- sub_set[!grepl('MT-',rownames(sub_set)),]
 keyvals <- sub_set$color
 names(keyvals)  <- sub_set$module
 
-pdf(paste0('./output/Figure_5/', 'CM_module_volcano_no_M2_all.pdf'), width=8, height=6)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_singlecell_volcano_noM2_RVF_vs_NF.pdf'), width=8, height=6)
 
 print({
 EnhancedVolcano(sub_set,lab=rownames(sub_set),
@@ -1182,7 +1190,7 @@ subsub_set <- subset(sub_set,sub_set$module != 'M12')
 keyvals <- subsub_set$color
 names(keyvals)  <- subsub_set$module
 
-pdf(paste0('./output/Figure_5/', 'CM_module_volcano_mito_mods_all_celllevel.pdf'), width=8, height=6)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_singlecell_volcano_mito_celllevel.pdf'), width=8, height=6)
 
 print({
 EnhancedVolcano(subsub_set,lab=rownames(subsub_set),
@@ -1202,7 +1210,7 @@ if (file.exists(.cache_4C_pRV)) {
   for (i in mods_idx){
     key_genes <- subset(bulk_modules,module %in% c(i))$gene_name
     key_genes <- key_genes[key_genes %in% rownames(seurat_ref)]
-    gene_set <- FindMarkers(seurat_ref, ident.1 = "RVF", ident.2 = "pRV",features=key_genes)
+    gene_set <- FindMarkers(seurat_ref, ident.1 = "pRV", ident.2 = "NF",features=key_genes)
     gene_set<-subset(gene_set,p_val_adj<0.05)
     gene_set$module <- paste0('M',i)
     gene_set$color <- mapping[i]
@@ -1223,7 +1231,7 @@ combined_set <- combined_set[!grepl('MT-',rownames(combined_set)),]
 keyvals <- combined_set$color
 names(keyvals)  <- combined_set$module
 
-pdf(paste0('./output/Figure_5/', 'CM_module_volcano_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_singlecell_volcano_M2_RVF_vs_pRV.pdf'), width=8, height=6)
 
 print({
 EnhancedVolcano(combined_set,lab=rownames(combined_set),
@@ -1239,7 +1247,7 @@ sub_set <- subset(combined_set,combined_set$module != 'M2')
 keyvals <- sub_set$color
 names(keyvals)  <- sub_set$module
 
-pdf(paste0('./output/Figure_5/', 'CM_module_volcano_no_M2_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_singlecell_volcano_noM2_RVF_vs_pRV.pdf'), width=8, height=6)
 
 print({
 EnhancedVolcano(sub_set,lab=rownames(sub_set),
@@ -1253,7 +1261,7 @@ subsub_set <- subset(sub_set,sub_set$module != 'M12')
 keyvals <- subsub_set$color
 names(keyvals)  <- subsub_set$module
 
-pdf(paste0('./output/Figure_5/', 'CM_module_volcano_mito_mods_all_RVF_vs_pRV.pdf'), width=8, height=6)
+pdf(paste0('./output/Figure_5/', 'Figure_5_supp_singlecell_volcano_mito_RVF_vs_pRV.pdf'), width=8, height=6)
 
 print({
 EnhancedVolcano(subsub_set,lab=rownames(subsub_set),
@@ -1308,6 +1316,11 @@ suppressPackageStartupMessages({
 ## The minimalist Xenium.cm object does not carry spatial coordinates; load
 ## the full subclustered Xenium object to pull centroids per cell, then subset
 ## to CMs and join NPPA/NPPB expression.
+##
+## Wrapped in tryCatch because Seurat v5 sometimes rejects the cached FOV class
+## (slots "coords_x_orientation" / "misc" absent on older objects). If the load
+## fails we still want Panels D/E/F/G/H/I/J to run downstream.
+tryCatch({
 .xen_full_path <- './dependencies/shared/Xenium/xenium_obj_subclustered.rds'
 if (!file.exists(.xen_full_path)) {
   message('Full Xenium object not found at ', .xen_full_path,
@@ -1411,11 +1424,14 @@ if (!file.exists(.xen_full_path)) {
       theme_void() +
       theme(strip.text = element_text(size = 7),
             legend.position = 'right')
-    save_figure(.p, 'Figure_5_panel_F_NPP_overview.pdf',
+    save_figure(.p, 'Figure_5_supp_NPP_xenium_overview.pdf',
                 width = 12, height = 8)
   }
   message('Combined NPPA/NPPB spatial tiles written to ', .tile_dir)
 }
+}, error = function(e) {
+  message('Xenium NPP block skipped: ', conditionMessage(e))
+})
 
 
 ###############################################################################
@@ -1522,7 +1538,7 @@ if (nrow(.M2_pb) > 0) {
   .label_genes <- intersect(
     c('EDNRA','KCNE1','ACTA1','MYL2','HTRA1','HSPB6','COL16A1','OXA1L'),
     rownames(.M2_pb))
-  pdf('./output/Figure_5/CM_module_volcano_M2.pdf', width = 8, height = 6)
+  pdf('./output/Figure_5/Figure_5_panel_D_M2_pseudobulk_volcano_pRV_vs_NF.pdf', width = 8, height = 6)
   print(
     EnhancedVolcano(.M2_pb, lab = rownames(.M2_pb),
       x = 'avg_log2FC', y = 'p_val_adj',
@@ -1562,7 +1578,7 @@ if (nrow(.mito_pb) > 0) {
   .top10_p1 <- .mito_only[order(.mito_pb[.mito_only, 'p_val_adj'])][seq_len(min(10, length(.mito_only)))]
   message('  MitoCarta filter: ', length(.mito_only), ' / ', nrow(.mito_pb),
           ' module genes are MitoCarta3.0; labeling top 10 by padj.')
-  pdf('./output/Figure_5/CM_module_volcano_mito_mods_all.pdf', width = 8, height = 6)
+  pdf('./output/Figure_5/Figure_5_panel_E_mito_pseudobulk_volcano.pdf', width = 8, height = 6)
   print(
     EnhancedVolcano(.mito_pb, lab = rownames(.mito_pb),
       x = 'avg_log2FC', y = 'p_val_adj',
@@ -1576,7 +1592,7 @@ if (nrow(.mito_pb) > 0) {
       colCustom = .keyvals, labFace = 'italic') + coord_flip()
   )
   dev.off()
-  message('Panel F: pseudobulk volcano written (', nrow(.mito_pb), ' Phase-1 genes).')
+  message('Panel E: mito-module pseudobulk volcano written (', nrow(.mito_pb), ' Phase-1 genes).')
 }
 
 
@@ -1707,7 +1723,7 @@ p_5F_mito <- ggplot(agg_mito,
   theme_v52(COMP_W) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
 
-save_figure(p_5F_mito, 'Figure_5_panel_5F_mitocarta_all_dotplot.pdf',
+save_figure(p_5F_mito, 'Figure_5_supp_mitocarta_all_dotplot.pdf',
             width = COMP_W, height = 3.0)
 message('Figure 5 Panel 5F complete (MitoCarta_All dotplot, Subnames_manual × group).')
 
@@ -1737,7 +1753,7 @@ message('Figure 5 Panel 5F complete (MitoCarta_All dotplot, Subnames_manual × g
     message('No CollecTRI edges found for requested mito TFs; skipping.')
     return(NULL)
   }
-  mat <- as.matrix(Seurat::GetAssayData(seurat_obj, assay = 'RNA', slot = 'data'))
+  mat <- as.matrix(Seurat::GetAssayData(seurat_obj, assay = 'RNA', layer = 'data'))
   acts <- decoupleR::run_ulm(mat = mat, net = net, .source = 'source',
                               .target = 'target', .mor = 'mor', minsize = 5)
   acts <- subset(acts, statistic == 'ulm')
@@ -1756,7 +1772,14 @@ if (file.exists(.cache_panel_F)) {
   panel_F_df <- readRDS(.cache_panel_F)
 } else if (exists('seurat_ref')) {
   message('Computing Panel F TF activity (this can take several minutes)...')
-  panel_F_df <- .compute_panel_F(seurat_ref, .panel_F_mito_tfs)
+  panel_F_df <- tryCatch(
+    .compute_panel_F(seurat_ref, .panel_F_mito_tfs),
+    error = function(e) {
+      message('Panel F CollecTRI/decoupleR compute failed (', conditionMessage(e),
+              '); will skip Panel F so downstream G/H/I/J still run.')
+      NULL
+    }
+  )
   if (!is.null(panel_F_df)) {
     dir.create(dirname(.cache_panel_F), showWarnings = FALSE, recursive = TRUE)
     saveRDS(panel_F_df, .cache_panel_F)
@@ -1778,7 +1801,7 @@ if (!is.null(panel_F_df) && nrow(panel_F_df) > 0) {
           facet_wrap(~ cell_subtype, nrow = 1) +
           labs(x = NULL, y = NULL,
                title = 'CollecTRI/decoupleR TF activity (mito regulators)') +
-          theme_v52() +
+          theme_v52(COMP_W) +
           theme(axis.text.x = element_text(angle = 45, hjust = 1))
   save_figure(p_5F, 'Figure_5_panel_F_collectri_TF_activity.pdf',
               width = COMP_W, height = 3.5)
@@ -1846,7 +1869,7 @@ if (!is.null(panel_G_df) && nrow(panel_G_df) > 0) {
           scale_fill_manual(values = c(NF = '#4DAF4A', pRV = '#377EB8', RVF = '#E41A1C')) +
           labs(x = NULL, y = 'VST expression (CM pseudobulk)',
                title = 'CM mito TF expression (per-patient pseudobulk)') +
-          theme_v52() +
+          theme_v52(COMP_W) +
           theme(legend.position = 'none')
   save_figure(p_5G, 'Figure_5_panel_G_mito_TF_pseudobulk_violins.pdf',
               width = COMP_W, height = 3.0)

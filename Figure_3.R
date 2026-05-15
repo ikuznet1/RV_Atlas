@@ -29,9 +29,25 @@ V52_FIG_DIR <- './output/Figure_3'
 dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 
 
+
+## Per-figure Xenium WRITE directory (CSVs / RDS caches go to ./output, not dependencies)
+.x_out <- file.path(V52_FIG_DIR, 'Xenium')
+dir.create(.x_out, showWarnings = FALSE, recursive = TRUE)
 ## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
 ## that's outside an explicit pdf() ... dev.off() envelope.
 pdf(NULL)
+
+## Capture a full traceback when F3 errors (the prior queue run died with
+## a cryptic "Error: unexpected ')' in: ... abels)" with no call stack).
+options(error = function() {
+  message('\n=== F3 error traceback (innermost first) ===')
+  tb <- sys.calls()
+  for (i in rev(seq_along(tb))) {
+    message(sprintf('  [%d] %s', i, paste(deparse(tb[[i]]), collapse = ' ')))
+  }
+  message('=== end traceback ===\n')
+  quit(save = 'no', status = 1)
+})
 dir.create(file.path(V52_FIG_DIR, 'Xenium'), showWarnings = FALSE, recursive = TRUE)
 ## Composite figure dimensions (inches) — used by theme_v52() scaling
 COMP_W <- 14
@@ -1580,7 +1596,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by CM subtype
 {
-  .deseq_csv <- file.path(.xcache, 'cm_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'cm_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'cm_clean_clean.rds'))
     .run_pseudobulk_deseq2(obj, 'cm_subtype', .deseq_csv)
@@ -1591,7 +1607,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by FB subtype
 {
-  .deseq_csv <- file.path(.xcache, 'fb_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'fb_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'fb_clean_clean.rds'))
     .run_pseudobulk_deseq2(obj, 'fb_subtype', .deseq_csv)
@@ -1602,7 +1618,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by EC subtype
 {
-  .deseq_csv <- file.path(.xcache, 'ec_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'ec_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'ec_clean_clean.rds'))
     .run_pseudobulk_deseq2(obj, 'ec_subtype', .deseq_csv)
@@ -1613,7 +1629,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by Myeloid subtype
 {
-  .deseq_csv <- file.path(.xcache, 'myeloid_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'myeloid_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'myeloid_clean_clean.rds'))
     col <- if ('myeloid_clean_subtype' %in% colnames(obj@meta.data)) 'myeloid_clean_subtype' else 'myeloid_subtype'
@@ -1625,7 +1641,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by NKT subtype
 {
-  .deseq_csv <- file.path(.xcache, 'nkt_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'nkt_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'nkt_clean_clean.rds'))
     col <- grep('subtype', colnames(obj@meta.data), value = TRUE)[1]
@@ -1637,7 +1653,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by Mural subtype
 {
-  .deseq_csv <- file.path(.xcache, 'mural_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'mural_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'mural_clean_clean.rds'))
     .run_pseudobulk_deseq2(obj, 'mural_subtype', .deseq_csv)
@@ -1648,7 +1664,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by Neuron subtype
 {
-  .deseq_csv <- file.path(.xcache, 'neuron_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'neuron_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'neuron_clean_clean.rds'))
     .run_pseudobulk_deseq2(obj, 'neuron_subtype', .deseq_csv)
@@ -1659,7 +1675,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by Epi subtype
 {
-  .deseq_csv <- file.path(.xcache, 'epi_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'epi_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'epi_clean_clean.rds'))
     .run_pseudobulk_deseq2(obj, 'epi_subtype', .deseq_csv)
@@ -1670,7 +1686,7 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 
 #### Pseudobulk DESeq2 by Adipo subtype
 {
-  .deseq_csv <- file.path(.xcache, 'adipo_pseudobulk_deseq2.csv')
+  .deseq_csv <- file.path(.x_out, 'adipo_pseudobulk_deseq2.csv')
   if (!file.exists(.deseq_csv)) {
     obj <- readRDS(file.path(.xcache, 'adipo_clean_clean.rds'))
     .run_pseudobulk_deseq2(obj, 'adipo_subtype', .deseq_csv)
@@ -1702,7 +1718,25 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
   .panel <- unique(as.character(.pg[[ if ('x' %in% names(.pg)) 'x' else ncol(.pg) ]]))
   keep <- intersect(.panel, rownames(obj))
   n_before <- nrow(obj)
-  obj <- subset(obj, features = keep)
+  ## Seurat's subset(features=) uses NSE and (in v5) goes through method dispatch
+  ## that may parse-eval feature names. Try direct row-indexing first; fall back
+  ## to subset() if that fails. tryCatch surfaces the *actual* error rather than
+  ## R's confusing "unexpected ')' in: ..." parse-error wrapping.
+  obj <- tryCatch(
+    obj[keep, ],
+    error = function(e1) {
+      message('[.filter_to_panel] obj[keep, ] failed: ', conditionMessage(e1))
+      message('[.filter_to_panel] falling back to subset(obj, features = keep) ...')
+      tryCatch(
+        subset(obj, features = keep),
+        error = function(e2) {
+          message('[.filter_to_panel] subset() also failed: ', conditionMessage(e2))
+          message('[.filter_to_panel] returning unfiltered obj — downstream pseudobulks may include imputed features.')
+          obj
+        }
+      )
+    }
+  )
   message(sprintf('Filtered xenium.obj features %d -> %d (panel-only)',
                   n_before, nrow(obj)))
   obj
@@ -1711,6 +1745,11 @@ dir.create('./output/Figure_3/Xenium', showWarnings = FALSE, recursive = TRUE)
 if (file.exists(.xsc_path)) {
   message('Loading cached xenium_obj_subclustered...')
   xenium.obj <- readRDS(.xsc_path)
+  ## Repair the cached FOV class (missing coords_x_orientation / misc slots)
+  ## up-front. This is the documented fix the validObject error itself
+  ## suggests, and it keeps FOVs intact so BuildNicheAssay (Panels E/F/G)
+  ## still works while feature/cell subsets (Panels B/C/D) stop crashing.
+  xenium.obj <- UpdateSeuratObject(xenium.obj)
   xenium.obj <- .filter_to_panel(xenium.obj)
 } else {
   xenium.obj$cell_types_subclustering <- 'Unassigned'
@@ -1745,7 +1784,7 @@ if (file.exists(.xsc_path)) {
   cat('Unique subtypes:', length(unique(xenium.obj$cell_types_subclustering)), '\n')
 
   xenium.obj <- .filter_to_panel(xenium.obj)
-  saveRDS(xenium.obj, .xsc_path)
+  saveRDS(xenium.obj, file.path(.x_out, 'xenium_obj_subclustered.rds'))
 }
 xenium.obj$subnames <- xenium.obj$cell_types_manual
 
@@ -1821,6 +1860,10 @@ if (file.exists(.cache_xen_deseq_c)) {
   deseq_xen_c <- readRDS(.cache_xen_deseq_c)
 } else {
   xen_c <- if (exists('xenium.obj')) xenium.obj else readRDS(.xsc_path)
+  ## Strip @images before subset — Seurat v5's subset.Seurat traverses FOVs and
+  ## validObject() on the cached FOV class fails (missing coords_x_orientation/
+  ## misc slots). The pseudobulk panels don't need spatial coordinates.
+  xen_c@images <- list()
   xen_c <- subset(xen_c, subset = cell_types_subclustering != 'Unassigned')
   xen_c$Names <- xen_c$cell_type_rctd_doublet
   deseq_xen_c <- tryCatch(
@@ -1860,6 +1903,7 @@ if (file.exists(.cache_xen_deseq_sub)) {
   deseq_xen_sub <- readRDS(.cache_xen_deseq_sub)
 } else {
   xen_sub <- if (exists('xenium.obj')) xenium.obj else readRDS(.xsc_path)
+  xen_sub@images <- list()  # see note above — drop FOVs for v5 subset compat
   xen_sub <- subset(xen_sub, subset = cell_types_subclustering != 'Unassigned')
   deseq_xen_sub <- tryCatch(
     run_pseudobulk_deseq(xen_sub, ident_col = 'cell_types_subclustering',
@@ -1941,7 +1985,11 @@ if (file.exists(.cache_xen_markers)) {
   xen_markers <- readRDS(.cache_xen_markers)
 } else {
   message('Running FindAllMarkers on Xenium corrected object...')
-  .xen_sub <- subset(xenium.obj, subset = cell_types_subclustering != 'Unassigned')
+  ## image-stripped copy: subset.Seurat traverses FOVs and validObject() fails
+  ## on the cached FOV class. FindAllMarkers needs no spatial coords.
+  .xs_tmp <- xenium.obj; .xs_tmp@images <- list()
+  .xen_sub <- subset(.xs_tmp, subset = cell_types_subclustering != 'Unassigned')
+  rm(.xs_tmp)
   Idents(.xen_sub) <- 'cell_type_rctd_doublet'
   xen_markers <- FindAllMarkers(.xen_sub, only.pos = TRUE, min.pct = 0.25,
                                 logfc.threshold = 0.25)
@@ -1984,10 +2032,14 @@ if (file.exists(.cache_xen_markers)) {
   'MYH11'
 )
 
+## image-stripped copy (Panel 3B dotplot needs no spatial coords; avoids the
+## Seurat v5 FOV-validObject crash in subset.Seurat).
+.xs_tmp <- xenium.obj; .xs_tmp@images <- list()
 .xen_sub <- subset(
-  xenium.obj,
+  .xs_tmp,
   subset = cell_types_subclustering != 'Unassigned'
 )
+rm(.xs_tmp)
 Idents(.xen_sub) <- factor(.xen_sub$cell_type_rctd_doublet, levels = .ct_levels)
 p_3B_dot <- DotPlot(.xen_sub,
                     features  = .dot_genes,

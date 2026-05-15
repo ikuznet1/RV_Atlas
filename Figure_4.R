@@ -148,7 +148,7 @@ if (file.exists(.cache_xen_pan)) {
 xenium_pan <- xenium_pan[xenium_pan$gene %in% xenium_panel_genes, ]
 
 ## Sublineage (subtypes) — used by Panel E forest plot (TGFBR3 across FB subtypes)
-.cache_deseq_L2 <- './output/Figure_4/fig3_deseq_L2_cache.rds'
+.cache_deseq_L2 <- './output/Figure_4/fig4_deseq_L2_cache.rds'
 if (file.exists(.cache_deseq_L2)) {
   message('Loading cached deseq_L2...')
   deseq_L2 <- readRDS(.cache_deseq_L2)

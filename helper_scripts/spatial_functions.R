@@ -27,7 +27,7 @@ FeatureEmbedding <- function(
   plot_list <- list()
 
   if(same_range){
-    tmp <- GetAssayData(seurat_obj, slot=slot, assay=assay)[features,]
+    tmp <- GetAssayData(seurat_obj, layer =slot, assay=assay)[features,]
     plot_range <- range(tmp)
     print(plot_range)
 
@@ -48,7 +48,7 @@ FeatureEmbedding <- function(
     # check if the feature is in the meta-data
     if(feature %in% rownames(seurat_obj)){
       if(is.null(assay)){assay <- seurat_obj@active.assay}
-      plot_df$plotfeature <- GetAssayData(seurat_obj, slot=slot, assay=assay)[feature,]
+      plot_df$plotfeature <- GetAssayData(seurat_obj, layer =slot, assay=assay)[feature,]
     } else if(feature %in% colnames(plot_df)){
       if(!is.numeric(plot_df[[feature]])){
         stop("Specified feature is not numeric. Try plotting with VisDimPlot?")
@@ -281,7 +281,7 @@ custom_vln <- function(
       plot_df$PlotFeature <- plot_df[[feature]]
     }
     else{
-      plot_df$PlotFeature <- GetAssayData(seurat_obj, slot=slot, assay=assay)[feature,]
+      plot_df$PlotFeature <- GetAssayData(seurat_obj, layer =slot, assay=assay)[feature,]
     }
 
     plot_range <- range(plot_df$PlotFeature)
@@ -805,7 +805,7 @@ SampleFeaturePlot <- function(
   # check if the feature is in the meta-data
   if(feature %in% rownames(seurat_obj)){
     if(is.null(assay)){assay <- seurat_obj@active.assay}
-    plot_df$SpatialPlotFeature <- GetAssayData(seurat_obj, slot=slot, assay=assay)[feature,]
+    plot_df$SpatialPlotFeature <- GetAssayData(seurat_obj, layer =slot, assay=assay)[feature,]
   } else if(feature %in% colnames(plot_df)){
     if(!is.numeric(plot_df[[feature]])){
       stop("Specified feature is not numeric. Try plotting with VisDimPlot?")
@@ -1036,7 +1036,7 @@ pseudobulk_edgeR <- function(
   de_type <- 'LRT'
 
   # get expression matrix from seurat object
-  X <- GetAssayData(seurat_obj, slot=slot, assay=assay)
+  X <- GetAssayData(seurat_obj, layer =slot, assay=assay)
   meta <- seurat_obj@meta.data
 
   # are we using a subset of the cells?

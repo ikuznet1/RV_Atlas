@@ -198,7 +198,7 @@ save_figure(p_7C, 'Figure_7_panel_C.pdf', width = 12.5, height = 4)
 #######################################
 DefaultAssay(M1) <- "RNA"
 
-.cache_wgcna_fit <- './output/Figure_7/fig6_wgcna_fit_cache.rds'
+.cache_wgcna_fit <- './output/Figure_7/fig7_wgcna_fit_cache.rds'
 if (file.exists(.cache_wgcna_fit)) {
   message('Loading cached hdWGCNA fit (SetupForWGCNA through ModuleConnectivity)...')
   M1 <- readRDS(.cache_wgcna_fit)
@@ -233,16 +233,25 @@ if (file.exists(.cache_wgcna_fit)) {
     networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
   )
 
+  ## ConstructNetwork honours tom_dir, but the underlying WGCNA call still
+  ## leaks `./TOM/<name>_TOM.rda` to getwd(). Run inside V52_FIG_DIR so the
+  ## artifact stays under ./output/Figure_7/.
+  .oldwd <- getwd()
+  setwd(V52_FIG_DIR)
+  on.exit(setwd(.oldwd), add = TRUE)
   M1 <- ConstructNetwork(overwrite_tom = TRUE,
     M1,
+    tom_dir = 'hdWGCNA_TOM',
     tom_name = 'ec_net' # name of the topoligical overlap matrix written to disk
   )
+  setwd(.oldwd)
 
   M1 <- ScaleData(M1)
-  M1 <- ModuleEigengenes(
-   M1,
-   group.by.vars="patient"
-  )
+  ## NOTE: hdWGCNA 0.4.11 + harmony 2.0.3 are incompatible — ModuleEigengenes
+  ## internally passes `assay.use=...` to RunHarmony, which harmony 2.x rejects.
+  ## M1 was loaded already-harmonised (EC_hdWGCNA_by_celltype.rds), so dropping
+  ## group.by.vars here skips the redundant internal harmony call.
+  M1 <- ModuleEigengenes(M1)
 
   M1 <- ModuleConnectivity(
     M1,
@@ -280,7 +289,7 @@ colNames[match(mods,colNames)] <- mods_num
 colnames(M1@meta.data) <- colNames
 
 # compute the module UMAPs
-.cache_module_umap <- './output/Figure_7/fig6_module_umap_cache.rds'
+.cache_module_umap <- './output/Figure_7/fig7_module_umap_cache.rds'
 if (file.exists(.cache_module_umap)) {
   message('Loading cached RunModuleUMAP (M1)...')
   M1 <- readRDS(.cache_module_umap)
@@ -371,7 +380,7 @@ dev.off()
 library(enrichR)
 dbs <- c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023')
 
-.cache_enrichr <- './output/Figure_7/fig6_enrichr_cache.rds'
+.cache_enrichr <- './output/Figure_7/fig7_enrichr_cache.rds'
 if (file.exists(.cache_enrichr)) {
   message('Loading cached RunEnrichr (M1)...')
   M1 <- readRDS(.cache_enrichr)
@@ -561,7 +570,7 @@ M1 <- SetIdent(M1, value = "group")
 
 modules <- GetModules(M1)
 modules$module <- match(modules$module,mapping)
-.cache_find_markers <- './output/Figure_7/fig6_find_markers_cache.rds'
+.cache_find_markers <- './output/Figure_7/fig7_find_markers_cache.rds'
 if (file.exists(.cache_find_markers)) {
   message('Loading cached FindMarkers (combined_set per module)...')
   combined_set <- readRDS(.cache_find_markers)
@@ -641,7 +650,7 @@ DefaultAssay(M1) <- "SCT"
 
 #Get all terms for + regulation of angiogenesis from GO
 library(biomaRt)
-.cache_angio_scores <- './output/Figure_7/fig6_angio_module_scores_cache.rds'
+.cache_angio_scores <- './output/Figure_7/fig7_angio_module_scores_cache.rds'
 if (file.exists(.cache_angio_scores)) {
   message('Loading cached biomaRt + AddModuleScore (angiogenesis scores)...')
   angio_scores_df <- readRDS(.cache_angio_scores)
@@ -854,7 +863,7 @@ suppressPackageStartupMessages({
 ## ── Reuse the EC hdWGCNA object from earlier (already has 'ec' experiment) ──
 ec_wgcna <- M1
 
-.cache_mEs_ec <- './output/Figure_7/fig6_MEs_ec_cache.rds'
+.cache_mEs_ec <- './output/Figure_7/fig7_MEs_ec_cache.rds'
 if (file.exists(.cache_mEs_ec)) {
   message('Loading cached GetMEs (ec_wgcna harmonized MEs)...')
   MEs_ec <- readRDS(.cache_mEs_ec)
@@ -885,7 +894,7 @@ for (.m in mods_ec) {
 }
 
 ## ── Panel D — hdWGCNA Module UMAP (hub gene network) ─────────────────────
-.cache_ec_wgcna_umap <- './output/Figure_7/fig6_ec_wgcna_module_umap_cache.rds'
+.cache_ec_wgcna_umap <- './output/Figure_7/fig7_ec_wgcna_module_umap_cache.rds'
 tryCatch({
   if (file.exists(.cache_ec_wgcna_umap)) {
     message('Loading cached RunModuleUMAP (ec_wgcna)...')
@@ -920,7 +929,7 @@ save_figure(p_7D, 'Figure_7_panel_D.pdf', width = 6, height = 5)
 ## ── Panel E — GO enrichment for focus modules (clusterProfiler / enrichR) ─
 modules_tbl <- GetModules(ec_wgcna)
 
-.cache_panel_E_enrichr <- './output/Figure_7/fig6_panel_E_enrichr_cache.rds'
+.cache_panel_E_enrichr <- './output/Figure_7/fig7_panel_E_enrichr_cache.rds'
 if (file.exists(.cache_panel_E_enrichr)) {
   message('Loading cached enrichr results (Panel E focus modules)...')
   p6E_enrichr_results <- readRDS(.cache_panel_E_enrichr)

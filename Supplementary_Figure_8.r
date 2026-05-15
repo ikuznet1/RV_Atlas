@@ -144,10 +144,13 @@ M2 <- SetupForWGCNA(
   wgcna_name = "Cardiomyocyte"
 )
 
+## NOTE: hdWGCNA + harmony 2.x are incompatible — ProjectModules passes
+## `assay.use=...` to RunHarmony which harmony 2.x rejects (same as F7).
+## Drop group.by.vars to skip the internal harmony re-integration; M2 is
+## already harmonised when read in.
 M2 <- ProjectModules(
   M2,
   modules = consensus_modules,
-  group.by.vars = "patient",
   seurat_ref = M2,
   wgcna_name = "Cardiomyocyte",
   wgcna_name_proj = 'bulk2sn'

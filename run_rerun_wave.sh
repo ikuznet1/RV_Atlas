@@ -1,30 +1,23 @@
 #!/usr/bin/env bash
-## Sequential queue: Figure_3..Figure_8 then Supplementary_Figure_1..8.
-## Each Rscript invocation has its own log file under /tmp/.
-## Continues past failures so we capture all errors in one pass.
-
-## (no `set -u` — conda's activate-gfortran script references unset GFORTRAN)
-## (no `set -e` — we want to continue past Rscript failures)
+## Re-run wave for scripts that failed in the first queue and have now been fixed.
+## F8 is intentionally skipped (OOM on 48 GB Mac; user okayed skipping).
 
 source /Users/ikuz/miniforge3/etc/profile.d/conda.sh
 conda activate rv_atlas
 cd /Users/ikuz/Documents/RV_Atlas
 
-## Raise R's per-process vector memory cap so F8 (cross-species; loads multiple
-## large Seurat objects + rasterises panels) doesn't hit the default ~RAM ceiling.
-## NB: this is a soft cap; if the working set genuinely exceeds physical RAM,
-## OOM-kill / swap still apply.
 export R_MAX_VSIZE=200Gb
 
 start_global=$(date +%s)
 echo "========================================================"
-echo "FIGURE QUEUE START: $(date)"
+echo "RERUN WAVE START: $(date)"
+echo "  scripts: F3, F5, F7, S2, S6, S8"
+echo "  excluded: F8 (OOM expected, skip per instruction)"
 echo "========================================================"
 
 run_one() {
   local script="$1"
   local logfile="/tmp/${script%.R}_run.log"
-  local tag="${script%.R}"
   echo ""
   echo "----- $(date '+%H:%M:%S') START: $script -----"
   echo "  log: $logfile"
@@ -37,27 +30,26 @@ run_one() {
     echo "----- $(date '+%H:%M:%S') OK    : $script  (${dur}s, rc=$rc)"
   else
     echo "----- $(date '+%H:%M:%S') FAIL  : $script  (${dur}s, rc=$rc)"
-    echo "  last error:"
     grep -E "^Error|Execution halted" "$logfile" | tail -3 | sed 's/^/    /'
   fi
-  # Disk check (warn if low)
   local free=$(df -h ~/Documents | awk 'NR==2 {print $4}')
   echo "  disk free: $free"
 }
 
-# Phase 1: Figures 3..8
-for n in 3 4 5 6 7 8; do
-  run_one "Figure_${n}.R"
-done
+# Re-run order:
+# 1. F5 (fast — should now find cm_subclust_new_new.rds in dependencies)
+# 2. F7 (medium — assay.use harmony fix)
+# 3. F3 (medium — instrumented; will give traceback if it still fails)
+# 4. S2 (medium — parse error fixed)
+# 5. S6 (long, 4hr last time — parses fine now)
+# 6. S8 (medium — same harmony fix as F7)
 
-# Phase 2: Supplementary 1..8
-for n in 1 2 3 4 5 6 7 8; do
-  run_one "Supplementary_Figure_${n}.R"
+for s in Figure_5.R Figure_7.R Figure_3.R Supplementary_Figure_2.R Supplementary_Figure_6.R Supplementary_Figure_8.R; do
+  run_one "$s"
 done
 
 end_global=$(date +%s)
-total=$((end_global - start_global))
 echo ""
 echo "========================================================"
-echo "FIGURE QUEUE END: $(date)  (total ${total}s)"
+echo "RERUN WAVE END: $(date)  (total $((end_global - start_global))s)"
 echo "========================================================"

@@ -21,7 +21,7 @@
 ## the MitoCarta box and volcano, apeglm shrinkage, curated FC-scatter
 ## labels (CM-expression filtered, |log2FC|>1), and panels (I)/(J).
 ##
-## Output: ./output/Supplementary_Figure_6/v52_figures/SupplementaryFigure_6.pdf (composite) and
+## Output: ./output/Supplementary_Figure_6/SupplementaryFigure_6.pdf (composite) and
 ## individual panel PDFs in ./output/Supplementary_Figure_6/.
 ###############################################################################
 
@@ -35,7 +35,6 @@ dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 ## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
 ## that's outside an explicit pdf() ... dev.off() envelope.
 pdf(NULL)
-dir.create(file.path(V52_FIG_DIR, 'v52_figures'), showWarnings = FALSE, recursive = TRUE)
 COMP_W <- 6
 COMP_H <- 11
 
@@ -96,7 +95,7 @@ PlotEmbedding(M2,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_t
 dev.off()
 
 
-M3 <- readRDS(file = "./output/Supplementary_Figure_2/cm_subclust_new_new.rds")
+M3 <- readRDS(file = "./dependencies/shared/cm_subclust_new_new.rds")
 
 human2mouse <- read.csv('./dependencies/shared/human2mouse.csv',header=F)
 idx <- match(unique(human2mouse[,2]),human2mouse[,2])
@@ -263,7 +262,7 @@ M2 <- SetIdent(M2,value = 'group')
 ## prevents labeling them in the FC scatters.
 .cm_pct_for_pool <- {
   .raw_in <- intersect(.hf_label_genes_raw, rownames(M3))
-  .cm_counts <- GetAssayData(M3, assay = 'RNA', slot = 'counts')[.raw_in, , drop = FALSE]
+  .cm_counts <- GetAssayData(M3, assay = 'RNA', layer = 'counts')[.raw_in, , drop = FALSE]
   rowMeans(.cm_counts > 0) * 100
 }
 hf_label_genes <- names(.cm_pct_for_pool)[.cm_pct_for_pool >= 5]
@@ -396,7 +395,7 @@ print(p_h2); dev.off()
 p_combo <- p_d / p_h1 / p_h2
 ggsave('./output/Supplementary_Figure_6/PAB_CM_FC_combined.pdf',
        p_combo, width = 5, height = 15)
-ggsave('./output/Supplementary_Figure_6/v52_figures/PAB_CM_FC_combined.pdf',
+ggsave('./output/Supplementary_Figure_6/PAB_CM_FC_combined.pdf',
        p_combo, width = 5, height = 15)
 
 
@@ -528,7 +527,7 @@ p2 <- ggplot(.human_mito_pat, aes(x = group, y = mito, fill = group)) +
 pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_RV_CM_mitocarto.pdf'), width = 3.2, height = 4.675)
 print(p1 / p2)
 dev.off()
-ggsave('./output/Supplementary_Figure_6/v52_figures/PAB_RV_CM_mitocarto.pdf',
+ggsave('./output/Supplementary_Figure_6/PAB_RV_CM_mitocarto.pdf',
        p1 / p2, width = 3.2, height = 4.675)
 
 anno <- trimws(unlist(lapply(lapply(lapply(Human.Mito$MitoCarta3.0_MitoPathways,str_split,'>'),'[[',1),'[[',1)))
@@ -638,7 +637,7 @@ p_volcano <- p_volcano +
 
 ggsave('./output/Supplementary_Figure_6/PAB_RV_CM_mitocarto_volcano.pdf',
        p_volcano, width = 6, height = 9.38)
-ggsave('./output/Supplementary_Figure_6/v52_figures/PAB_RV_CM_mitocarto_volcano.pdf',
+ggsave('./output/Supplementary_Figure_6/PAB_RV_CM_mitocarto_volcano.pdf',
        p_volcano, width = 6, height = 9.38)
 
 
@@ -704,7 +703,7 @@ p_comp_human <- ggplot(.human_comp, aes(x = group, y = Freq, fill = subtype)) +
   theme(legend.key.size = PS$legend_key, legend.title = element_blank())
 ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_composition.pdf',
        p_comp_mouse / p_comp_human, width = 4, height = 5.5)
-ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_composition.pdf',
+ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_composition.pdf',
        p_comp_mouse / p_comp_human, width = 4, height = 5.5)
 
 ## (ii) FAO program score per-subject
@@ -726,7 +725,7 @@ p_fao_human <- .subject_box(.human_fao, mhc_pal_human,
 p_fao <- p_fao_mouse | p_fao_human
 pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_FAO.pdf', width = 5, height = 3)
 print(p_fao); dev.off()
-ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_FAO.pdf',
+ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_FAO.pdf',
        p_fao, width = 5, height = 3)
 
 ## (iii) Failure / fetal-program score per-subject
@@ -747,7 +746,7 @@ p_fail_human <- .subject_box(.human_fail, mhc_pal_human,
 p_fail <- p_fail_mouse | p_fail_human
 pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_Failure_program.pdf', width = 5, height = 3)
 print(p_fail); dev.off()
-ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_Failure_program.pdf',
+ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_Failure_program.pdf',
        p_fail, width = 5, height = 3)
 
 ## (iv) GR axis: FKBP5 + NR3C1 per-subject (single-gene module scores)
@@ -788,7 +787,7 @@ p_gr_human <- .gr_box(.human_gr, mhc_pal_human, 'Human RV — GR axis', human_cm
 p_gr <- p_gr_mouse | p_gr_human
 pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_GR_axis.pdf', width = 7, height = 3)
 print(p_gr); dev.off()
-ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_GR_axis.pdf',
+ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_GR_axis.pdf',
        p_gr, width = 7, height = 3)
 
 
@@ -816,7 +815,7 @@ p_small_combined <- patchwork::wrap_plots(
 
 ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_small_panels_combined.pdf',
        p_small_combined, width = 9, height = 3)
-ggsave('./output/Supplementary_Figure_6/v52_figures/S6J_PAB_RV_CM_small_panels_combined.pdf',
+ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_small_panels_combined.pdf',
        p_small_combined, width = 9, height = 3)
 
 #######################################

@@ -71,7 +71,7 @@ M1 <- readRDS(file = "./dependencies/shared/myeloid_subclust.rds")
 
 # Re-run SCTransform on RNA assay (original had multi-model SCT)
 DefaultAssay(M1) <- "RNA"
-.cache_sct_clustered <- './output/Figure_6/fig5_sct_clustered_cache.rds'
+.cache_sct_clustered <- './output/Figure_6/fig6_sct_clustered_cache.rds'
 if (file.exists(.cache_sct_clustered)) {
   message('Loading cached SCTransform/Harmony/UMAP/clustering...')
   M1 <- readRDS(.cache_sct_clustered)
@@ -91,7 +91,7 @@ cat("Cluster counts:\n")
 print(table(Idents(M1)))
 
 # FindAllMarkers
-.cache_fresh_markers <- './output/Figure_6/fig5_fresh_markers_cache.rds'
+.cache_fresh_markers <- './output/Figure_6/fig6_fresh_markers_cache.rds'
 if (file.exists(.cache_fresh_markers)) {
   message('Loading cached FindAllMarkers...')
   markers <- readRDS(.cache_fresh_markers)
@@ -136,7 +136,7 @@ print(sort(table(Idents(M1)), decreasing=TRUE))
 M1_clean <- subset(M1, idents="Contamination", invert=TRUE)
 cat(sprintf("\nAfter removing contamination: %d cells\n", ncol(M1_clean)))
 
-.cache_clean_umap <- './output/Figure_6/fig5_clean_umap_cache.rds'
+.cache_clean_umap <- './output/Figure_6/fig6_clean_umap_cache.rds'
 if (file.exists(.cache_clean_umap)) {
   message('Loading cached M1_clean UMAP...')
   M1_clean <- readRDS(.cache_clean_umap)
@@ -443,7 +443,7 @@ print(.kw_results)
 ####### bypasses 21.7 GB seurat_ref) ##
 #######################################
 
-.cache_MEs <- './output/Figure_6/fig5_MEs_cache.rds'
+.cache_MEs <- './output/Figure_6/fig6_MEs_cache.rds'
 if (!file.exists(.cache_MEs)) {
   cat('Section E: cached MEs missing — requires one-time scWGCNA load to build.\n')
   cat('  Skipping panel E for this run.\n')
