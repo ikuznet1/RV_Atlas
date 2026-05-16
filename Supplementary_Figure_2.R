@@ -1152,6 +1152,11 @@ suppressPackageStartupMessages({
 if (file.exists(.wga_path)) {
   message('Figure S2 panel I: building WGA CM hypertrophy plot')
   df_wga <- read.csv(.wga_path, check.names = FALSE)
+  ## CellProfiler exports a leading unnamed row-index column; with
+  ## check.names=FALSE its name stays "" and dplyr cannot build a data
+  ## mask over it ("Can't transform a data frame with NA or '' names").
+  .blank <- is.na(names(df_wga)) | names(df_wga) == ''
+  if (any(.blank)) df_wga <- df_wga[, !.blank, drop = FALSE]
   df_wga <- df_wga %>%
     filter(!is.na(AreaShape_MinFeretDiameter),
            !is.na(Group), !is.na(HHTB_ID),

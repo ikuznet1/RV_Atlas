@@ -156,7 +156,7 @@ if (file.exists(.cache_clean_umap)) {
   )                                                                                                               
   lineage_genes <- lineage_genes[lineage_genes %in% rownames(M1_clean)]                                           
                                                                                                                   
-  pdf("./output/Figure_6/Xenium/myeloid_mac_inflam_lineage.pdf", width=11, height=4)                                       
+  pdf("./output/Figure_6/Xenium/Figure_6_supp_mac_inflam_lineage.pdf", width=11, height=4)                                       
   DotPlot(M1_clean, features=lineage_genes, assay="RNA", col.min=0, col.max=2) +
     RotatedAxis() +                                                                                               
     ggtitle("Mac_Inflammatory lineage identity: resident vs monocyte")                                            
@@ -180,12 +180,12 @@ res_genes <- c("LYVE1","FOLR2","VSIG4","CD163","F13A1","MRC1","CD163L1",
 res_genes <- unique(res_genes[res_genes %in% rownames(M1_clean)])
 
 
-pdf("./output/Figure_6/myeloid_audit_dotplot_resident.pdf", width=14, height=6)
+pdf("./output/Figure_6/Figure_6_supp_audit_dotplot_resident.pdf", width=14, height=6)
 DotPlot(M1_clean, features=res_genes, assay="RNA") +
   RotatedAxis() +
   ggtitle("Resident macrophage markers")
 dev.off()
-cat("Saved /tmp/myeloid_audit_dotplot_resident.pdf\n")
+cat("Saved /tmp/Figure_6_supp_audit_dotplot_resident.pdf\n")
 
 # DotPlot 2: Inflammatory / monocyte / TREM2 markers
 inflam_genes <- c("CCR2","IL1B","CCL3","CCL4","CXCL3","CXCL8",
@@ -195,24 +195,24 @@ inflam_genes <- c("CCR2","IL1B","CCL3","CCL4","CXCL3","CXCL8",
                    "NR4A1","NR4A2","CD83")
 inflam_genes <- unique(inflam_genes[inflam_genes %in% rownames(M1_clean)])
 
-pdf("./output/Figure_6/myeloid_audit_dotplot_inflam.pdf", width=16, height=6)
+pdf("./output/Figure_6/Figure_6_supp_audit_dotplot_inflam.pdf", width=16, height=6)
 DotPlot(M1_clean, features=inflam_genes, assay="RNA") +
   RotatedAxis() +
   ggtitle("Inflammatory / monocyte / TREM2 markers")
 dev.off()
-cat("Saved /tmp/myeloid_audit_dotplot_inflam.pdf\n")
+cat("Saved /tmp/Figure_6_supp_audit_dotplot_inflam.pdf\n")
 
 # DotPlot 3: DC markers
 dc_genes <- c("FLT3","CIITA","HLA-DRA","HLA-DQA1","HLA-DQB1","CLEC10A","ITGAX",
               "CD1C","CLEC9A","BTLA","IDO1","IDO2","SLAMF7","FCER1A")
 dc_genes <- unique(dc_genes[dc_genes %in% rownames(M1_clean)])
 
-pdf("./output/Figure_6/myeloid_audit_dotplot_dc.pdf", width=14, height=6)
+pdf("./output/Figure_6/Figure_6_supp_audit_dotplot_dc.pdf", width=14, height=6)
 DotPlot(M1_clean, features=dc_genes, assay="RNA") +
   RotatedAxis() +
   ggtitle("DC / MHCII markers")
 dev.off()
-cat("Saved /tmp/myeloid_audit_dotplot_dc.pdf\n")
+cat("Saved /tmp/Figure_6_supp_audit_dotplot_dc.pdf\n")
 
 # DotPlot 4: All key markers combined (comprehensive audit)
 all_audit <- c("LYVE1","VSIG4","CD163","F13A1","MRC1","CD163L1","MARCO","HPGDS","RBPJ",
@@ -224,19 +224,19 @@ all_audit <- c("LYVE1","VSIG4","CD163","F13A1","MRC1","CD163L1","MARCO","HPGDS",
                "TOP2A","CDK1")
 all_audit <- unique(all_audit[all_audit %in% rownames(M1_clean)])
 
-pdf("./output/Figure_6/myeloid_audit_dotplot_all.pdf", width=20, height=6)
+pdf("./output/Figure_6/Figure_6_supp_audit_dotplot_all.pdf", width=20, height=6)
 DotPlot(M1_clean, features=all_audit, assay="RNA") +
   RotatedAxis() +
   ggtitle("Comprehensive myeloid marker audit")
 dev.off()
-cat("Saved /tmp/myeloid_audit_dotplot_all.pdf\n")
+cat("Saved /tmp/Figure_6_supp_audit_dotplot_all.pdf\n")
 
 # UMAP of clean object only
-pdf("./output/Figure_6/myeloid_audit_umap_clean.pdf", width=10, height=8)
+pdf("./output/Figure_6/Figure_6_supp_audit_umap_clean.pdf", width=10, height=8)
 DimPlot(M1_clean, reduction="umap", label=TRUE, repel=TRUE, pt.size=PS$umap_pt) +
   ggtitle("Myeloid populations (contamination removed)")
 dev.off()
-cat("Saved /tmp/myeloid_audit_umap_clean.pdf\n")
+cat("Saved /tmp/Figure_6_supp_audit_umap_clean.pdf\n")
 
 cat("\n=== CLEAN CLUSTER COUNTS ===\n")
 print(sort(table(Idents(M1_clean)), decreasing=TRUE))
@@ -283,13 +283,13 @@ Idents(M1_clean) <- 'cluster_id'
 ####### UMAP — 6 myeloid clusters #####
 #######################################
 
-pdf('./output/Figure_6/Myeloid_snUMAP.pdf', width = 5, height = 5)
+pdf('./output/Figure_6/Figure_6_panel_A_UMAP.pdf', width = 5, height = 5)
 print(PlotEmbedding(M1_clean, group.by = 'cluster_id',
                     point_size = PS$umap_pt, plot_under = TRUE,
                     plot_theme = umap_theme() + NoLegend(),
                     raster_dpi = 400, raster_scale = 0.5))
 dev.off()
-cat('Wrote: Myeloid_snUMAP.pdf\n')
+cat('Wrote: Figure_6_panel_A_UMAP.pdf\n')
 
 # Standalone legend
 .legend_p <- ggplot(data.frame(x = 1, y = seq_along(.myeloid_levels),
@@ -298,10 +298,10 @@ cat('Wrote: Myeloid_snUMAP.pdf\n')
   geom_point(size = 4) +
   scale_color_manual(values = .myeloid_pal, name = 'Subtype') +
   theme_void() + theme(legend.position = 'right')
-pdf('./output/Figure_6/Myeloid_snUMAP_legend.pdf', width = 3.5, height = 4)
+pdf('./output/Figure_6/Figure_6_panel_A_UMAP_legend.pdf', width = 3.5, height = 4)
 print(cowplot::ggdraw(cowplot::get_legend(.legend_p)))
 dev.off()
-cat('Wrote: Myeloid_snUMAP_legend.pdf\n')
+cat('Wrote: Figure_6_panel_A_UMAP_legend.pdf\n')
 
 
 #######################################
@@ -326,7 +326,7 @@ cat('Wrote: Myeloid_snUMAP_legend.pdf\n')
 )
 .myeloid_markers <- intersect(.myeloid_markers, rownames(M1_clean))
 
-pdf('./output/Figure_6/Myeloid_dot.pdf', width = 8.4, height = 4)
+pdf('./output/Figure_6/Figure_6_panel_B_markers.pdf', width = 8.4, height = 4)
 print(DotPlot(M1_clean, features = .myeloid_markers, assay = 'RNA',
               col.min = 0, col.max = 2,
               cols = c('lightgrey', 'blue')) +
@@ -334,7 +334,7 @@ print(DotPlot(M1_clean, features = .myeloid_markers, assay = 'RNA',
       theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5,
                                         face = 'italic')))
 dev.off()
-cat('Wrote: Myeloid_dot.pdf\n')
+cat('Wrote: Figure_6_panel_B_markers.pdf\n')
 
 
 ## Note: prior Panel C (Myeloid_lineage_dotplot.pdf) was dropped because it
@@ -377,7 +377,7 @@ cat('Wrote: Myeloid_dot.pdf\n')
 
 # View 1 (S2C-style compact): single-row boxplot, one box per cluster,
 # dodged and coloured by disease group.
-pdf('./output/Figure_6/Myeloid_clust_counts.pdf', width = 6.5, height = 3)
+pdf('./output/Figure_6/Figure_6_supp_cluster_counts.pdf', width = 6.5, height = 3)
 print(ggplot(.pat_prop_full,
              aes(x = cluster_id, y = prop, color = group)) +
       geom_boxplot() +
@@ -385,10 +385,10 @@ print(ggplot(.pat_prop_full,
       ylab('Proportion of myeloid cells') + xlab('') +
       theme_classic())
 dev.off()
-cat('Wrote: Myeloid_clust_counts.pdf\n')
+cat('Wrote: Figure_6_supp_cluster_counts.pdf\n')
 
 # View 2 (S2C-style facet-wrap): one facet per cluster, KW p-values.
-pdf('./output/Figure_6/Myeloid_clust_freq_stats.pdf', width = 12.5, height = 8)
+pdf('./output/Figure_6/Figure_6_panel_C_frequency.pdf', width = 12.5, height = 8)
 p <- ggboxplot(.pat_prop_full, x = 'group', y = 'prop',
                fill = 'group', group = 'group') +
   theme_classic() +
@@ -405,7 +405,7 @@ p <- ggboxplot(.pat_prop_full, x = 'group', y = 'prop',
   stat_compare_means(aes(group = group), method = 'kruskal.test')
 print(p)
 dev.off()
-cat('Wrote: Myeloid_clust_freq_stats.pdf\n')
+cat('Wrote: Figure_6_panel_C_frequency.pdf\n')
 
 # Stacked bar (kept as a complementary summary plot)
 .prop_df <- M1_clean@meta.data %>%
@@ -415,7 +415,7 @@ cat('Wrote: Myeloid_clust_freq_stats.pdf\n')
   dplyr::ungroup() %>%
   dplyr::mutate(group      = factor(group, levels = c('NF','pRV','RVF')),
                 cluster_id = factor(cluster_id, levels = .myeloid_levels))
-pdf('./output/Figure_6/Myeloid_prev_stacked.pdf', width = 5, height = 4.5)
+pdf('./output/Figure_6/Figure_6_supp_prevalence_stacked.pdf', width = 5, height = 4.5)
 print(ggplot(.prop_df, aes(x = group, y = prop, fill = cluster_id)) +
       geom_bar(stat = 'identity') +
       scale_fill_manual(values = .myeloid_pal, name = '') +
@@ -423,7 +423,7 @@ print(ggplot(.prop_df, aes(x = group, y = prop, fill = cluster_id)) +
       theme_classic(base_size = 11) +
       theme(legend.position = 'right'))
 dev.off()
-cat('Wrote: Myeloid_prev_stacked.pdf\n')
+cat('Wrote: Figure_6_supp_prevalence_stacked.pdf\n')
 
 # Console summary (Kruskal-Wallis per cluster)
 .kw_results <- .pat_prop_full %>%
@@ -486,7 +486,7 @@ if (!file.exists(.cache_MEs)) {
                     cluster_id = factor(cluster_id, levels = .myeloid_levels))
 
     if (nrow(.me_agg_myeloid) > 0) {
-      pdf('./output/Figure_6/Myeloid_module_dotplot.pdf', width = 6, height = 4)
+      pdf('./output/Figure_6/Figure_6_panel_D_modules.pdf', width = 6, height = 4)
       print(ggplot(.me_agg_myeloid,
                    aes(x = module, y = cluster_id, color = z, size = pct_pos)) +
             geom_point() +
@@ -496,7 +496,7 @@ if (!file.exists(.cache_MEs)) {
             xlab('Bulk WGCNA module') + ylab('') +
             theme_classic())
       dev.off()
-      cat('Wrote: Myeloid_module_dotplot.pdf\n')
+      cat('Wrote: Figure_6_panel_D_modules.pdf\n')
 
       # Per-cluster × group module-eigengene heatmap (Phase 1/Phase 2 trends)
       .me_cg <- .me_long %>%
@@ -507,7 +507,7 @@ if (!file.exists(.cache_MEs)) {
                       cluster_id = factor(cluster_id, levels = .myeloid_levels),
                       group      = factor(group, levels = c('NF','pRV','RVF')))
 
-      pdf('./output/Figure_6/Myeloid_module_by_group.pdf', width = 8, height = 4)
+      pdf('./output/Figure_6/Figure_6_panel_D_modules_by_group.pdf', width = 8, height = 4)
       print(ggplot(.me_cg, aes(x = group, y = cluster_id, fill = mean_ME)) +
             geom_tile() +
             facet_wrap(~ module, nrow = 1) +
@@ -518,7 +518,7 @@ if (!file.exists(.cache_MEs)) {
             theme(strip.text = element_text(face = 'bold'),
                   axis.text.x = element_text(angle = 30, hjust = 1)))
       dev.off()
-      cat('Wrote: Myeloid_module_by_group.pdf\n')
+      cat('Wrote: Figure_6_panel_D_modules_by_group.pdf\n')
     }
   }
 }
@@ -721,16 +721,16 @@ if (file.exists(.cache_module_celltype_enrich)) {
 ####  Supplementary: Reactome dotplots (not in v57 main; reference only)
 #######################################
 .module_celltype_dotplot(combined_output, 'Reactome_2022', 'RVF_NF', 'up',
-                          './output/Figure_6/Myeloid_reactome_terms_cell_type_up_RVF_vs_NF.pdf',
+                          './output/Figure_6/Figure_6_supp_reactome_up_RVF_vs_NF.pdf',
                           width = 8, height = 7)
 .module_celltype_dotplot(combined_output, 'Reactome_2022', 'RVF_NF', 'down',
-                          './output/Figure_6/Myeloid_reactome_terms_cell_type_down_RVF_vs_NF.pdf',
+                          './output/Figure_6/Figure_6_supp_reactome_down_RVF_vs_NF.pdf',
                           width = 6.6, height = 5)
 .module_celltype_dotplot(combined_output, 'Reactome_2022', 'RVF_pRV', 'up',
-                          './output/Figure_6/Myeloid_reactome_terms_cell_type_up_RVF_vs_pRV.pdf',
+                          './output/Figure_6/Figure_6_supp_reactome_up_RVF_vs_pRV.pdf',
                           width = 8, height = 7)
 .module_celltype_dotplot(combined_output, 'Reactome_2022', 'RVF_pRV', 'down',
-                          './output/Figure_6/Myeloid_reactome_terms_cell_type_down_RVF_vs_pRV.pdf',
+                          './output/Figure_6/Figure_6_supp_reactome_down_RVF_vs_pRV.pdf',
                           width = 6.6, height = 5)
 
 #######################################
@@ -738,16 +738,16 @@ if (file.exists(.cache_module_celltype_enrich)) {
 ####  (E = RVF vs NF up; F = RVF vs NF down; the RVF vs pRV pair is reference)
 #######################################
 .module_celltype_dotplot(combined_output, 'ChEA_2022', 'RVF_NF', 'up',
-                          './output/Figure_6/Myeloid_chea_terms_cell_type_up_RVF_vs_NF.pdf',
+                          './output/Figure_6/Figure_6_panel_E_ChEA_up_RVF_vs_NF.pdf',
                           width = 10, height = 5)
 .module_celltype_dotplot(combined_output, 'ChEA_2022', 'RVF_NF', 'down',
-                          './output/Figure_6/Myeloid_chea_terms_cell_type_down_RVF_vs_NF.pdf',
+                          './output/Figure_6/Figure_6_panel_F_ChEA_down_RVF_vs_NF.pdf',
                           width = 6, height = 4)
 .module_celltype_dotplot(combined_output, 'ChEA_2022', 'RVF_pRV', 'up',
-                          './output/Figure_6/Myeloid_chea_terms_cell_type_up_RVF_vs_pRV.pdf',
+                          './output/Figure_6/Figure_6_supp_ChEA_up_RVF_vs_pRV.pdf',
                           width = 10, height = 5)
 .module_celltype_dotplot(combined_output, 'ChEA_2022', 'RVF_pRV', 'down',
-                          './output/Figure_6/Myeloid_chea_terms_cell_type_down_RVF_vs_pRV.pdf',
+                          './output/Figure_6/Figure_6_supp_ChEA_down_RVF_vs_pRV.pdf',
                           width = 6, height = 4)
 
 
@@ -931,7 +931,7 @@ hm_long$program <- factor(hm_long$program,
 hm_long$cluster_id <- factor(hm_long$cluster_id, levels = .myeloid_levels)
 hm_long$group      <- factor(hm_long$group, levels = c('NF','pRV','RVF'))
 
-pdf('./output/Figure_6/Myeloid_programs_heatmap.pdf', width = 11, height = 3.5)
+pdf('./output/Figure_6/Figure_6_supp_programs_heatmap.pdf', width = 11, height = 3.5)
 print(ggplot(hm_long, aes(x = group, y = cluster_id, fill = z)) +
       geom_tile(color = 'white') +
       scale_fill_gradient2(low = '#2166AC', mid = 'grey95', high = '#B2182B',
@@ -941,7 +941,7 @@ print(ggplot(hm_long, aes(x = group, y = cluster_id, fill = z)) +
       theme_grey() +
       theme(strip.text = element_text(size = 9, face = 'bold')))
 dev.off()
-cat('Wrote: Myeloid_programs_heatmap.pdf\n')
+cat('Wrote: Figure_6_supp_programs_heatmap.pdf\n')
 
 # Violins per home cluster --------------------------------------------------
 home <- list(GR_homeostatic = 'CCR2- Resident Mac',
@@ -995,11 +995,11 @@ md$patient <- as.character(md$patient)
           plot.title = element_text(size = 10, face = 'bold'))
 }
 vlns <- lapply(names(prog_list), .make_pb_plot); names(vlns) <- names(prog_list)
-pdf('./output/Figure_6/Myeloid_programs_violins_home.pdf', width = 3.2, height = 9.45)
+pdf('./output/Figure_6/Figure_6_panel_G_programs_violins.pdf', width = 3.2, height = 9.45)
 print(vlns$GR_homeostatic / vlns$HIF_vascular /
       vlns$NFkB_MHCII     / vlns$IFNg_AP)
 dev.off()
-cat('Wrote: Myeloid_programs_violins_home.pdf (4x1 stacked, 3.2 x 9.45 in)\n')
+cat('Wrote: Figure_6_panel_G_programs_violins.pdf (4x1 stacked, 3.2 x 9.45 in)\n')
 
 # Composite dotplot: 4 stacked panels (genes on x-axis), shared color/size legends
 # S2F-style: white-to-red gradient, theme_classic, no grid lines, no axis lines.
@@ -1045,9 +1045,9 @@ composite_dot <- (dots$GR_homeostatic / dots$HIF_vascular /
         legend.box      = 'horizontal',
         legend.title    = element_text(size = 8),
         legend.text     = element_text(size = 7))
-pdf('./output/Figure_6/Myeloid_programs_dotplots_composite.pdf', width = 4.2, height = 9)
+pdf('./output/Figure_6/Figure_6_panel_H_companion_dots.pdf', width = 4.2, height = 9)
 print(composite_dot); dev.off()
-cat('Wrote: Myeloid_programs_dotplots_composite.pdf (4 stacked, horizontal legend bottom, 4.2 x 9 in)\n')
+cat('Wrote: Figure_6_panel_H_companion_dots.pdf (4 stacked, horizontal legend bottom, 4.2 x 9 in)\n')
 
 saveRDS(M1_clean@meta.data, './output/Figure_6/fig6_program_scores_meta.rds')
 cat('Saved score-augmented metadata: fig6_program_scores_meta.rds\n')

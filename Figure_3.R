@@ -2492,13 +2492,15 @@ M2 <- subset(M1,cell_types_cm_collapsed != 'Unassigned')
 
 niche.patient <- table(M2$kmeans_15,M2$patient)
 niche.patient <- t(t(niche.patient) / colSums(niche.patient))
-
-disease <- c('RVF','RVF','NF','pRV','pRV','RVF','NF','pRV','NF')
-disease <- c(t(replicate(15,disease)))
-
-niche.patient <- data.frame(niche = disease,niche.patient)
-
-niche.patient$niche <- factor(niche.patient$niche, levels=c('NF','pRV','RVF'))
+niche.patient <- data.frame(niche.patient)  # Var1=cluster, Var2=patient, Freq
+## Dynamic patient -> disease group (robust to any patient/cluster count;
+## the old hardcoded 9-patient x replicate(15) vector broke when kmeans
+## produced a different number of clusters/patients).
+.pg <- unique(data.frame(patient = as.character(M2$patient),
+                         group   = as.character(M2$group)))
+.pg <- setNames(.pg$group, .pg$patient)
+niche.patient$niche <- factor(.pg[as.character(niche.patient$Var2)],
+                              levels = c('NF','pRV','RVF'))
 
 ggplot(niche.patient,aes(Var1,Freq,color = niche))+geom_boxplot(linewidth = PS$geom_lw) + theme_classic() + scale_colour_disease() + scale_y_touch()
 
@@ -2525,24 +2527,69 @@ library(scCustomize)
 # (cells outside niche.assay's host set). Names follow XeniumReanalysis.r:7889.
 # Assigned by auditing niche_kmeans15_composition_rowprop.csv (top fractions
 # per cluster); duplicate labels collapse niches with shared dominant biology.
-niche_labels_cm15 <- c(
-  '0'  = 'Unassigned',
-  '1'  = 'Capillary-rich myocardium',            # Cap_EC 11% + FB_NOX4 5% (oxidative-stress FB)
-  '2'  = 'Arterial',                             # VSMC 20.8% + Arterial_EC 9.5% + Cap_EC 5.7% (vasa vasorum) + FB diversity ~18% (adventitia) — large arteries
-  '3'  = 'Inflamed adipose stroma',              # Adipo ~29% + Venous_EC 8% + Mac_C1q 6% (CM 7%)
-  '4'  = 'Compact myocardium',                   # CM 59% + Cap_EC only 4.8% (lowest vascular density) + Adipo_Mature/Quiescent 5% + Epi_Quiescent 3%
-  '5'  = 'Sub-epicardial niche',                 # FB_Homeostatic 18% + Epi ~12% + Mac/Mono ~10%
-  '6'  = 'Peri-arteriole',                       # VSMC 9.1% + Arterial_EC 3.8%, no Cap_EC, CM 43% neighbors — arterioles embedded in myocardium
-  '7'  = 'Stressed myocardium',                  # CM 59% + FB_NOX4 4.2% (oxidative-stress FB)
-  '8'  = 'Fibrotic remodeling stroma',           # FB_PCOLCE2/Matrifibrocyte ~11% + Cap + Mac
-  '9'  = 'Fibrotic myocardium',                  # CM 57% + FB_Matrifibrocyte 5.5% + Cap_EC 8.4%
-  '10' = 'Myocardium',                           # CM 56% + Cap_EC 9.1% + Arterial_EC 4% — majority cluster, typical vascularized CM
-  '11' = 'Adipose-vascular niche',               # Adipo ~13% + Cap/Venous + Mac/FB mix (CM 20%)
-  '12' = 'Inflamed adipose-venous stroma',       # Adipo + Venous_EC 12.6% + FB_Stress 6.4% + CD8_T 4.4%
-  '13' = 'Fibrotic remodeling stroma',           # collapsed with cluster 8: FB_Matrifibrocyte 5.9% + Mac_C1q 6.8% + Cap + Venous
-  '14' = 'Fibrotic remodeling myocardium',       # CM 42% + FB_Matrifibrocyte/Activated/NOX4 + Cap
-  '15' = 'Adipose stroma'                        # Adipo ~20% + Venous 6.6% + FB_PCOLCE2 + Mac (CM 11%)
-)
+## DATA-DRIVEN niche assignment.
+## MiniBatchKmeans cluster *numbering* is not stable across runs (upstream
+## Seurat 5 / RCTD / UpdateSeuratObject / cell-order changes shift centroids),
+## so a hardcoded cluster# -> name map silently scrambles every label and the
+## dominant myocardium ends up mislabeled. Assign each cluster from its actual
+## cell-type composition (niche.names rowprop) + a size anchor so the heart's
+## background tissue is always 'Myocardium' (published Panel G: Myo ~= 100%).
+.gfrac <- function(fr, pat) { ix <- grep(pat, names(fr)); if (length(ix)==0) 0 else sum(fr[ix], na.rm=TRUE) }
+.get1  <- function(fr, nm)  if (nm %in% names(fr)) as.numeric(fr[nm]) else 0
+## size_frac = this cluster's share of all assigned cells. Per published
+## Panel G the myocardial subtypes (Stressed/Fibro/Cap/Compact/Remod-myo)
+## are RARE focal niches; the bulk CM tissue is plain 'Myocardium' (~100%).
+## So a CM-dominant cluster only earns a subtype label if it is SMALL
+## (size_frac < .myo_subtype_max); large CM clusters are background Myo.
+.myo_subtype_max <- 0.05
+.assign_niche <- function(fr, size_frac = 0) {
+  cm <- .get1(fr,'CM'); cap <- .get1(fr,'Capillary_EC'); art <- .get1(fr,'Arterial_EC')
+  ven <- .get1(fr,'Venous_EC'); vsmc <- .gfrac(fr,'VSMC'); adipo <- .gfrac(fr,'^Adipo')
+  epi <- .get1(fr,'Epi'); macq <- .get1(fr,'Mac_C1q'); fb <- .gfrac(fr,'^FB')
+  fb_nox4 <- .get1(fr,'FB_NOX4'); fb_matri <- .get1(fr,'FB_Matrifibrocyte')
+  fb_act <- .get1(fr,'FB_Activated'); fb_homeo <- .get1(fr,'FB_Homeostatic')
+  fb_stress <- .get1(fr,'FB_Stress')
+  ## genuinely non-myocardial niches (size-independent)
+  if (vsmc >= 0.15)                              return('Arterial')
+  if (vsmc >= 0.06 && art >= 0.02 && cap < 0.04) return('Peri-arteriole')
+  if (adipo >= 0.10 && adipo >= cm) {
+    infl <- (macq >= 0.04 || fb_stress >= 0.04); vasc <- (ven >= 0.08)
+    if (infl && vasc) return('Inflamed adipose-venous stroma')
+    if (vasc)         return('Adipose-vascular niche')
+    if (infl)         return('Inflamed adipose stroma')
+    return('Adipose stroma')
+  }
+  if (fb_homeo >= 0.12 && epi >= 0.05)           return('Sub-epicardial niche')
+  if (cm < 0.30 && fb >= 0.10)                   return('Fibrotic remodeling stroma')
+  ## CM-dominant: large = background Myo; small = a focal subtype niche
+  if (size_frac < .myo_subtype_max) {
+    if (cap      >= 0.11)                        return('Capillary-rich myocardium')
+    if (fb_nox4  >= 0.04)                        return('Stressed myocardium')
+    if (fb_matri >= 0.05)                        return('Fibrotic myocardium')
+    if (fb_act   >= 0.04)                        return('Fibrotic remodeling myocardium')
+    if (cm >= 0.55 && cap < 0.045)               return('Compact myocardium')
+  }
+  'Myocardium'
+}
+.clust_ids   <- rownames(niche.names)
+.clust_sizes <- table(M2$kmeans_15)[.clust_ids]
+.nz          <- setdiff(names(.clust_sizes), '0')
+.tot_cells   <- sum(.clust_sizes[.nz])
+niche_labels_cm15 <- setNames(
+  vapply(.clust_ids, function(cl)
+           .assign_niche(niche.names[cl, ],
+                         size_frac = as.numeric(.clust_sizes[cl]) / .tot_cells),
+         character(1)),
+  .clust_ids)
+niche_labels_cm15['0'] <- 'Unassigned'
+## Anchor: single largest cluster is always the heart background = 'Myocardium'.
+.biggest <- names(which.max(.clust_sizes[.nz]))
+if (length(.biggest) == 1) niche_labels_cm15[.biggest] <- 'Myocardium'
+message('Data-driven niche labels (cluster -> niche, n cells):')
+for (cl in names(sort(.clust_sizes, decreasing = TRUE))) {
+  if (cl == '0') next
+  message(sprintf('  k%-3s n=%-8d -> %s', cl, .clust_sizes[cl], niche_labels_cm15[cl]))
+}
 Idents(M1) <- 'kmeans_15'
 
 
@@ -2550,6 +2597,19 @@ new.cluster.ids <- niche_labels_cm15[levels(M1)]
 names(new.cluster.ids) <- levels(M1)
 M1 <- RenameIdents(M1, new.cluster.ids)
 M1$niche_manual <- M1@active.ident
+
+## Export per-cell barcode -> niche label (with kmeans cluster, patient, group)
+.bc_niche <- data.frame(
+  barcode      = colnames(M1),
+  kmeans_15    = as.character(M1$kmeans_15),
+  niche        = as.character(M1$niche_manual),
+  patient      = if ('patient' %in% colnames(M1@meta.data)) as.character(M1$patient) else NA,
+  group        = if ('group'   %in% colnames(M1@meta.data)) as.character(M1$group)   else NA,
+  stringsAsFactors = FALSE)
+write.csv(.bc_niche, './output/Figure_3/Xenium/niche_barcode_labels.csv',
+          row.names = FALSE)
+message('Wrote ', nrow(.bc_niche), ' barcode->niche rows to ',
+        './output/Figure_3/Xenium/niche_barcode_labels.csv')
 
 write.table(M1@meta.data,'./output/Figure_3/Xenium/metadata.csv',sep=',')
 
@@ -3131,13 +3191,13 @@ niche.counts <- niche.counts[names(niche.counts) != 'Unassigned']   # drop padde
 niche.patient <- table(M1$niche_manual,M1$patient)
 niche.patient <- niche.patient[rownames(niche.patient) != 'Unassigned', ]
 niche.patient <- t(t(niche.patient) / colSums(niche.patient))
-
-disease <- c('RVF','RVF','NF','pRV','pRV','RVF','NF','pRV','NF')
-disease <- c(t(replicate(14,disease)))
-
-niche.patient <- data.frame(niche = disease,niche.patient)
-
-niche.patient$niche <- factor(niche.patient$niche, levels=c('NF','pRV','RVF'))
+niche.patient <- data.frame(niche.patient)  # Var1=niche, Var2=patient, Freq
+## Dynamic patient -> disease group (replaces fragile hardcoded vector).
+.pg2 <- unique(data.frame(patient = as.character(M1$patient),
+                          group   = as.character(M1$group)))
+.pg2 <- setNames(.pg2$group, .pg2$patient)
+niche.patient$niche <- factor(.pg2[as.character(niche.patient$Var2)],
+                               levels = c('NF','pRV','RVF'))
 niche.patient$Var1 <- factor(niche.patient$Var1, levels=rev(names(sort(niche.counts))))
 
 library(ggpubr)
