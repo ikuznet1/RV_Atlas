@@ -42,6 +42,40 @@ dir.create(.outdir, showWarnings = FALSE, recursive = TRUE)
 
 .section <- function(n, title) message(sprintf('\n============ Table S%d - %s ============', n, title))
 
+# Curated echo / metric leaf labels (abbreviations + units; shared by the
+# murine PAB tables S4 & S5). Keys cover both the snRNA-cache column names
+# and the wk2_/wk8_-stripped PAB+respir column names.
+.ECHO_ABBR <- c(
+  Body_Weight_g              = 'Body Weight (g)',
+  Surgical_Body_Weight_g_    = 'Body Weight (g)',
+  RV_Area_Diastole_mm2       = 'RVAD (mm²)',
+  RV_Area_Diastole_mm_2_     = 'RVAD (mm²)',
+  RV_Area_Systole_mm2        = 'RVAS (mm²)',
+  RV_Area_Systole_mm_2_      = 'RVAS (mm²)',
+  FAC                        = 'FAC (%)',
+  RV_Free_Wall_mm            = 'RVFW (mm)',
+  RV_Free_Wall_Thickness_mm_ = 'RVFW (mm)',
+  TAPSE_mm                   = 'TAPSE (mm)',
+  TAPSE_mm_                  = 'TAPSE (mm)',
+  TDI_S_Wave                 = 'TDI S′',
+  TDI_S_Wave_mm_s_           = 'TDI S′',
+  Pk_Gradient_mmHg           = 'Pk Grad (mmHg)',
+  Pk_Velocity_mm_sec         = 'Pk Vel (mm/s)',
+  Tricuspid_Regurgitation    = 'TR',
+  TV_E_wave_mm_s_            = 'TV E (mm/s)',
+  TDI_e_mm_s_                = 'TDI e′ (mm/s)',
+  PA_VTI                     = 'PA VTI',
+  Group                      = 'Group',
+  Cohort                     = 'Cohort',
+  Echo_Date                  = 'Echo Date',
+  Echo_Weight_g_             = 'Echo Weight (g)',
+  Sx_Date                    = 'Surgery Date'
+)
+# Registry of sheets that need a 2-row (grouped) header. Keyed by sheet
+# name; value = list(leaf = <display leaf labels>, group = <top-row span
+# label per column, '' = no group). Read by the xlsx writer and .render_pdf.
+.header2 <- list()
+
 # Canonical snRNA-seq cohort: 11 patient IDs (from snRV_ref.rds$patient unique).
 SN_PATIENT_IDS <- c('1343','1392','1467','1561','1567','1618',
                     '1632','1681','1691','1692','1697')
@@ -237,6 +271,11 @@ if (file.exists(sn_cache)) {
   s4 <- read.csv(sn_cache, stringsAsFactors = FALSE, check.names = FALSE)
   s4 <- s4[order(factor(s4$group, c('Sham','Moderate','Severe')), s4$ID), ,
            drop = FALSE]
+  s4$HR <- NULL                                    # drop HR per spec
+  ## Final abbreviated headers (units; ² superscript, mm/s parenthesised).
+  s4_lab <- c(ID = 'ID', group = 'Group', n_nuclei = 'Nuclei', .ECHO_ABBR)
+  names(s4) <- ifelse(names(s4) %in% names(s4_lab),
+                      s4_lab[names(s4)], names(s4))
   rownames(s4) <- NULL
   all_sheets[['Table_S4']] <- s4
   message('  Table S4 (snRNA cohort): ', nrow(s4), ' mice | cols: ',
@@ -283,15 +322,33 @@ if (file.exists(pab_resp_xlsx)) {
     PAB_vs_Sham = pab_vs,
     dat[, setdiff(colnames(dat), c(exp_col, id_col)), drop = FALSE],
     check.names = FALSE, stringsAsFactors = FALSE)
-  ## Drop per spec: detailed respirometry flux cols + admin date/weight
-  ## cols + pure-duplicate key cols (ID / group are already up front).
-  drop5 <- c('Echo_Date', 'Echo_Weight_g_', 'Sx_Date',
+  ## Drop per spec: HR, detailed respirometry flux cols, admin date/weight
+  ## cols, and pure-duplicate key cols (ID / group are already up front).
+  drop5 <- c('wk2_HR', 'wk8_HR',
+             'Echo_Date', 'Echo_Weight_g_', 'Sx_Date',
              'resp_Batch_ID', 'resp_PM', 'resp_ADP', 'resp_Cyt_C',
              'resp_OC', 'resp_Succ', 'resp_Cyt_C_', 'resp_RCR',
              'resp_PAB_vs_SHAM', 'wk8_ID', 'wk8_PAB_vs_SHAM')
   s5 <- s5[, setdiff(colnames(s5), drop5), drop = FALSE]
   s5 <- s5[order(s5$PAB_vs_Sham, s5$Exp_set, s5$ID), , drop = FALSE]
   rownames(s5) <- NULL
+  ## Two-row header: lead cols ungrouped; every wk2_/wk8_ column becomes a
+  ## 'Week 2'/'Week 8' spanning group with the prefix stripped and the
+  ## abbreviated leaf label (RVAD (mm²), Pk Vel (mm/s), TR, ...).
+  s5_leaf <- character(ncol(s5)); s5_grp <- character(ncol(s5))
+  for (i in seq_along(s5)) {
+    cn <- colnames(s5)[i]
+    if (grepl('^wk2_', cn))      { base <- sub('^wk2_', '', cn); s5_grp[i] <- 'Week 2' }
+    else if (grepl('^wk8_', cn)) { base <- sub('^wk8_', '', cn); s5_grp[i] <- 'Week 8' }
+    else                         { base <- cn;                   s5_grp[i] <- '' }
+    s5_leaf[i] <-
+      if (cn == 'Exp_set')                  'Exp Set'
+      else if (cn == 'ID')                  'ID'
+      else if (cn == 'PAB_vs_Sham')         'Category'
+      else if (base %in% names(.ECHO_ABBR)) .ECHO_ABBR[[base]]
+      else gsub('_', ' ', base)
+  }
+  .header2[['Table_S5']] <- list(leaf = s5_leaf, group = s5_grp)
   all_sheets[['Table_S5']] <- s5
   message('  Table S5 (echo/respir cohort): ', nrow(s5), ' mice | cols: ',
           ncol(s5), ' | ',
