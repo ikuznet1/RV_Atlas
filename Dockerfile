@@ -108,6 +108,8 @@ RUN Rscript -e "pak::pak(c( \
         'bioc::limma', \
         'bioc::singleCellTK', \
         'bioc::decoupleR', \
+        'bioc::OmnipathR', \
+        'bioc::rhdf5', \
         'bioc::celda' \
     ), ask = FALSE)"
 
@@ -130,7 +132,7 @@ RUN Rscript -e "pak::pak(c( \
 # Layer D — GitHub packages (seurat-wrappers, hdWGCNA, monocle3, BPCells, spacexr)
 RUN Rscript -e "pak::pak(c( \
         'satijalab/seurat-wrappers', \
-        'smorabit/hdWGCNA', \
+        'smorabit/hdWGCNA@dev', \
         'cole-trapnell-lab/monocle3', \
         'bnprks/BPCells/r', \
         'dmcable/spacexr' \

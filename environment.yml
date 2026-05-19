@@ -58,6 +58,7 @@ dependencies:
   - bioconductor-glmgampoi
   - bioconductor-presto
   - r-openxlsx   # Generate_Supplementary_Tables.R xlsx writer
+  - r-kableextra # Generate_Supplementary_Tables.R PDF (LaTeX longtable) renderer
 
   ## ── Enrichment, TF activity, gene-set scoring ─────────────────────────────
   - bioconductor-dose

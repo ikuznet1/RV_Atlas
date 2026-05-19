@@ -227,41 +227,14 @@ if (file.exists(sn_rds)) {
 ## animals that merely reuse ID integers (per the wet-lab). They are kept
 ## as two SEPARATE tables: Table S4 = the n=10 sequenced cohort (this
 ## block); Table S5 = the 2-wk + 2-mo echo / respirometry cohort (below).
-pab_rds      <- file.path(.shared, 'PAB_data_clean.rds')
-sn_echo_xlsx <- file.path(.shared, 'PAB snRNAseq samples.xlsx')
-if (file.exists(pab_rds)) {
-  pab <- readRDS(pab_rds); md <- pab@meta.data
-  pc  <- intersect(c('patient','Patient'),  names(md))[1]
-  gcl <- intersect(c('orig.ident','group'), names(md))[1]
-  agg <- aggregate(rep(1L, nrow(md)),
-                   by = list(mouse_id = as.character(md[[pc]]),
-                             grp_raw  = as.character(md[[gcl]])), FUN = sum)
-  names(agg)[3] <- 'n_nuclei'
-  gmap <- c(Nor = 'Sham', Mod = 'Moderate', Sev = 'Severe')
-  s4 <- data.frame(
-    ID       = suppressWarnings(as.integer(agg$mouse_id)),
-    group    = ifelse(agg$grp_raw %in% names(gmap),
-                      gmap[agg$grp_raw], agg$grp_raw),
-    n_nuclei = as.integer(agg$n_nuclei),
-    stringsAsFactors = FALSE)
-  if (file.exists(sn_echo_xlsx)) {
-    e <- openxlsx::read.xlsx(sn_echo_xlsx, sheet = 1)
-    e$.mid <- suppressWarnings(as.integer(e$ID))
-    pick <- c(Body_Weight_g           = 'Surgical.Body.Weight',
-              HR                      = 'HR',
-              RV_Area_Diastole_mm2    = 'RV.Area.Diastole',
-              RV_Area_Systole_mm2     = 'RV.Area.Systole',
-              FAC                     = 'FAC',
-              RV_Free_Wall_mm         = 'RV.Free.Wall.Thickness.(mm)',
-              TAPSE_mm                = 'TAPSE.(mm)',
-              TDI_S_Wave              = 'TDI.S.Wave',
-              Pk_Gradient_mmHg        = 'Pk.Gradient.mmHg',
-              Pk_Velocity_mm_sec      = 'Pk.Velocity.mm/sec',
-              Tricuspid_Regurgitation = 'Tricuspid.Regurgitation')
-    for (k in names(pick))
-      if (pick[[k]] %in% names(e))
-        s4[[k]] <- e[[pick[[k]]]][match(s4$ID, e$.mid)]
-  }
+## Reads the small precomputed cohort summary (deps-compliant; avoids
+## loading the 55k-cell PAB_data_clean.rds Seurat object at table-gen
+## time — that readRDS peaks memory and OOMs on constrained machines).
+## Regenerate the cache from PAB_data_clean.rds + 'PAB snRNAseq
+## samples.xlsx' if the upstream snRNA object changes.
+sn_cache <- file.path(.shared, 'PAB_snRNA_cohort_summary.csv')
+if (file.exists(sn_cache)) {
+  s4 <- read.csv(sn_cache, stringsAsFactors = FALSE, check.names = FALSE)
   s4 <- s4[order(factor(s4$group, c('Sham','Moderate','Severe')), s4$ID), ,
            drop = FALSE]
   rownames(s4) <- NULL
@@ -270,9 +243,8 @@ if (file.exists(pab_rds)) {
           ncol(s4), ' | ',
           paste(names(table(s4$group)), table(s4$group),
                 sep = '=', collapse = ', '))
-  rm(pab, md); invisible(gc(verbose = FALSE))
 } else {
-  message('  PAB_data_clean.rds not found; skipping Table S4')
+  message('  PAB_snRNA_cohort_summary.csv not found; skipping Table S4')
 }
 
 # ===========================================================================
@@ -368,26 +340,28 @@ if (file.exists(xen_meta_path)) {
                        names(s1)),
              drop = FALSE]
   demo$patient_id <- as.character(demo$patient_id)
-  s5 <- merge(demo, qc, by = 'patient_id', all = TRUE)
-  s5 <- s5[order(s5$group, s5$patient_id), , drop = FALSE]
-  rownames(s5) <- NULL
-  all_sheets[['Table_S5']] <- s5
-  message('  Xenium cohort rows: ', nrow(s5),
-          if (nrow(s5) != 9) '  (NOTE: v57 expects n=9)' else '')
+  s6 <- merge(demo, qc, by = 'patient_id', all = TRUE)
+  s6 <- s6[order(s6$group, s6$patient_id), , drop = FALSE]
+  rownames(s6) <- NULL
+  all_sheets[['Table_S6']] <- s6
+  message('  Xenium cohort rows: ', nrow(s6),
+          if (nrow(s6) != 9) '  (NOTE: v57 expects n=9)' else '')
 } else {
-  message('  Xenium_metadata.csv not found; skipping Table S5')
+  message('  Xenium_metadata.csv not found; skipping Table S6')
 }
 
 # ===========================================================================
 # README sheet (leading) — one-line description per Table
 # ===========================================================================
 index_df <- data.frame(
-  `Table #` = c('Table S1', 'Table S2', 'Table S3', 'Table S4', 'Table S5'),
+  `Table #` = c('Table S1', 'Table S2', 'Table S3', 'Table S4',
+                'Table S5', 'Table S6'),
   Title = c(
     'Adult RV cohort: demographics & platform allocation (n=142).',
     'Adult RV cohort: hemodynamics (n=142).',
     'snRNA-seq cohort: demographics & QC (n=11).',
     'Murine PAB snRNA-seq cohort: echo (n=10).',
+    'Murine PAB 2-wk + 2-mo echo / respirometry cohort.',
     'Xenium spatial cohort: demographics & QC (n=9).'
   ),
   check.names = FALSE
@@ -541,8 +515,9 @@ message('\nWROTE ', out_path, '  (', length(all_sheets), ' sheet(s))')
     Table_S1 = 'Table S1. Patient demographics for the adult RV cohort (n=142), including disease state classification (NF, pRV, RVF), etiology (DCM/ICM/NF), age, sex, ethnicity, anthropometrics, pacemaker status, RNA integrity (RIN), and platform allocation flags (in_snRNA_cohort, in_Xenium_cohort).',
     Table_S2 = 'Table S2. Hemodynamic parameters for the adult RV cohort (n=142) used for disease-state stratification: right atrial pressure (RAP), pulmonary capillary wedge pressure (PCWP), RA:PCWP ratio (primary stratification variable), pulmonary arterial pressures, cardiac index, and pulmonary vascular resistance index (PVRI).',
     Table_S3 = 'Table S3. snRNA-seq cohort (n=11): per-patient demographics joined from Table S1, plus per-nucleus quality control metrics — nuclei recovered, median UMI count and feature count, mean mitochondrial percent, mean transcriptional entropy, and mean intronic read percent.',
-    Table_S4 = 'Table S4. Murine PAB snRNA-seq cohort (n=10: 3 Sham, 3 Moderate-RVF, 4 Severe-RVF), with per-mouse echocardiographic parameters — body weight at echo, heart rate (HR), RV areas at diastole (RVAD) and systole (RVAS), fractional area change (FAC), RV free wall thickness (RVFWT), tricuspid annular plane systolic excursion (TAPSE), tissue Doppler S′ (TDI S′), peak gradient and peak velocity across the PA band.',
-    Table_S5 = 'Table S5. Patient demographics for the Xenium spatial transcriptomics cohort (n=9), with tissue section details and per-section quality control metrics (cells captured, median UMI/features per cell, median cell area, section area, cell density).'
+    Table_S4 = 'Table S4. Murine PAB snRNA-seq cohort (n=10: 3 Sham, 3 Moderate-RVF, 4 Severe-RVF), with nuclei recovered and per-mouse echocardiographic parameters — body weight, heart rate (HR), RV areas at diastole (RVAD) and systole (RVAS), fractional area change (FAC), RV free wall thickness (RVFWT), tricuspid annular plane systolic excursion (TAPSE), tissue Doppler S′ (TDI S′), peak gradient and peak velocity across the PA band, and tricuspid regurgitation. These are DISTINCT animals from the echo/respirometry cohort (Table S5) despite shared ID integers.',
+    Table_S5 = 'Table S5. Murine PAB 2-week + 2-month (8-week) echocardiography / respirometry cohort — the full echo-phenotyped animal set (distinct mice from the snRNA-seq cohort in Table S4), spanning two experimental sets, sorted by PAB vs Sham. Includes 2-week and 2-month echo parameters; detailed respirometry mitochondrial-flux measurements and administrative date/weight columns are omitted for concision.',
+    Table_S6 = 'Table S6. Patient demographics for the Xenium spatial transcriptomics cohort (n=9), with tissue section details and per-section quality control metrics (cells captured, median UMI/features per cell, median cell area, section area, cell density).'
   )
 
   for (nm in names(pretty_sheets)) {
