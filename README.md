@@ -9,7 +9,7 @@
 ³ Cardiovascular Disease Initiative, The Broad Institute, Cambridge, MA, USA\
 ⁴ Cardiovascular Institute, Children's Hospital of Philadelphia, Philadelphia, PA, USA\
 ⁵ Center for Cardiovascular Research, Department of Medicine, Cardiovascular Division, Washington University School of Medicine, St. Louis, MO, USA\
-⁶ Department of Pediatrics, University of Colorado Anschutz Medical Campus, Children's Hospital Colorado, Aurora, CO, USA\
+⁶ Department of Pediatrics, University of Colorado Anschutz Medical Campus, Children's Hospital Colorado, Aurora, CO, USA
 
 \* Contributed equally\
 † Corresponding Authors: Jonathan J. Edwards (EdwardsJ6@chop.edu) and Zoltan Arany (zarany@pennmedicine.upenn.edu)
