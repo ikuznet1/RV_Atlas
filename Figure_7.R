@@ -17,20 +17,15 @@
 ##       across NF/pRV/RVF
 ##   (L) MECOM expression across EC subtypes × disease group
 ##
-## Outputs (./output/Figure_7/v52_figures/):
+## Outputs (./output/v52_figures/):
 ##   Figure_7_panel_{A,B,C,D,E,F,G,H,I,J,K,L}.pdf
 ###############################################################################
 
 source('./helper_scripts/_shared_helpers.R')
-
-## Per-figure output directory (introduced for consistent output paths)
+## Working-repo adaptation: per-figure output dir + standardized names.
 V52_FIG_DIR <- './output/Figure_7'
-dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+dir.create(V52_FIG_DIR, recursive = TRUE, showWarnings = FALSE)
 
-
-## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
-## that's outside an explicit pdf() ... dev.off() envelope.
-pdf(NULL)
 dir.create('./output', recursive = TRUE, showWarnings = FALSE)
 
 ## Composite figure dimensions (inches) — used by theme_v52() scaling
@@ -198,7 +193,7 @@ save_figure(p_7C, 'Figure_7_panel_C.pdf', width = 12.5, height = 4)
 #######################################
 DefaultAssay(M1) <- "RNA"
 
-.cache_wgcna_fit <- './output/Figure_7/fig7_wgcna_fit_cache.rds'
+.cache_wgcna_fit <- './output/fig6_wgcna_fit_cache.rds'
 if (file.exists(.cache_wgcna_fit)) {
   message('Loading cached hdWGCNA fit (SetupForWGCNA through ModuleConnectivity)...')
   M1 <- readRDS(.cache_wgcna_fit)
@@ -233,24 +228,15 @@ if (file.exists(.cache_wgcna_fit)) {
     networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
   )
 
-  ## ConstructNetwork honours tom_dir, but the underlying WGCNA call still
-  ## leaks `./TOM/<name>_TOM.rda` to getwd(). Run inside V52_FIG_DIR so the
-  ## artifact stays under ./output/Figure_7/.
-  .oldwd <- getwd()
-  setwd(V52_FIG_DIR)
-  on.exit(setwd(.oldwd), add = TRUE)
   M1 <- ConstructNetwork(overwrite_tom = TRUE,
     M1,
-    tom_dir = 'hdWGCNA_TOM',
     tom_name = 'ec_net' # name of the topoligical overlap matrix written to disk
   )
-  setwd(.oldwd)
 
   M1 <- ScaleData(M1)
-  ## NOTE: hdWGCNA 0.4.11 + harmony 2.0.3 are incompatible — ModuleEigengenes
-  ## internally passes `assay.use=...` to RunHarmony, which harmony 2.x rejects.
-  ## M1 was loaded already-harmonised (EC_hdWGCNA_by_celltype.rds), so dropping
-  ## group.by.vars here skips the redundant internal harmony call.
+  ## harmony 2.x incompatibility: hdWGCNA passes assay.use= to RunHarmony
+  ## which Harmony 2.0.3 rejects (check_legacy_args). Drop group.by.vars
+  ## so ModuleEigengenes computes plain (non-harmonized) MEs.
   M1 <- ModuleEigengenes(M1)
 
   M1 <- ModuleConnectivity(
@@ -265,7 +251,7 @@ library(patchwork)
 plot_list <- PlotSoftPowers(M1)
 wrap_plots(plot_list, ncol=2)
 
-MEs <- GetMEs(M1,harmonized=TRUE)
+MEs <- GetMEs(M1,harmonized=FALSE)  # non-harmonized (harmony 2.x incompat)
 
 modules <- GetModules(M1)
 mods <- levels(modules$module); mods <- mods[mods != 'grey']
@@ -289,7 +275,7 @@ colNames[match(mods,colNames)] <- mods_num
 colnames(M1@meta.data) <- colNames
 
 # compute the module UMAPs
-.cache_module_umap <- './output/Figure_7/fig7_module_umap_cache.rds'
+.cache_module_umap <- './output/fig6_module_umap_cache.rds'
 if (file.exists(.cache_module_umap)) {
   message('Loading cached RunModuleUMAP (M1)...')
   M1 <- readRDS(.cache_module_umap)
@@ -372,7 +358,7 @@ p <-  plot_df %>%
       plot.margin = margin(0,0,0,0)
     )
 
-pdf('./output/Figure_7/EC_hdWGCNA.pdf',width=6,height=6)
+pdf('./output/EC_hdWGCNA.pdf',width=6,height=6)
 print(p)
 dev.off()
 
@@ -380,7 +366,7 @@ dev.off()
 library(enrichR)
 dbs <- c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023')
 
-.cache_enrichr <- './output/Figure_7/fig7_enrichr_cache.rds'
+.cache_enrichr <- './output/fig6_enrichr_cache.rds'
 if (file.exists(.cache_enrichr)) {
   message('Loading cached RunEnrichr (M1)...')
   M1 <- readRDS(.cache_enrichr)
@@ -399,7 +385,7 @@ enrich_df <- GetEnrichrTable(M1)
 
 EnrichrBarPlot(
   M1,
-  outdir = "./output/Figure_7/scEC_subclust_enrichr_plot", 
+  outdir = "./output/scEC_subclust_enrichr_plot", 
   n_terms = 5,
   plot_size = c(5,4), # width, height of the output .pdfs
   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -528,7 +514,7 @@ colorbar <- color_df %>%
   )
 
 
-pdf(paste0('./output/Figure_7/', 'EC_GO_terms.pdf'), width=8, height=7)
+pdf(paste0('./output/', 'EC_GO_terms.pdf'), width=8, height=7)
 print(p / colorbar)
 dev.off()
 
@@ -540,13 +526,13 @@ dev.off()
 #######################################
 
 
-pdf('./output/Figure_7/EC_celltype_mods.pdf',width=6,height=3)
+pdf('./output/EC_celltype_mods.pdf',width=6,height=3)
 p <- DotPlot(M1, features=sort(mods_num), group.by = 'Names',col.min=0)
 p
 dev.off()
 
 
-pdf('./output/Figure_7/EC_group_mods.pdf',width=6,height=2)
+pdf('./output/EC_group_mods.pdf',width=6,height=2)
 p <- DotPlot(M1, features=sort(mods_num), group.by = 'group',col.min=0)
 p
 dev.off()
@@ -559,7 +545,7 @@ down_RVF = c('M2','M3','M6')
 #############  FIGURE 7G  #############
 #######################################
 
-pdf('./output/Figure_7/EC_feature.pdf',width=4,height=6)
+pdf('./output/EC_feature.pdf',width=4,height=6)
 FeaturePlot(M1,c('M1','M4','M7'),label=T,min.cutoff=0,ncol=1)
 dev.off()
 
@@ -570,7 +556,7 @@ M1 <- SetIdent(M1, value = "group")
 
 modules <- GetModules(M1)
 modules$module <- match(modules$module,mapping)
-.cache_find_markers <- './output/Figure_7/fig7_find_markers_cache.rds'
+.cache_find_markers <- './output/fig6_find_markers_cache.rds'
 if (file.exists(.cache_find_markers)) {
   message('Loading cached FindMarkers (combined_set per module)...')
   combined_set <- readRDS(.cache_find_markers)
@@ -610,7 +596,7 @@ keyvals <- M1_subset$color
 names(keyvals)  <- M1_subset$module
 
 
-pdf(paste0('./output/Figure_7/', 'RV_EC_module_volcano_aM1.pdf'), width=8, height=6)
+pdf(paste0('./output/', 'RV_EC_module_volcano_aM1.pdf'), width=8, height=6)
 
 print(EnhancedVolcano(M1_subset,lab=rownames(M1_subset),
   x='avg_log2FC',y='p_val_adj',
@@ -633,7 +619,7 @@ M4_subset_down <- subset(M4_subset,avg_log2FC<0)
 cat(rownames(M4_subset_up),sep='\n')
 cat(rownames(M4_subset_down),sep='\n')
 
-#saveRDS(M1,'./output/Figure_7/EC_hdWGCNA_by_celltype.rds')
+#saveRDS(M1,'./output/EC_hdWGCNA_by_celltype.rds')
 
 
 DefaultAssay(M1) <- "SCT"
@@ -650,7 +636,7 @@ DefaultAssay(M1) <- "SCT"
 
 #Get all terms for + regulation of angiogenesis from GO
 library(biomaRt)
-.cache_angio_scores <- './output/Figure_7/fig7_angio_module_scores_cache.rds'
+.cache_angio_scores <- './output/fig6_angio_module_scores_cache.rds'
 if (file.exists(.cache_angio_scores)) {
   message('Loading cached biomaRt + AddModuleScore (angiogenesis scores)...')
   angio_scores_df <- readRDS(.cache_angio_scores)
@@ -696,14 +682,14 @@ if (file.exists(.cache_angio_scores)) {
 
 
 ###############################################################################
-##  Panels J + K — Combined Phase-2 subtype-specific violins:
-##              Panel J = NRG1 (Endocardial EC); Panel K = MECOM (Arterial EC).
-##              Pseudobulk DESeq2-VST per patient (one point = one donor; Wilcoxon).
+##  Panel J — Combined Phase-2 subtype-specific violins:
+##              NRG1 (Endocardial EC) + MECOM (Arterial EC), pseudobulk
+##              DESeq2-VST per patient (one point = one donor; Wilcoxon).
 ###############################################################################
 suppressPackageStartupMessages({ library(DESeq2); library(SummarizedExperiment) })
 
-.cache_panel_J_NRG1  <- './output/Figure_7/fig7_panel_J_endo_NRG1_pseudobulk.rds'
-.cache_panel_J_MECOM <- './output/Figure_7/fig7_panel_L_arterial_MECOM_pseudobulk.rds'
+.cache_panel_J_NRG1  <- './output/fig7_panel_J_endo_NRG1_pseudobulk.rds'
+.cache_panel_J_MECOM <- './output/fig7_panel_L_arterial_MECOM_pseudobulk.rds'
 
 .compute_subtype_pseudobulk_vst <- function(seurat_obj, subtype_label, gene) {
   .sub <- subset(seurat_obj, subset = Names == subtype_label)
@@ -764,7 +750,7 @@ save_figure(p_7K, 'Figure_7_panel_K.pdf', width = 3.5, height = 4)
 # 
 
 #######################################
-####  LEGACY: commented-out hdWGCNA setup (not produced for v57)
+#############  FIGURE 7I  #############
 #######################################
 
 
@@ -848,7 +834,7 @@ save_figure(p_7K, 'Figure_7_panel_K.pdf', width = 3.5, height = 4)
 
 # modules <- GetModules(M1)
 # mods <- levels(modules$module); mods <- mods[mods != 'grey']
-# saveRDS(M1,'./output/Figure_7/EC_hdWGCNA_by_group.rds')
+# saveRDS(M1,'./output/EC_hdWGCNA_by_group.rds')
 
 ###############################################################################
 ## v52 NEW PANELS — D through I
@@ -863,7 +849,7 @@ suppressPackageStartupMessages({
 ## ── Reuse the EC hdWGCNA object from earlier (already has 'ec' experiment) ──
 ec_wgcna <- M1
 
-.cache_mEs_ec <- './output/Figure_7/fig7_MEs_ec_cache.rds'
+.cache_mEs_ec <- './output/fig6_MEs_ec_cache.rds'
 if (file.exists(.cache_mEs_ec)) {
   message('Loading cached GetMEs (ec_wgcna harmonized MEs)...')
   MEs_ec <- readRDS(.cache_mEs_ec)
@@ -894,7 +880,7 @@ for (.m in mods_ec) {
 }
 
 ## ── Panel D — hdWGCNA Module UMAP (hub gene network) ─────────────────────
-.cache_ec_wgcna_umap <- './output/Figure_7/fig7_ec_wgcna_module_umap_cache.rds'
+.cache_ec_wgcna_umap <- './output/fig6_ec_wgcna_module_umap_cache.rds'
 tryCatch({
   if (file.exists(.cache_ec_wgcna_umap)) {
     message('Loading cached RunModuleUMAP (ec_wgcna)...')
@@ -929,7 +915,7 @@ save_figure(p_7D, 'Figure_7_panel_D.pdf', width = 6, height = 5)
 ## ── Panel E — GO enrichment for focus modules (clusterProfiler / enrichR) ─
 modules_tbl <- GetModules(ec_wgcna)
 
-.cache_panel_E_enrichr <- './output/Figure_7/fig7_panel_E_enrichr_cache.rds'
+.cache_panel_E_enrichr <- './output/fig6_panel_E_enrichr_cache.rds'
 if (file.exists(.cache_panel_E_enrichr)) {
   message('Loading cached enrichr results (Panel E focus modules)...')
   p6E_enrichr_results <- readRDS(.cache_panel_E_enrichr)
@@ -1081,7 +1067,7 @@ phase2_genes <- names(phase2_lookup)
 }
 
 ## --- snRNA-seq EC pan-pseudobulk (compute fresh, cache) ---------------------
-.cache_panel_H_sn <- './output/Figure_7/fig7_panel_H_sn_ec_pan_pseudobulk_RVF_vs_pRV.rds'
+.cache_panel_H_sn <- './output/fig7_panel_H_sn_ec_pan_pseudobulk_RVF_vs_pRV.rds'
 if (file.exists(.cache_panel_H_sn)) {
   message('Loading cached snRNA pan-EC pseudobulk for Panel H...')
   sn_ec_de <- readRDS(.cache_panel_H_sn)
@@ -1107,7 +1093,7 @@ if (file.exists(.cache_panel_H_sn)) {
 }
 
 ## --- Xenium Activated_EC sublineage pseudobulk (precomputed CSV) ------------
-xen_lin_de <- read.csv('./dependencies/shared/Xenium/xenium_pseudobulk_lineage_deseq2.csv')
+xen_lin_de <- read.csv('./dependencies/shared/xenium_pseudobulk_lineage_deseq2.csv')
 xen_ec_de <- xen_lin_de[xen_lin_de$subtype == 'EC' &
                             xen_lin_de$contrast == 'RVF_vs_pRV', ]
 
@@ -1125,7 +1111,7 @@ save_figure(p_7H, 'Figure_7_panel_H.pdf', width = 8, height = 10)
 ## Replaces the prior Xenium spatial maps with patient-level pseudobulk
 ## DESeq2-VST violins (matches Panel J's design). EC = full M1 EC object
 ## (all 5 subtypes pooled).
-.cache_panel_I <- './output/Figure_7/fig7_panel_I_ec_pseudobulk_angpt2_snai1.rds'
+.cache_panel_I <- './output/fig7_panel_I_ec_pseudobulk_angpt2_snai1.rds'
 
 if (file.exists(.cache_panel_I)) {
   message('Loading cached EC pseudobulk frame for Panel I...')

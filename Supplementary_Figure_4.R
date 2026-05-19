@@ -19,19 +19,14 @@
 ##       4 RV-derived programs (GR-homeostatic, HIF/vascular drift, NF-kB
 ##       MHCII/inflammasome, IFNg antigen presentation); Donor vs DCM Wilcoxon
 ##
-## Output: ./output/Supplementary_Figure_4/v52_figures/Supplementary_Figure_4_panel_<LETTER>.pdf (per-panel)
+## Output: ./output/v52_figures/Supplementary_Figure_4_panel_<LETTER>.pdf (per-panel)
 ###############################################################################
 
 source('./helper_scripts/_shared_helpers.R')
-
-## Per-figure output directory (introduced for consistent output paths)
+## Working-repo adaptation: per-figure output dir + standardized panel names.
 V52_FIG_DIR <- './output/Supplementary_Figure_4'
 dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 
-
-## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
-## that's outside an explicit pdf() ... dev.off() envelope.
-pdf(NULL)
 # SCTransform / FindIntegrationAnchors export ~1 GB of globals to future workers;
 # default cap is 500 MiB. Set high enough for the largest pipeline step.
 options(future.globals.maxSize = 16 * 1024^3)
@@ -43,6 +38,17 @@ COMP_H <- 16
 PS <- pub_scales(COMP_W)
 
 library(Seurat)
+## Robust AddModuleScore (nbin retry ladder) — see note in Figure_6.R.
+AddModuleScore <- function(object, ...) {
+  .a <- list(...); .a[['nbin']] <- NULL
+  .fn <- get('AddModuleScore', envir = asNamespace('Seurat'))
+  for (.n in c(24L, 15L, 10L, 6L, 4L, 3L, 2L)) {
+    .r <- tryCatch(do.call(.fn, c(list(object), .a, list(nbin = .n))),
+                   error = function(e) NULL)
+    if (!is.null(.r)) return(.r)
+  }
+  do.call(.fn, c(list(object), .a, list(nbin = 2L)))
+}
 library(hdWGCNA)
 library(ggeasy)
 library(harmony)
@@ -93,7 +99,7 @@ if (isTRUE(as.logical(Sys.getenv('RUN_LEGACY_MYELOID', 'FALSE')))) {
 #   Monocyte / Mac_Mono_Derived, TREM2+ Mac, Proliferating
 # Reductions: pca, harmony, umap (already finalized). Skipping the legacy
 # FindClusters / RenameIdents / sub-clustering / re-Harmony pipeline.
-M1 <- readRDS(file = "./output/Figure_6/myeloid_subclust_new.rds")
+M1 <- readRDS(file = "./dependencies/shared/myeloid_subclust_new.rds")
 M1$Subnames    <- Idents(M1)
 M1$Subsubnames <- Idents(M1)
 M1 <- SetIdent(M1, value = 'Subsubnames')
@@ -134,12 +140,12 @@ cols_current <- colnames(M1@meta.data)
 cols_current[startsWith(colnames(M1@meta.data),'module_score')] <- paste0('module_',module_colors)
 colnames(M1@meta.data) <- cols_current
 
-pdf(paste0('./output/Supplementary_Figure_4/', 'RV_vln_modules.pdf'), width=6, height=3)
+pdf(paste0('./output/', 'RV_vln_modules.pdf'), width=6, height=3)
 VlnPlot(M1,c('module_M1','module_M3','module_M4','module_M8'),pt.size=0,ncol=4) &
   scale_fill_disease() & theme_v52(COMP_W)
 dev.off()
 
-pdf(paste0('./output/Supplementary_Figure_4/', 'RV_dot_modules.pdf'), width=4.5, height=2.2)
+pdf(paste0('./output/', 'RV_dot_modules.pdf'), width=4.5, height=2.2)
 p <- DotPlot(M1,paste0('module_',
   c('M1','M3','M4','M8')),dot.min=0,col.min=0,col.max=2,
   dot.scale = PS$dot_range[2]) +
@@ -163,7 +169,7 @@ dev.off()
 .rv_levels <- levels(droplevels(factor(M2$Subsubnames)))
 .rv_pal    <- setNames(scales::hue_pal()(length(.rv_levels)), .rv_levels)
 M2$Subsubnames <- factor(M2$Subsubnames, levels = .rv_levels)
-pdf(paste0('./output/Supplementary_Figure_4/', 'RV_Myeloid_Integrated_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'RV_Myeloid_Integrated_snUMAP.pdf'), width=5, height=5)
 print(
   PlotEmbedding(M2, group.by='Subsubnames', point_size=1, plot_under=TRUE,
                 plot_theme=umap_theme()+NoLegend(),
@@ -251,7 +257,7 @@ p_M2 <- DimPlot(M2, reduction = "umap", group.by = "Subsubnames",
                      raster = TRUE, pt.size = 1.5) +
     scale_color_manual(values = .rv_pal, drop = FALSE) +
     NoLegend() + ggtitle("Query transferred labels")
-  pdf(paste0('./output/Supplementary_Figure_4/', ref_pdf), width = 10, height = 5)
+  pdf(paste0('./output/', ref_pdf), width = 10, height = 5)
   print(p_M2 + p_query)
   dev.off()
 
@@ -293,7 +299,7 @@ p_sn <- .process_LV('SN', 'RV_LV_myeloid_ref_mapped.pdf')      # Panel F.i
 p_sc <- .process_LV('SC', 'RV_LV_sc_myeloid_ref_mapped.pdf')   # Panel F.ii
 
 # Panels F.iii + F.iv: side-by-side LV original (Koenig) annotations.
-pdf(paste0('./output/Supplementary_Figure_4/', 'LV_sn_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'LV_sn_sc_myeloid_ref_mapped.pdf'), width=10, height=5)
 print(p_sn + p_sc)
 dev.off()
 rm(p_sn, p_sc, p_M2); invisible(gc(verbose = FALSE))
@@ -353,7 +359,7 @@ snLV$condition <- factor(snLV$condition, levels = c('Donor','DCM'))
   FUN = mean
 )
 write.csv(.patient_scores,
-  './output/Supplementary_Figure_4/fig_s4_panel_FGH_LV_myeloid_module_scores.csv', row.names = FALSE)
+  './output/fig_s4_panel_FGH_LV_myeloid_module_scores.csv', row.names = FALSE)
 
 .box_plot <- function(df, col, title) {
   pv <- tryCatch(wilcox.test(df[[col]] ~ df$condition)$p.value,
@@ -381,7 +387,7 @@ panel_I <- (p_GR + (p_HIF + .strip_y) +
             (p_MHCII + .strip_y) + (p_IFNg + .strip_y)) +
   plot_layout(nrow = 1)
 
-pdf(paste0('./output/Supplementary_Figure_4/', 'fig_s4_panel_I_LV_myeloid_module_scores_box.pdf'),
+pdf(paste0('./output/', 'fig_s4_panel_I_LV_myeloid_module_scores_box.pdf'),
   width = 5, height = 3)
 print(panel_I)
 dev.off()
@@ -472,7 +478,7 @@ p1 <- DimPlot(M2, reduction = "umap", group.by = "Subnames", label = TRUE, label
 p2 <- DimPlot(snLV, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) +
   scale_color_manual(values = .fb_pal, drop = FALSE) +
   NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('./output/Supplementary_Figure_4/', 'RV_LV_fb_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_LV_fb_ref_mapped.pdf'), width=10, height=5)
 print(p1 + p2)
 dev.off()
 
@@ -499,7 +505,7 @@ snLV <- SetIdent(snLV, value = 'predicted.celltype')
 #######################################
 # RV vs LV FB annotation concordance dot.
 
-pdf(paste0('./output/Supplementary_Figure_4/', 'RV_LV_fb_ref_mapped_dot.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'RV_LV_fb_ref_mapped_dot.pdf'), width=6, height=4)
 DotPlot(snLV,c('Fb31','Fb61','Fb91','Fb41','Fb71','Fb21',
   'Fb51','Fb81','Fb11'),group.by = "predicted.celltype",col.min=0,col.max=2,
   dot.scale = PS$dot_range[2]) +
@@ -580,7 +586,7 @@ lv_fb_phase2 <- .lv_fb_pb_module(fb_matrifib_genes, 'LV FB matrifibrocyte (Fu 20
     suppressWarnings(wilcox.test(score ~ condition, data = d, exact = FALSE)$p.value),
     error = function(e) NA_real_)
   write.csv(d,
-    sprintf('./output/Supplementary_Figure_4/fig_s4_panel_C_%s_score.csv', csv_tag),
+    sprintf('./output/fig_s4_panel_C_%s_score.csv', csv_tag),
     row.names = FALSE)
 
   y_max  <- max(d$score, na.rm = TRUE)
@@ -621,7 +627,7 @@ p_C_phase2 <- .lv_fb_box(lv_fb_phase2,
   title_text = 'Phase 2 conservation\n(Fu 2018 matrifibrocyte)',
   csv_tag    = 'fb_matrifib_phase2')
 
-pdf(paste0('./output/Supplementary_Figure_4/', 'fig_s4_panel_C_LV_FB_phase_scores_box.pdf'),
+pdf(paste0('./output/', 'fig_s4_panel_C_LV_FB_phase_scores_box.pdf'),
   width = 3.5, height = 4.5)
 print(p_C_phase1 / p_C_phase2)   # stacked since panels are now horizontal
 dev.off()
@@ -658,7 +664,7 @@ labs <- rownames(dataset)
 #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-pdf(paste0('./output/Supplementary_Figure_4/', 'RV_vs_LV_fb_dot.pdf'), width=6, height=8)
+pdf(paste0('./output/', 'RV_vs_LV_fb_dot.pdf'), width=6, height=8)
 ggplot(dataset, aes(x = RV, y=LV)) + geom_point(size = PS$scatter_pt) +
   geom_text_repel(label=labs,max.overlaps=10,
     size = PS$text_mm, family = FONT_FAMILY, fontface = "italic") + theme_v52(COMP_W)
@@ -678,7 +684,7 @@ dataset_fb <- data.frame(
 dataset_fb$sig_both <- dataset_fb$RV_padj < 0.05 & dataset_fb$LV_padj < 0.05
 labs_fb <- ifelse(dataset_fb$sig_both, rownames(dataset_fb), NA_character_)
 
-pdf(paste0('./output/Supplementary_Figure_4/', 'fig_s4_panel_D_fb_LV_RV_scatter.pdf'), width = 4, height = 4)
+pdf(paste0('./output/', 'fig_s4_panel_D_fb_LV_RV_scatter.pdf'), width = 4, height = 4)
 print(
   ggplot(dataset_fb, aes(x = RV, y = LV)) +
     geom_hline(yintercept = 0, linewidth = PS$linewidth_mm, colour = 'grey80') +
@@ -694,7 +700,139 @@ print(
 dev.off()
 
 write.csv(dataset_fb,
-  './output/Supplementary_Figure_4/fig_s4_panel_D_fb_LV_RV_scatter.csv', row.names = TRUE)
+  './output/fig_s4_panel_D_fb_LV_RV_scatter.csv', row.names = TRUE)
 
 
 #######################################
+##  FIGURE S4 PANELS G + H  — TODO  ##
+#######################################
+# v54 panel G: cross-chamber concordance scatter for the 4 myeloid bulk-WGCNA
+# modules (M1, M3, M4, M8). For each module, per-gene log2FC computed by
+# Seurat::FindMarkers in the RV myeloid object and in the LV (Koenig 2022)
+# myeloid object, restricted to genes detected on both platforms.
+#
+# v54 panel H: bulk-WGCNA myeloid modules (M1, M3, M4, M8) projected onto the
+# LV (Koenig 2022) myeloid atlas via Seurat::AddModuleScore. Dot plot of mean
+# per-cell module score (color) and percent expressing (size) by LV myeloid
+# subtype × disease state (Donor vs DCM).
+#
+# Implementation note: both panels need (a) the LV (Koenig 2022) myeloid
+# object subset, (b) the bulk-WGCNA module gene lists for M1/M3/M4/M8, and
+# (c) the RV myeloid object (already loaded above). They are not yet wired
+# in; left as explicit TODO so the script parses and the existing panels
+# (A, B, C, D, E, F, I) regenerate cleanly.
+message('Supplementary Figure 4 panels G and H not yet implemented; ',
+        'see TODO block above.')
+
+
+#######################################
+######  FIGURE S4 PANELS G & H  #######
+#######################################
+## Reference marks G/H [TODO]; data IS available (user-confirmed):
+##   RV myeloid = myeloid_subclust_new.rds (group NF/pRV/RVF)
+##   LV myeloid = Kory_myeloid_fibroblasts.rds subset Names=='Myeloid'
+## G = cross-chamber per-gene log2FC concordance scatter
+##     x = RV myeloid RVF-vs-NF (UNSHRUNK FindMarkers avg_log2FC),
+##     y = LV myeloid DCM-vs-Donor; r^2 + curated outlier labels.
+## H = bulk WGCNA modules M1/M3/M4/M8 AddModuleScore on LV myeloid,
+##     dotplot by LV myeloid subtype (predicted.celltype.l2) x condition.
+tryCatch({
+  suppressPackageStartupMessages({library(Seurat); library(ggplot2)
+                                  library(ggrepel); library(dplyr)})
+  .rv <- readRDS('./dependencies/shared/myeloid_subclust_new.rds')
+  DefaultAssay(.rv) <- 'RNA'
+  if (!'data' %in% SeuratObject::Layers(.rv[['RNA']]))
+    .rv <- NormalizeData(.rv, verbose = FALSE)
+  .rv$group <- factor(as.character(.rv$group), levels = c('NF','pRV','RVF'))
+  ## min.pct = 0.1: exclude rare genes whose avg_log2FC explodes (the
+  ## "nonsensical y-axis range" — same class as the old S4-D bug).
+  .rv_de <- FindMarkers(.rv, ident.1 = 'RVF', ident.2 = 'NF',
+                        group.by = 'group', logfc.threshold = 0,
+                        min.pct = 0.1)
+  .lv <- readRDS('./dependencies/shared/Kory_myeloid_fibroblasts.rds')
+  .lv <- subset(.lv, Names == 'Myeloid' & tech == 'SN')
+  DefaultAssay(.lv) <- 'RNA'
+  if (!'data' %in% SeuratObject::Layers(.lv[['RNA']]))
+    .lv <- NormalizeData(.lv, verbose = FALSE)
+  .lv$condition <- factor(as.character(.lv$condition),
+                          levels = c('Donor','DCM'))
+  .lv_de <- FindMarkers(.lv, ident.1 = 'DCM', ident.2 = 'Donor',
+                        group.by = 'condition', logfc.threshold = 0,
+                        min.pct = 0.1)
+  .sh <- intersect(rownames(.rv_de), rownames(.lv_de))
+  .gdf <- data.frame(gene = .sh,
+                     RV = .rv_de[.sh, 'avg_log2FC'],
+                     LV = .lv_de[.sh, 'avg_log2FC'])
+  .gdf <- .gdf[is.finite(.gdf$RV) & is.finite(.gdf$LV), ]
+  .r2 <- summary(lm(LV ~ RV, .gdf))$r.squared
+  .curated <- c('HFM1','NAV3','CCL3','EGR1','FOS','EGR3','FOSB','NPPB',
+    'CCL8','NRG1','BCL11A','OLR1','LUCAT1','LDB3','MT2A','ALOX15B',
+    'ADAMTS2','MELK','FAM111B','MKI67','KIFC1','ANLN','GTSE1','RRM2',
+    'BUB1B','TROAP','KIF18B','MYH6','S100A8','TOP2A','NEIL3','FBN2',
+    'ENPP4','TWF2','KCNQ5','BACH2','RGS1','CCL18')
+  .gdf$lab <- ifelse(.gdf$gene %in% .curated, .gdf$gene, '')
+  p_S4G <- ggplot(.gdf, aes(RV, LV)) +
+    geom_point(size = 0.5, colour = 'black') +
+    ggrepel::geom_text_repel(aes(label = lab), max.overlaps = Inf,
+        size = PS$text_mm, family = FONT_FAMILY) +
+    annotate('text', x = Inf, y = -Inf, hjust = 1.1, vjust = -0.6,
+             label = sprintf('r^2 == %.3f', .r2), parse = TRUE,
+             size = PS$text_mm) +
+    labs(x = 'RV (RVF vs NF) Log2FC',
+         y = 'LV (DCM vs NF) Log2FC') + theme_v52(COMP_W)
+  pdf(file.path(V52_FIG_DIR, 'fig_s4_panel_G_myeloid_RV_LV_scatter.pdf'),
+      width = 5, height = 5); print(p_S4G); dev.off()
+  write.csv(.gdf, file.path(V52_FIG_DIR,
+            'fig_s4_panel_G_myeloid_RV_LV_scatter.csv'), row.names = FALSE)
+
+  ## Panel H — bulk WGCNA modules on LV myeloid
+  .bm <- read.csv('./dependencies/shared/bulk_heart_modules.csv')[, 1:3]
+  .bm$M <- paste0('M', match(.bm$module, WGCNA::labels2colors(1:100)))
+  .mods <- c('M1','M3','M4','M8')
+  .glist <- lapply(.mods, function(m)
+    intersect(.bm$gene_name[.bm$M == m], rownames(.lv)))
+  .lv <- AddModuleScore(.lv, features = .glist, name = 'bulkmod',
+                        assay = 'RNA')
+  .scol <- paste0('bulkmod', seq_along(.mods))
+  .sub_col <- if ('predicted.celltype.l2' %in% colnames(.lv@meta.data))
+                'predicted.celltype.l2' else 'seurat_clusters'
+  .lv$subtype_cond <- paste(as.character(.lv@meta.data[[.sub_col]]),
+                            as.character(.lv$condition), sep = ' | ')
+  p_S4H <- DotPlot(.lv, features = .scol, group.by = 'subtype_cond',
+                   dot.min = 0, col.min = 0, col.max = 2) +
+    scale_x_discrete(labels = .mods) + RotatedAxis() +
+    xlab('Bulk WGCNA module') + ylab('LV myeloid subtype | condition') +
+    scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
+    theme_v52(COMP_W)
+  pdf(file.path(V52_FIG_DIR, 'fig_s4_panel_H_LV_myeloid_modules_dot.pdf'),
+      width = 6, height = 6); print(p_S4H); dev.off()
+  rm(.rv, .lv); invisible(gc(verbose = FALSE))
+  message('S4 panels G + H built.')
+}, error = function(e)
+  message('S4 G/H build failed: ', conditionMessage(e)))
+
+#######################################
+##  Standardized per-panel emission   ##
+#######################################
+## Reference writes legacy ./output/<name>.pdf; copy each to
+## V52_FIG_DIR/Figure_S4_panel_<L>.pdf (v57 standard names).
+.s4_legacy <- c(
+  A = 'RV_LV_fb_ref_mapped.pdf',
+  B = 'RV_LV_fb_ref_mapped_dot.pdf',
+  C = 'fig_s4_panel_C_LV_FB_phase_scores_box.pdf',
+  D = 'fig_s4_panel_D_fb_LV_RV_scatter.pdf',
+  E = 'RV_Myeloid_Integrated_snUMAP.pdf',
+  F = 'LV_sn_sc_myeloid_ref_mapped.pdf',
+  G = 'fig_s4_panel_G_myeloid_RV_LV_scatter.pdf',
+  H = 'fig_s4_panel_H_LV_myeloid_modules_dot.pdf',
+  I = 'fig_s4_panel_I_LV_myeloid_module_scores_box.pdf')
+message('Supplementary Figure 4 standardized panels:')
+for (.L in names(.s4_legacy)) {
+  .src <- file.path('./output', .s4_legacy[[.L]])
+  if (!file.exists(.src)) .src <- file.path(V52_FIG_DIR, .s4_legacy[[.L]])
+  if (file.exists(.src)) {
+    file.copy(.src, file.path(V52_FIG_DIR,
+              sprintf('Figure_S4_panel_%s.pdf', .L)), overwrite = TRUE)
+    message('  ', .L, ': OK')
+  } else message('  ', .L, ': MISSING (', .s4_legacy[[.L]], ')')
+}

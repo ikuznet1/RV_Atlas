@@ -1,22 +1,39 @@
 ###############################################################################
-## Figure 8 (v52 draft) — Cross-species, cross-age, and cross-etiology comparisons
+## Figure 8 — Cross-species, cross-age, and cross-etiology comparisons
 ##
-## Panels (from RV_snRNASeq_v52_draft.md figure legends):
-##   (A) Pediatric snRNA-seq: cell types across ped-NF, ped-HLHS, ped-RVF
-##   (B) Cell type proportions across pediatric disease states
-##   (C) WGCNA module concordance adult vs pediatric RV
-##   (D) Overall transcriptional concordance adult vs pediatric RVF
-##   (E) Mito module expression: induction in pediatric RVF vs suppression in adult
-##   (F) Global induction of mitochondrial pathways in pediatric RVF
-##   (G-I) LVF/DCM comparison: WGCNA module conservation RV vs LV
-##   (J) LV vs RV CM log2FC correlation for module genes
-##   (K) Shared enrichment for mito and contractile programs across ventricles
-##   (L-M) Cross-chamber pseudobulk DESeq2 PCA and volcano (DCM vs RVF)
+## Panels (AUTHORITATIVE — v57 manuscript legend,
+##         .figure_run_logs/v57_figure_legends.md). v57 F8 is A–J:
+##   (A) UMAP co-embedding of HLHS (n=209,604) + adult RV (n=61,398);
+##       shared cell types.
+##   (B) Cell-type abundance by disease state, HLHS dataset (one-way ANOVA).
+##   (C) Bulk WGCNA module expression by cell type (top) and disease
+##       state (bottom) for HLHS and adult RV.
+##   (D) Scatter of pseudobulk log2FC: adult-RVF-vs-adult-NF vs
+##       HLHS ped-RVF-vs-ped-NF. Genes absent in either / low-abundance
+##       (<5% nuclei both) removed.
+##   (E) Cardiomyocyte-specific module expression by disease state, HLHS
+##       (M10/M26 rise ped-NF→HLHS→ped-RVF; M25/M28 no clear trend).
+##   (F) GO-BP enrichment of upregulated DEGs from pooled M10/M25/M26/M28
+##       for ped-RVF-vs-ped-HLHS (top) and ped-HLHS-vs-ped-NF (bottom).
+##   (G) Seurat WGCNA module scores by cell type (top) and disease state
+##       (bottom) — RV vs LV conservation.
+##   (H) Per-nuclei violins of Seurat WGCNA module scores: M2 (left) and
+##       pooled M10/M25/M26/M28 (right), NF vs DCM LV cardiomyocytes.
+##   (I) Dot plot of Seurat WGCNA module scores over LV cardiomyocytes
+##       split by disease state (M2 up, M10/M25/M26/M28 down, as in RV).
+##   (J) Scatter of log2FC LV(DCM vs NF) vs RV(RVF vs NF) by gene; well
+##       correlated, notable outliers labelled.
+##
+## v57 CROSS-CHECK / STATUS: this script is the legacy v52 SKELETON and
+## does NOT yet implement the v57 A–J layout (it was authored to a v52
+## A–M legend). Aligning F8 to the v57 panels above is the DEFERRED F8
+## integration rewrite (tasks #42/#44) — to be done LAST per the user.
+## The dead-code purge belongs to that rewrite (many commented
+## `#<- readRDS(...)` lines are intentional cache-toggle docs, not dead).
 ##
 ## Source: copied from v51 Figure_8.R on 2026-04-10
-## Status: SKELETON — v52 porting pending
 ##
-## Output: ./output/Figure_8/v52_figures/Figure_8.pdf
+## Output: ./output/Figure_8/Figure_8_panel_<L>.pdf (per-panel, v57)
 ###############################################################################
 
 source('./helper_scripts/_shared_helpers.R')
@@ -97,6 +114,23 @@ dev.off()
 
 M2 <- readRDS('./dependencies/shared/RV_data.rds')
 
+## merge.SCTAssay's rbind(new_residual, old_residuals) fails when the two
+## SCT objects' residual/scale.data feature sets differ (our
+## all_peds_data.rds vs RV_data.rds differ from the legacy inputs that this
+## merge originally worked on). Restrict BOTH objects to their SHARED SCT
+## features first, so the original merge -> VariableFeatures -> RunPCA
+## workflow runs unchanged (and the common-feature scale.data is smaller).
+.f1 <- tryCatch(rownames(SeuratObject::GetAssayData(M1, assay = 'SCT', layer = 'scale.data')),
+                error = function(e) character(0))
+.f2 <- tryCatch(rownames(SeuratObject::GetAssayData(M2, assay = 'SCT', layer = 'scale.data')),
+                error = function(e) character(0))
+if (length(.f1) == 0) .f1 <- rownames(M1[['SCT']])
+if (length(.f2) == 0) .f2 <- rownames(M2[['SCT']])
+.common_sct <- intersect(.f1, .f2)
+message('Pre-merge: restricting M1/M2 SCT to ', length(.common_sct),
+        ' shared features (M1 ', length(.f1), ', M2 ', length(.f2), ').')
+M1 <- subset(M1, features = .common_sct)
+M2 <- subset(M2, features = .common_sct)
 
 M2 <- merge(M1,M2)
 VariableFeatures(M2[["SCT"]]) <- rownames(M2[["SCT"]]@scale.data)
@@ -108,8 +142,18 @@ M2$patient[is.na(M2$patient)] = M2$sample[is.na(M2$patient)]
 ## to keep RunHarmony + RunUMAP + DotPlot calls under the 48 GB system cap.
 rm(M1); invisible(gc(verbose = FALSE))
 
+## OOM-bypass: the committed pre-integrated co-embed (already carries
+## pca/harmony/umap + CombinedNames/origin) lets us skip the OOM-prone
+## RunPCA/RunHarmony/RunUMAP recompute on the full ~270k-cell merge
+## (the documented intent of the old commented `#M2 <- readRDS(...merge)`).
+.f8_merge_shrunk    <- './dependencies/Figure_8/RV_Peds_merge_shrunk.rds'
 .cache_M2_integrated <- './output/Figure_8/fig8_M2_integrated_cache.rds'
-if (file.exists(.cache_M2_integrated)) {
+if (file.exists(.f8_merge_shrunk)) {
+  message('Loading committed pre-integrated co-embed ',
+          '(RV_Peds_merge_shrunk.rds) — skips OOM-prone integration recompute.')
+  rm(M2); invisible(gc(verbose = FALSE))
+  M2 <- readRDS(.f8_merge_shrunk)
+} else if (file.exists(.cache_M2_integrated)) {
   message('Loading cached M2 integrated (PCA/Harmony/UMAP/clusters)...')
   M2 <- readRDS(.cache_M2_integrated)
 } else {
@@ -122,16 +166,32 @@ if (file.exists(.cache_M2_integrated)) {
     FindNeighbors(reduction = "harmony", dims = 1:50) %>%
     FindClusters(resolution=0.5) %>%
     identity()
-  saveRDS(M2, .cache_M2_integrated)
+  ## The merged SCTModel (from older-class input objects) lacks the
+  ## `median_umi` slot the current SeuratObject saveRDS hook
+  ## (containsOutOfMemoryData) expects, so caching the integrated object
+  ## errors. The cache is only a speed optimisation — don't let it halt F8.
+  tryCatch(saveRDS(M2, .cache_M2_integrated),
+           error = function(e)
+             message('Skipping integrated-M2 cache (', conditionMessage(e), ')'))
 }
 
 M2$CombinedNames <- M2$NewNames
 M2$CombinedNames[is.na(M2$NewNames)] <- M2$Names[is.na(M2$NewNames)]
+
+## (SCT assay preserved as-is — SCT features were intersected pre-merge so
+## the legacy merge / VariableFeatures / RunPCA workflow above works
+## unchanged; no scale.data demote needed.)
+
 #saveRDS(M2,'./output/Figure_8/RV_Peds_merge.rds')
 #M2 <- readRDS('./output/Figure_8/RV_Peds_merge.rds')
-#M1 <- subset(M2,origin==TRUE)
 #saveRDS(M1,'./output/Figure_8/Peds_clean.rds')
 #M2 <- readRDS('./dependencies/Figure_8/RV_Peds_merge.rds')
+
+## Restore M1 (peds-only subset). L109 `rm(M1)` freed RAM during integration;
+## the L107-108 comment promised M1 would be "restored from the subset" here,
+## but the restore line was left commented — so L149's PlotEmbedding(M1,...)
+## crashed with `object 'M1' not found` (independent of the memory issue).
+M1 <- subset(M2, origin == TRUE)
 
 
 pdf(paste0('./output/Figure_8/', 'sn_RV_Peds_UMAP.pdf'), width=5, height=5)
@@ -148,6 +208,7 @@ dev.off()
 pdf(paste0('./output/Figure_8/', 'sn_Peds_UMAP_reprojected.pdf'), width=5, height=5)
 print(PlotEmbedding(M1,group.by='NewNames',point_size=PS$umap_pt,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5))
 dev.off()
+rm(M1); invisible(gc(verbose = FALSE))   # peds subset no longer needed until L511
 
 M2$condition[M2$condition == "NF"] = "pRV" 
 M2$condition[M2$condition == "Donor"] = "NF" 
@@ -253,6 +314,12 @@ consensus_modules <- consensus_modules[match(unique(consensus_modules$gene_name)
 
 
 
+## Skip the heavy SetupForWGCNA/ScaleData/ProjectModules machinery when the
+## committed bulk2sn MEs dependency is present (ProjectModules fails on
+## harmony 2.x / Seurat-v5, and ScaleData on the ~210k-cell co-embed is an
+## OOM risk). MEs are loaded directly from the dependency below.
+.f8_MEs_dep <- './dependencies/shared/scWGCNA_bulk2sn_MEs.rds'
+if (!file.exists(.f8_MEs_dep)) {
 #A bit hacky since ref here should be NULL and wgcna_name should be None but function errors then. This will be overwritten by modules=consensus_modules anyway
 DefaultAssay(M2) <- 'RNA'
 M2<-FindVariableFeatures(M2)
@@ -271,28 +338,42 @@ if (file.exists(.cache_M2_projected)) {
   message('Loading cached M2 ProjectModules result...')
   M2 <- readRDS(.cache_M2_projected)
 } else {
-  M2 <- ProjectModules(
-    M2,
-    modules = consensus_modules,
-    group.by.vars = "patient",
-    seurat_ref = M2,
-    wgcna_name = "Cardiomyocyte",
-    wgcna_name_proj = 'bulk2sn'
-  )
-  saveRDS(M2, .cache_M2_projected)
+  ## hdWGCNA's ProjectModules with group.by.vars internally calls
+  ## RunHarmony(assay.use=...), which harmony 2.x rejects via
+  ## check_legacy_args ("Argument assay.use is unhandled"). Drop
+  ## group.by.vars — the merged M2 is already harmonised (same fix as
+  ## F7 / S8). Guard the cache saveRDS for the legacy-SCTModel
+  ## median_umi serialization issue.
+  ## ProjectModules can fail inside hdWGCNA/.CreateStdAssay on this
+  ## Seurat-v5 stack. Don't halt — fall back to the committed scWGCNA
+  ## bulk->sn MEs dependency at the GetMEs step below (same approach
+  ## that fixed F6 Panel D).
+  M2 <- tryCatch(
+    ProjectModules(M2, modules = consensus_modules, seurat_ref = M2,
+                   wgcna_name = "Cardiomyocyte", wgcna_name_proj = 'bulk2sn'),
+    error = function(e) {
+      message('ProjectModules failed (', conditionMessage(e),
+              ') — will use cached scWGCNA_bulk2sn MEs dependency.'); M2 })
+  tryCatch(saveRDS(M2, .cache_M2_projected),
+           error = function(e)
+             message('Skipping M2-projected cache (', conditionMessage(e), ')'))
 }
+}   # end if(!file.exists(.f8_MEs_dep)) — heavy ProjectModules path
 
-
-
-M2 <- SetActiveWGCNA(M2, 'bulk2sn')
 mapping <- labels2colors(1:100)
-.cache_MEs_bulk2sn <- './output/Figure_8/fig8_MEs_bulk2sn_cache.rds'
-if (file.exists(.cache_MEs_bulk2sn)) {
-  message('Loading cached GetMEs (bulk2sn harmonized)...')
-  MEs <- readRDS(.cache_MEs_bulk2sn)
+if (file.exists(.f8_MEs_dep)) {
+  message('Loading committed scWGCNA bulk2sn MEs dependency (', .f8_MEs_dep, ')')
+  MEs <- readRDS(.f8_MEs_dep)
 } else {
-  MEs <- GetMEs(M2, harmonized=TRUE)
-  saveRDS(MEs, .cache_MEs_bulk2sn)
+  M2 <- SetActiveWGCNA(M2, 'bulk2sn')
+  .cache_MEs_bulk2sn <- './output/Figure_8/fig8_MEs_bulk2sn_cache.rds'
+  if (file.exists(.cache_MEs_bulk2sn)) {
+    message('Loading cached GetMEs (bulk2sn harmonized)...')
+    MEs <- readRDS(.cache_MEs_bulk2sn)
+  } else {
+    MEs <- GetMEs(M2, harmonized=TRUE)
+    saveRDS(MEs, .cache_MEs_bulk2sn)
+  }
 }
 mods <- colnames(MEs); mods <- mods[mods != 'grey']
 mods_num <- paste0('M',match(mods,mapping))
@@ -301,6 +382,21 @@ all_signif <- c('M1','M2','M3','M4','M5','M8','M10','M11','M12','M14','M20','M25
 
 
 colnames(MEs)<-paste0('M',match(colnames(MEs),mapping))
+## Align MEs to M2 cells. The committed bulk2sn MEs dependency covers the
+## adult-RV subset (61,398 cells); M2 is the full co-embed (209,604).
+## cbind is POSITIONAL, so build an MEs matrix indexed to M2's barcodes
+## (NA where a cell has no projected ME) — per-celltype/disease
+## aggregation then simply ignores the NA (peds) cells.
+if (nrow(MEs) != nrow(M2@meta.data)) {
+  .me_full <- matrix(NA_real_, nrow = nrow(M2@meta.data), ncol = ncol(MEs),
+                     dimnames = list(rownames(M2@meta.data), colnames(MEs)))
+  .shared <- intersect(rownames(MEs), rownames(M2@meta.data))
+  message(sprintf('Aligning MEs to M2: %d / %d M2 cells have projected MEs',
+                  length(.shared), nrow(M2@meta.data)))
+  if (length(.shared) > 0)
+    .me_full[.shared, ] <- as.matrix(MEs)[.shared, , drop = FALSE]
+  MEs <- as.data.frame(.me_full, check.names = FALSE)
+}
 M2@meta.data <- cbind(M2@meta.data, MEs)
 M2 <- SetIdent(M2, value = "CombinedNames")
 
@@ -454,7 +550,18 @@ dev.off()
 #######################################
 
 M2 <- SetIdent(M2, value = "groupSplit")
-slot(M2$SCT@SCTModel.list[[1]], 'median_umi') = median(M2$SCT@SCTModel.list[[1]]@cell.attributes$umi)
+## SCT was demoted to a plain assay (no SCTModel.list); this median_umi prep
+## is only needed for SCT residual recorrection, which we skip
+## (FindMarkers below uses recorrect_umi=FALSE on the data layer).
+if ('SCTModel.list' %in% methods::slotNames(M2[['SCT']]) &&
+    length(M2[['SCT']]@SCTModel.list) > 0)
+  tryCatch(
+    for (.i in seq_along(M2[['SCT']]@SCTModel.list))
+      slot(M2$SCT@SCTModel.list[[.i]], 'median_umi') <-
+        median(M2$SCT@SCTModel.list[[.i]]@cell.attributes$umi),
+    error = function(e)
+      message('median_umi prep skipped (', conditionMessage(e),
+              ') — FindMarkers uses recorrect_umi=FALSE so this is fine'))
 
 .cache_gene_set_RV <- './output/Figure_8/fig8_gene_set_RV_cache.rds'
 if (file.exists(.cache_gene_set_RV)) {
@@ -687,7 +794,7 @@ selected_terms <- subset(selected_terms,color %in% mapping[c(2,12)])
 # subset selected terms
 selected_terms <- subset(selected_terms, P.value < 0.05)
 selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-#idx_top_1 <- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
+idx_top_1 <- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
 idx_top_5 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2,idx_top_1+3,idx_top_1+4))
 
 selected_terms<-selected_terms[idx_top_5,]
@@ -801,7 +908,7 @@ selected_terms <- subset(selected_terms,color %in% mapping[c(10,25,26,28)])
 # subset selected terms
 selected_terms <- subset(selected_terms, P.value < 0.05)
 selected_terms$module_celltype <- paste0(selected_terms$module,'_',selected_terms$celltype)
-#idx_top_1 <- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
+idx_top_1 <- match(unique(selected_terms$module_celltype),selected_terms$module_celltype)
 idx_top_5 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2,idx_top_1+3,idx_top_1+4))
 
 selected_terms<-selected_terms[idx_top_5,]
@@ -1411,11 +1518,9 @@ print(p2)
 dev.off()
 
 pdf('./output/Figure_8/CM_Peds_M2_enrichr_up_down_pRV_vs_NF.pdf',width=6,height=4)
-p_8F_bot <- p1/p2
-print(p_8F_bot)
+print(p1/p2)
 dev.off()
-p_8F <- p_8F_top / p_8F_bot
-save_figure(p_8F, 'Figure_8_panel_F.pdf', width = 6, height = 8)
+## (v57 Panel F is assembled after the NvD pooled-mito-up block below.)
 
 
 
@@ -1429,19 +1534,45 @@ if (file.exists(.cache_enrichr_NvD_mito_up)) {
 }
 enriched[[4]] <- subset(enriched[[4]],Adjusted.P.value<0.05)
 pdf('./output/Figure_8/CM_Peds_mito_enrichr_up_pRV_vs_NF.pdf',width=6,height=3)
-p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),], 
-  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value), 
-  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') + 
-  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  + 
-  ggtitle('GO Biological Process Up') + 
+p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),],
+  (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value),
+  size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') +
+  ylab('Term') + labs(color="P value",size="Overlap") + theme_classic()  +
+  ggtitle('GO Biological Process Up') +
   scale_y_discrete(labels= fct_inorder(
     wrapText(sapply(
       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
-         `[`, 1),35))) + 
+         `[`, 1),35))) +
   theme(axis.text=element_text(colour="black"))+
   scale_color_stepsn(colors=rev(magma(256)))
 print(p1)
 dev.off()
+
+## ── v57 Panel F: GO-BP enrichment of UPregulated pooled M10/M25/M26/M28
+## DEGs — (top) ped-RVF vs ped-HLHS (SystolicHF vs NF); (bottom)
+## ped-HLHS vs ped-NF (NF vs Donor). Built from the two cached enrichr
+## results so it is independent of variable-overwrite order above.
+.mk_8F <- function(rds, ttl) {
+  e <- readRDS(rds)[[4]]
+  e <- subset(e, Adjusted.P.value < 0.05)
+  e <- e[order(e$Combined.Score, decreasing = TRUE), , drop = FALSE]
+  e <- e[rev(seq_len(min(5, nrow(e)))), , drop = FALSE]
+  ggplot(e, aes(x = Combined.Score, y = fct_inorder(Term),
+                color = as.numeric(Adjusted.P.value),
+                size = parse_ratio(Overlap))) +
+    geom_point() + xlab('Combined Score') + ylab('Term') +
+    labs(color = 'P value', size = 'Overlap') + ggtitle(ttl) +
+    scale_y_discrete(labels = fct_inorder(
+      wrapText(sapply(strsplit(e$Term, ' \\(GO'), `[`, 1), 35))) +
+    theme_classic() + theme(axis.text = element_text(colour = 'black')) +
+    scale_color_stepsn(colors = rev(magma(256)))
+}
+p_8F_top <- .mk_8F(.cache_enrichr_SvN_mito_up,
+                   'ped-RVF vs ped-HLHS: pooled M10/M25/M26/M28 up (GO-BP)')
+p_8F_bot <- .mk_8F(.cache_enrichr_NvD_mito_up,
+                   'ped-HLHS vs ped-NF: pooled M10/M25/M26/M28 up (GO-BP)')
+p_8F <- p_8F_top / p_8F_bot
+save_figure(p_8F, 'Figure_8_panel_F.pdf', width = 6, height = 8)
 
 
 
@@ -2034,7 +2165,7 @@ suppressPackageStartupMessages({
   library(gtools)
 })
 
-lv_obj_path <- './dependencies/shared/Koenig_LV_with_RV_modules.rds'
+lv_obj_path <- './dependencies/Figure_8/Kory_with_RV_modules_projected_new.rds'
 
 lv_modules_to_show <- paste0('module_', c('M2','M10','M12','M25','M26','M28'))
 lv_cm_mito_modules <- c('M10','M25','M26','M28')
@@ -2048,6 +2179,21 @@ if (file.exists(lv_obj_path)) {
     RefLV$group <- RefLV$condition
   }
 
+  ## Projected RV modules live in the hdWGCNA slot (GetMEs returns
+  ## 'SM-M#' columns), NOT as module_M* meta columns. Extract and inject
+  ## them as module_M<n> so the downstream G-J code (which references
+  ## module_M2 / paste0('module_', ...) etc.) works unchanged.
+  .lv_me <- tryCatch(hdWGCNA::GetMEs(RefLV), error = function(e) NULL)
+  if (!is.null(.lv_me)) {
+    colnames(.lv_me) <- paste0('module_', sub('^[^-]*-', '', colnames(.lv_me)))
+    .lv_me <- .lv_me[rownames(RefLV@meta.data), , drop = FALSE]
+    RefLV@meta.data[, colnames(.lv_me)] <- .lv_me
+    message(sprintf('Injected %d projected RV module scores into RefLV',
+                    ncol(.lv_me)))
+  } else {
+    message('GetMEs(RefLV) failed — G/H/I will fall back to placeholders.')
+  }
+
   mod_score_cols <- grep('^module_M', colnames(RefLV@meta.data), value = TRUE)
   if (length(mod_score_cols) == 0) {
     mod_score_cols <- lv_modules_to_show
@@ -2055,7 +2201,11 @@ if (file.exists(lv_obj_path)) {
   mod_score_cols <- intersect(mod_score_cols, colnames(RefLV@meta.data))
   mod_score_cols <- gtools::mixedsort(mod_score_cols)
 
-  p_8G_top <- DotPlot(RefLV, features = mod_score_cols, group.by = 'Names',
+  .g8_mods <- intersect(
+    paste0('module_', c('M20','M5','M1','M3','M4','M8','M2','M12',
+                        'M25','M26','M10','M28','M14','M11')),
+    colnames(RefLV@meta.data))
+  p_8G_top <- DotPlot(RefLV, features = .g8_mods, group.by = 'Names',
                        dot.min = 0, col.min = 0, col.max = 2) +
     RotatedAxis() + ylab('') + xlab('') +
     scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
@@ -2064,7 +2214,7 @@ if (file.exists(lv_obj_path)) {
           axis.line.x = element_blank(),
           axis.line.y = element_blank())
 
-  p_8G_bot <- DotPlot(RefLV, features = mod_score_cols, group.by = 'group',
+  p_8G_bot <- DotPlot(RefLV, features = .g8_mods, group.by = 'group',
                        dot.min = 0, col.min = 0, col.max = 2) +
     RotatedAxis() + ylab('') + xlab('') +
     scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
@@ -2121,7 +2271,10 @@ if (file.exists(lv_obj_path)) {
   save_figure(p_8H, 'Figure_8_panel_H.pdf', width = 5, height = 3)
 
   # Panel I
-  p_8I <- DotPlot(lv_cm, features = mod_score_cols, group.by = 'group',
+  .i8_mods <- intersect(
+    paste0('module_', c('M2','M12','M25','M26','M10','M28')),
+    colnames(lv_cm@meta.data))
+  p_8I <- DotPlot(lv_cm, features = .i8_mods, group.by = 'group',
                     dot.min = 0, col.min = 0, col.max = 2) +
     RotatedAxis() + ylab('') + xlab('') +
     scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
@@ -2134,6 +2287,33 @@ if (file.exists(lv_obj_path)) {
   print(p_8I)
   dev.off()
   save_figure(p_8I, 'Figure_8_panel_I.pdf', width = 6, height = 3)
+
+  ## Panel-J input (LV side): CM DCM-vs-NF DEGs from the Koenig LV object,
+  ## computed while lv_cm is still alive. Cached under dependencies/ (deps
+  ## rule) so later runs skip the FindMarkers.
+  .lv_deg_dep <- './dependencies/Figure_8/CM_LV_DCM_vs_NF_DEG.csv'
+  if (!file.exists(.lv_deg_dep)) {
+    ## The Kory LV RNA 'data' layer is raw counts (not log-normalised),
+    ## so FindMarkers' expm1-based avg_log2FC explodes to +/-200. Log-
+    ## normalise first so log2FC is bounded (fixes Panel J's blown y-scale).
+    DefaultAssay(lv_cm) <- 'RNA'
+    lv_cm <- NormalizeData(lv_cm, verbose = FALSE)
+    .lv_grp <- unique(as.character(lv_cm$group))
+    .lv_ref <- if ('Donor' %in% .lv_grp) 'Donor' else
+               if ('NF' %in% .lv_grp) 'NF' else NA_character_
+    .lv_d <- tryCatch(
+      if ('DCM' %in% .lv_grp && !is.na(.lv_ref))
+        FindMarkers(lv_cm, ident.1 = 'DCM', ident.2 = .lv_ref,
+                    group.by = 'group') else NULL,
+      error = function(e) { message('LV DEG FindMarkers failed: ',
+                                    conditionMessage(e)); NULL })
+    if (!is.null(.lv_d)) {
+      dir.create('./dependencies/Figure_8', showWarnings = FALSE, recursive = TRUE)
+      write.csv(.lv_d, .lv_deg_dep)
+      message('Wrote LV CM DCM-vs-NF DEGs: ', .lv_deg_dep,
+              ' (', nrow(.lv_d), ' genes)')
+    }
+  }
 
   rm(RefLV, lv_cm); gc()
 } else {
@@ -2154,9 +2334,36 @@ if (file.exists(lv_obj_path)) {
   save_figure(p_8I, 'Figure_8_panel_I.pdf', width = 6, height = 3)
 }
 
-# Panel J
-lv_deg_csv <- './output/Figure_8/CM_LV_DCM_vs_NF_DEG.csv'
-rv_deg_csv <- './output/Figure_8/CM_RV_RVF_vs_NF_DEG.csv'
+# Panel J — LV vs RV CM log2FC scatter.
+## RV side: CM RVF-vs-NF DEGs from the co-embed M2 (still in memory),
+## computed + cached under dependencies/. LV side written above.
+.rv_deg_dep <- './dependencies/Figure_8/CM_RV_RVF_vs_NF_DEG.csv'
+if (!file.exists(.rv_deg_dep) && exists('M2')) {
+  .rv_cm <- tryCatch(subset(M2, CombinedNames == 'CM' & origin == 'RV'),
+                     error = function(e) NULL)
+  if (!is.null(.rv_cm)) {
+    .rv_d <- tryCatch(
+      FindMarkers(.rv_cm, ident.1 = 'RVF', ident.2 = 'NF',
+                  group.by = 'group', recorrect_umi = FALSE),
+      error = function(e) { message('RV DEG FindMarkers failed: ',
+                                    conditionMessage(e)); NULL })
+    if (!is.null(.rv_d)) {
+      dir.create('./dependencies/Figure_8', showWarnings = FALSE, recursive = TRUE)
+      write.csv(.rv_d, .rv_deg_dep)
+      message('Wrote RV CM RVF-vs-NF DEGs: ', .rv_deg_dep,
+              ' (', nrow(.rv_d), ' genes)')
+    }
+    rm(.rv_cm); gc()
+  }
+}
+
+## Prefer the dependencies copies (deps rule); fall back to ./output.
+lv_deg_csv <- if (file.exists('./dependencies/Figure_8/CM_LV_DCM_vs_NF_DEG.csv'))
+  './dependencies/Figure_8/CM_LV_DCM_vs_NF_DEG.csv' else
+  './output/Figure_8/CM_LV_DCM_vs_NF_DEG.csv'
+rv_deg_csv <- if (file.exists('./dependencies/Figure_8/CM_RV_RVF_vs_NF_DEG.csv'))
+  './dependencies/Figure_8/CM_RV_RVF_vs_NF_DEG.csv' else
+  './output/Figure_8/CM_RV_RVF_vs_NF_DEG.csv'
 
 if (file.exists(lv_deg_csv) && file.exists(rv_deg_csv)) {
   lv_deg <- read.csv(lv_deg_csv, row.names = 1)

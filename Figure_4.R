@@ -821,6 +821,43 @@ cellnest_pats  <- cellnest_pats[grepl('Xenium_resegmented', cellnest_pats)]
 
 .extract_pat <- function(d) sub('.*_(\\d+)$', '\\1', d)
 
+## --- validate CellNEST inputs per patient (the FILES, not just the dir) ---
+## A patient feeds 4E via its *_histogram_byFrequency_table_top1500.csv and
+## 4F via its *_allCCC.csv. An output dir can exist while these files are
+## absent (a failed/partial run leaves an empty dir), so check the files and
+## restrict the ensemble + n report to patients with usable inputs.
+.dir_for  <- function(pat) paste0('Xenium_resegmented_imputed_final_', pat)
+.freq_for <- function(d) file.path(cellnest_base, d,
+  paste0('CellNEST_', d, '_histogram_byFrequency_table_top1500.csv'))
+.ccc_for  <- function(d) file.path(cellnest_base, d,
+  paste0('CellNEST_', d, '_allCCC.csv'))
+
+.cellnest_expected <- patient_group$patient[
+  patient_group$group %in% c('NF', 'pRV', 'RVF')]
+.usable <- character(0)
+for (pat in .cellnest_expected) {
+  d  <- .dir_for(pat)
+  gp <- patient_group$group[patient_group$patient == pat][1]
+  has_dir  <- dir.exists(file.path(cellnest_base, d))
+  has_freq <- file.exists(.freq_for(d)) && file.size(.freq_for(d)) > 0
+  has_ccc  <- file.exists(.ccc_for(d))  && file.size(.ccc_for(d))  > 0
+  if (has_freq && has_ccc) { .usable <- c(.usable, pat); next }
+  reason <- if (!has_dir) 'no output dir'
+            else if (!has_freq && !has_ccc) 'output dir empty (no allCCC / freq table)'
+            else if (!has_ccc) 'missing allCCC.csv (4F input)'
+            else 'missing freq table (4E input)'
+  warning(sprintf(
+    'CellNEST: patient %s (group %s) %s under %s -- DROPPED from Panels 4E/4F ensemble.',
+    pat, gp, reason, cellnest_base), call. = FALSE, immediate. = TRUE)
+}
+## restrict downstream ensemble to patients with usable inputs
+cellnest_pats <- cellnest_pats[.extract_pat(cellnest_pats) %in% .usable]
+.found_grp <- patient_group$group[match(.usable, patient_group$patient)]
+message(sprintf('CellNEST 4E/4F ensemble: %d/%d patients (%s).',
+  length(.usable), length(.cellnest_expected),
+  paste(names(table(.found_grp)), table(.found_grp),
+        sep = '=', collapse = ', ')))
+
 lr_all <- lapply(cellnest_pats, function(d) {
   pat   <- .extract_pat(d)
   grp   <- patient_group$group[patient_group$patient == pat]
@@ -835,23 +872,47 @@ lr_all <- lapply(cellnest_pats, function(d) {
 })
 lr_all <- dplyr::bind_rows(Filter(Negate(is.null), lr_all))
 
-lr_agg <- lr_all %>%
-  dplyr::group_by(group, lr_pair) %>%
-  dplyr::summarise(total = sum(count), .groups = 'drop') %>%
+## --- per-patient normalization (replaces pooled sum) ---
+## Within each patient, express every LR pair as a fraction of THAT patient's
+## total CellNEST edge count, then average across the group's patients. Patients
+## that never list a pair contribute 0 for it (zero-fill within group), so the
+## mean is over ALL patients in the group, not just those expressing the pair.
+## This removes the section-size / patient-count bias of pooled summation.
+lr_pat <- lr_all %>%
+  dplyr::group_by(group, patient) %>%
+  dplyr::mutate(frac = count / sum(count)) %>%
+  dplyr::ungroup() %>%
+  dplyr::select(group, patient, lr_pair, frac) %>%
   dplyr::group_by(group) %>%
-  dplyr::slice_max(total, n = 15) %>%
+  tidyr::complete(patient, lr_pair, fill = list(frac = 0)) %>%
+  dplyr::ungroup()
+
+lr_agg <- lr_pat %>%
+  dplyr::group_by(group, lr_pair) %>%
+  dplyr::summarise(
+    n_pat     = dplyr::n(),
+    mean_frac = mean(frac),
+    se_frac   = if (dplyr::n() > 1) stats::sd(frac) / sqrt(dplyr::n())
+                else NA_real_,
+    .groups = 'drop') %>%
+  dplyr::group_by(group) %>%
+  dplyr::slice_max(mean_frac, n = 15) %>%
   dplyr::ungroup()
 
 .make_lr_bar <- function(grp_label, fill_col, title) {
   df <- dplyr::filter(lr_agg, group == grp_label) %>%
-    dplyr::mutate(lr_pair = factor(lr_pair, levels = rev(lr_pair)))
+    dplyr::arrange(mean_frac) %>%
+    dplyr::mutate(lr_pair = factor(lr_pair, levels = lr_pair))
   if (nrow(df) == 0)
     return(ggplot() + annotate('text', x=0.5, y=0.5,
       label=paste0('[', grp_label, ' LR — no data]'),
       size = PS$text_mm, family = FONT_FAMILY, colour='grey50', hjust=0.5, vjust=0.5) + theme_void())
-  ggplot(df, aes(x = total, y = lr_pair)) +
+  ggplot(df, aes(x = mean_frac * 100, y = lr_pair)) +
     geom_col(fill = fill_col, width = 0.7, linewidth = PS$geom_lw) +
-    labs(x = 'Pooled edge count', y = NULL, title = title) +
+    geom_errorbarh(aes(xmin = pmax((mean_frac - se_frac) * 100, 0),
+                       xmax = (mean_frac + se_frac) * 100),
+                   height = 0.3, linewidth = PS$geom_lw, na.rm = TRUE) +
+    labs(x = 'Mean per-patient % of CellNEST edges', y = NULL, title = title) +
     theme_v52(COMP_W) +
     theme(panel.grid.major.y = element_blank())
 }
@@ -897,6 +958,9 @@ if (file.exists(.cache_xen_ct_lookup)) {
   bars <- read.csv(bar_file, header = FALSE, col.names = c('barcode'))$barcode
   ## from_id/to_id are 0-based row indices into bars; the resulting barcodes
   ## (e.g. "22750_4") are direct keys into ct_lookup.
+  ## NOTE: the regenerated allCCC.csv also carries explicit from_cell/to_cell
+  ## barcode columns; verified that bars[from_id + 1L] == from_cell exactly
+  ## (R 1-based index of the 0-based id), so this reconstruction is correct.
   ccc$from_barcode <- bars[ccc$from_id + 1L]
   ccc$to_barcode   <- bars[ccc$to_id   + 1L]
   ccc$from_type    <- ct_lookup[ccc$from_barcode]
@@ -929,41 +993,56 @@ chord_oe_cap     <- Inf  # uncapped — let extreme values render at full magnit
       label=paste0('[', grp_label, ' chord — no data]'),
       size = PS$text_mm, family = FONT_FAMILY, colour='grey50', hjust=0.5, vjust=0.5) + theme_void())
 
-  # collapse across patients within group, weighted by n_edges
-  df <- df %>%
+  ## --- per-patient O/E, then averaged across the group's patients ---
+  ## Replaces pooled-sum normalization. Each patient contributes equally
+  ## regardless of section size: abundance-aware log2(O/E) is computed WITHIN
+  ## each patient (expected = that patient's total edges x p_A x p_B from that
+  ## patient's own cell-type abundances), then the MEAN is taken across the
+  ## group's patients. Pairs absent in a patient count as 0 edges for that
+  ## patient (zero-filled over the displayed type x type grid), so a pair seen
+  ## in only some patients is correctly down-weighted. Self-loops dropped
+  ## (within-type spatial autocorrelation is structural niche confinement,
+  ## not signaling). A pair is shown only if its MEAN per-patient edge count
+  ## clears the min_obs floor; weight clipped to [0, oe_cap].
+  kt <- keep_types[keep_types %in%
+                   cells_all$type[cells_all$group == grp_label]]
+  combos <- expand.grid(from_type = kt, to_type = kt,
+                         stringsAsFactors = FALSE)
+  combos <- combos[combos$from_type != combos$to_type, , drop = FALSE]
+
+  per_pat <- lapply(unique(df$patient), function(pt) {
+    npt <- setNames(rep(0, length(kt)), kt)
+    cg  <- cells_all %>%
+      dplyr::filter(group == grp_label, patient == pt, type %in% kt)
+    npt[cg$type] <- cg$n_cells
+    Ntot <- sum(npt)
+    if (Ntot == 0) return(NULL)
+    e <- dplyr::filter(df, patient == pt,
+                       from_type %in% kt, to_type %in% kt,
+                       from_type != to_type)
+    m <- merge(combos, e[, c('from_type', 'to_type', 'n_edges')],
+               by = c('from_type', 'to_type'), all.x = TRUE)
+    m$n_edges[is.na(m$n_edges)] <- 0
+    tot_e <- sum(m$n_edges)
+    m$expected <- tot_e * (npt[m$from_type] / Ntot) * (npt[m$to_type] / Ntot)
+    m$log2OE   <- log2((m$n_edges + 1) / (m$expected + 1))
+    m$patient  <- pt
+    m
+  })
+  per_pat <- dplyr::bind_rows(Filter(Negate(is.null), per_pat))
+  if (nrow(per_pat) == 0)
+    return(ggplot() + annotate('text', x=0.5, y=0.5,
+      label=paste0('[', grp_label, ' chord — no data]'),
+      size = PS$text_mm, family = FONT_FAMILY, colour='grey50') + theme_void())
+
+  df <- per_pat %>%
     dplyr::group_by(from_type, to_type) %>%
-    dplyr::summarise(n_edges = sum(n_edges), .groups = 'drop')
-
-  # per-type cell counts in this group (sum across patients)
-  cells_grp <- cells_all %>%
-    dplyr::filter(group == grp_label) %>%
-    dplyr::group_by(type) %>%
-    dplyr::summarise(n_cells = sum(n_cells), .groups = 'drop')
-  n_per_type <- setNames(cells_grp$n_cells, cells_grp$type)
-
-  # restrict to user-specified cell types only
-  keep_types <- keep_types[keep_types %in% names(n_per_type)]
-  df <- dplyr::filter(df, from_type %in% keep_types, to_type %in% keep_types)
-
-  ## Observed × Expected normalization, per-group abundance-aware.
-  ## expected(A→B) = total_edges × p_A × p_B   where p_X = n_X / sum(n_*)
-  ## (computed within the displayed-cell-type subset for self-consistency)
-  ## log2((obs + 1) / (expected + 1)); apply min_obs floor; clip to [0, oe_cap]
-  ## so chord widths stay non-negative and comparable across panels.
-  ## Drop self-loops — within-type spatial autocorrelation is structural
-  ## confinement (rare cells living in defined anatomical niches), not signaling.
-  df <- dplyr::filter(df, from_type != to_type)
-
-  N_total <- sum(n_per_type[keep_types])
-  total_edges <- sum(df$n_edges)
-  df <- df %>%
+    dplyr::summarise(mean_log2OE = mean(log2OE),
+                     mean_edges  = mean(n_edges),
+                     .groups = 'drop') %>%
     dplyr::mutate(
-      n_A      = n_per_type[from_type],
-      n_B      = n_per_type[to_type],
-      expected = total_edges * (n_A / N_total) * (n_B / N_total),
-      log2OE   = log2((n_edges + 1) / (expected + 1)),
-      weight   = ifelse(n_edges >= min_obs,
-                        pmin(pmax(log2OE, 0), oe_cap), 0)
+      weight = ifelse(mean_edges >= min_obs,
+                      pmin(pmax(mean_log2OE, 0), oe_cap), 0)
     ) %>%
     dplyr::select(from_type, to_type, weight)
 
@@ -1037,9 +1116,9 @@ chord_oe_cap     <- Inf  # uncapped — let extreme values render at full magnit
   })
 }
 
-p_4K_nf  <- .make_chord('NF',  'NF: log2(O/E) communication')
-p_4K_prv <- .make_chord('pRV', 'pRV: log2(O/E) communication')
-p_4K_rvf <- .make_chord('RVF', 'RVF: log2(O/E) communication')
+p_4K_nf  <- .make_chord('NF',  'NF: mean per-patient log2(O/E)')
+p_4K_prv <- .make_chord('pRV', 'pRV: mean per-patient log2(O/E)')
+p_4K_rvf <- .make_chord('RVF', 'RVF: mean per-patient log2(O/E)')
 p_4K     <- p_4K_nf | p_4K_prv | p_4K_rvf
 
 p_4F <- p_4K  # renumbered Panel F = old Panel K (chord diagrams)

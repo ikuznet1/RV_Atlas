@@ -21,20 +21,15 @@
 ## the MitoCarta box and volcano, apeglm shrinkage, curated FC-scatter
 ## labels (CM-expression filtered, |log2FC|>1), and panels (I)/(J).
 ##
-## Output: ./output/Supplementary_Figure_6/SupplementaryFigure_6.pdf (composite) and
-## individual panel PDFs in ./output/Supplementary_Figure_6/.
+## Output: /SupplementaryFigure_6.pdf (composite) and
+## individual panel PDFs in ./output/.
 ###############################################################################
 
 source('./helper_scripts/_shared_helpers.R')
-
-## Per-figure output directory (introduced for consistent output paths)
+## Working-repo adaptation: per-figure output dir + standardized names.
 V52_FIG_DIR <- './output/Supplementary_Figure_6'
 dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 
-
-## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
-## that's outside an explicit pdf() ... dev.off() envelope.
-pdf(NULL)
 COMP_W <- 6
 COMP_H <- 11
 
@@ -90,7 +85,7 @@ M2 <- RunUMAP(M2, dims = 1:50,reduction = "harmony")
 M2$Names <- M2@active.ident
 markers<-FindAllMarkers(M2,recorrect_umi=F)
 
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
 PlotEmbedding(M2,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -138,17 +133,17 @@ M2$map_score <- score
 
 p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 p1 + p2
 dev.off()
 
 
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
 
-pdf(paste0('./output/Supplementary_Figure_6/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 dev.off()
 
@@ -177,7 +172,7 @@ M3 <- AddModuleScore(M3,marks,name='RV_marks')
 
 M2$predicted.celltype <- factor(M2$predicted.celltype,levels=levels(M3))
 
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
+pdf(paste0('./output/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
 
 DotPlot(M2,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
   ,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),
@@ -203,7 +198,7 @@ theme(legend.key.size = PS$legend_key,
 #############  FIGURE S6C #############
 #######################################
 
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
+pdf(paste0('./output/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
 VlnPlot(M2,'map_score',group.by='predicted.celltype',pt.size=0) +
   theme_v52(COMP_W) +
   theme(legend.key.size = PS$legend_key) +
@@ -321,7 +316,7 @@ cor(dataset$RV, dataset$PAB)^2
 p_d <- .fc_scatter(dataset,
   xlab = 'Human RVF vs NF (avg log2FC)',
   ylab = 'Mouse PAB Sev vs Nor (avg log2FC)')
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM__dot.pdf'), width = 5, height = 5)
+pdf(paste0('./output/', 'PAB_vs_RV_CM__dot.pdf'), width = 5, height = 5)
 print(p_d); dev.off()
 
 
@@ -336,7 +331,7 @@ cor(dataset$RV, dataset$PAB)^2
 p_d_mod <- .fc_scatter(dataset,
   xlab = 'Human RVF vs NF (avg log2FC)',
   ylab = 'Mouse PAB Mod vs Nor (avg log2FC)')
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width = 5, height = 5)
+pdf(paste0('./output/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width = 5, height = 5)
 print(p_d_mod); dev.off()
 
 
@@ -352,7 +347,7 @@ cor(dataset$RV, dataset$PAB)^2
 p_late <- .fc_scatter(dataset,
   xlab = 'Human RVF vs pRV (avg log2FC)',
   ylab = 'Mouse PAB Sev vs Mod (avg log2FC)')
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM_Sev_Mod_RVF_pRV_dot.pdf'),
+pdf(paste0('./output/', 'PAB_vs_RV_CM_Sev_Mod_RVF_pRV_dot.pdf'),
     width = 5, height = 5)
 print(p_late); dev.off()
 
@@ -368,7 +363,7 @@ cor(dataset$RV, dataset$PAB)^2
 p_h1 <- .fc_scatter(dataset,
   xlab = 'Mouse PAB Sev vs Nor (avg log2FC)',
   ylab = 'Mouse PAB Mod vs Nor (avg log2FC)')
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'),
+pdf(paste0('./output/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'),
     width = 5, height = 5)
 print(p_h1); dev.off()
 
@@ -384,7 +379,7 @@ cor(dataset$RV, dataset$PAB)^2
 p_h2 <- .fc_scatter(dataset,
   xlab = 'Mouse PAB Sev vs Mod (avg log2FC)',
   ylab = 'Mouse PAB Mod vs Nor (avg log2FC)')
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'),
+pdf(paste0('./output/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'),
     width = 5, height = 5)
 print(p_h2); dev.off()
 
@@ -393,9 +388,9 @@ print(p_h2); dev.off()
 ## panels share x-extent in the figure layout. Each sub-panel keeps its own
 ## axis labels via .fc_scatter().
 p_combo <- p_d / p_h1 / p_h2
-ggsave('./output/Supplementary_Figure_6/PAB_CM_FC_combined.pdf',
+ggsave('./output/PAB_CM_FC_combined.pdf',
        p_combo, width = 5, height = 15)
-ggsave('./output/Supplementary_Figure_6/PAB_CM_FC_combined.pdf',
+ggsave(file.path(V52_FIG_DIR, 'PAB_CM_FC_combined.pdf'),
        p_combo, width = 5, height = 15)
 
 
@@ -426,7 +421,7 @@ M2 <- SetIdent(M2, value = "group")
 M2$group <- factor(M2$group,levels=c('Nor','Mod','Sev'))
 
 
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
+pdf(paste0('./output/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
 
 p <- DotPlot(M2,paste0('module_',
   c('M2','M10','M12','M25','M26','M28')),dot.min=0,col.min=0,col.max=2,
@@ -479,7 +474,7 @@ library(ggpubr)
 .mouse_mito_pat$group <- factor(.mouse_mito_pat$group,
                                 levels = c('Nor','Mod','Sev'))
 write.csv(.mouse_mito_pat,
-          './output/Supplementary_Figure_6/PAB_mouse_CM_mitocarto_per_animal.csv',
+          './output/PAB_mouse_CM_mitocarto_per_animal.csv',
           row.names = FALSE)
 
 .human_mito_pat <- aggregate(
@@ -491,7 +486,7 @@ write.csv(.mouse_mito_pat,
 .human_mito_pat$group <- factor(.human_mito_pat$group,
                                 levels = c('NF','pRV','RVF'))
 write.csv(.human_mito_pat,
-          './output/Supplementary_Figure_6/RV_human_CM_mitocarto_per_patient.csv',
+          './output/RV_human_CM_mitocarto_per_patient.csv',
           row.names = FALSE)
 
 p1 <- ggplot(.mouse_mito_pat, aes(x = group, y = mito, fill = group)) +
@@ -524,10 +519,10 @@ p2 <- ggplot(.human_mito_pat, aes(x = group, y = mito, fill = group)) +
   theme_v52(COMP_W) +
   theme(legend.position = 'none')
 
-pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_RV_CM_mitocarto.pdf'), width = 3.2, height = 4.675)
+pdf(paste0('./output/', 'PAB_RV_CM_mitocarto.pdf'), width = 3.2, height = 4.675)
 print(p1 / p2)
 dev.off()
-ggsave('./output/Supplementary_Figure_6/PAB_RV_CM_mitocarto.pdf',
+ggsave(file.path(V52_FIG_DIR, 'PAB_RV_CM_mitocarto.pdf'),
        p1 / p2, width = 3.2, height = 4.675)
 
 anno <- trimws(unlist(lapply(lapply(lapply(Human.Mito$MitoCarta3.0_MitoPathways,str_split,'>'),'[[',1),'[[',1)))
@@ -598,7 +593,7 @@ a <- data.frame(avg_log2FC = res[mito_in_res, 'log2FoldChange'],
 a <- a[complete.cases(a), ]
 a$p_val_adj[a$p_val_adj < 1e-50] <- 1e-50
 write.csv(cbind(gene = rownames(a), a),
-          './output/Supplementary_Figure_6/PAB_RV_CM_mitocarto_volcano_pseudobulk.csv',
+          './output/PAB_RV_CM_mitocarto_volcano_pseudobulk.csv',
           row.names = FALSE)
 
 ## Map each gene to its MitoCarta category, then pick one color per category
@@ -635,9 +630,9 @@ p_volcano <- p_volcano +
   theme(legend.position = 'top',
         legend.title    = element_blank())
 
-ggsave('./output/Supplementary_Figure_6/PAB_RV_CM_mitocarto_volcano.pdf',
+ggsave('./output/PAB_RV_CM_mitocarto_volcano.pdf',
        p_volcano, width = 6, height = 9.38)
-ggsave('./output/Supplementary_Figure_6/PAB_RV_CM_mitocarto_volcano.pdf',
+ggsave(file.path(V52_FIG_DIR, 'PAB_RV_CM_mitocarto_volcano.pdf'),
        p_volcano, width = 6, height = 9.38)
 
 
@@ -688,8 +683,8 @@ human_cmp <- list(c('NF','pRV'), c('NF','RVF'), c('pRV','RVF'))
   table(group = M3$group, subtype = M3$Subnames), 1))
 .mouse_comp$group <- factor(.mouse_comp$group, levels = c('Nor','Mod','Sev'))
 .human_comp$group <- factor(.human_comp$group, levels = c('NF','pRV','RVF'))
-write.csv(.mouse_comp, './output/Supplementary_Figure_6/PAB_mouse_CM_subtype_composition.csv', row.names=FALSE)
-write.csv(.human_comp, './output/Supplementary_Figure_6/RV_human_CM_subtype_composition.csv', row.names=FALSE)
+write.csv(.mouse_comp, './output/PAB_mouse_CM_subtype_composition.csv', row.names=FALSE)
+write.csv(.human_comp, './output/RV_human_CM_subtype_composition.csv', row.names=FALSE)
 
 p_comp_mouse <- ggplot(.mouse_comp, aes(x = group, y = Freq, fill = subtype)) +
   geom_col(width = 0.7, colour = 'black', linewidth = PS$linewidth_mm) +
@@ -701,9 +696,9 @@ p_comp_human <- ggplot(.human_comp, aes(x = group, y = Freq, fill = subtype)) +
   labs(title = 'Human RV — CM composition', x = NULL, y = 'Fraction of CMs') +
   theme_v52(COMP_W) +
   theme(legend.key.size = PS$legend_key, legend.title = element_blank())
-ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_composition.pdf',
+ggsave('./output/S6J_PAB_RV_CM_composition.pdf',
        p_comp_mouse / p_comp_human, width = 4, height = 5.5)
-ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_composition.pdf',
+ggsave(file.path(V52_FIG_DIR, 'S6J_PAB_RV_CM_composition.pdf'),
        p_comp_mouse / p_comp_human, width = 4, height = 5.5)
 
 ## (ii) FAO program score per-subject
@@ -715,17 +710,17 @@ M3 <- AddModuleScore(M3, list(intersect(fao_genes, rownames(M3))),
                      name = 'FAO')
 .mouse_fao <- .subject_mean(M2, 'FAO1', c('Nor','Mod','Sev'))
 .human_fao <- .subject_mean(M3, 'FAO1', c('NF','pRV','RVF'))
-write.csv(.mouse_fao, './output/Supplementary_Figure_6/PAB_mouse_CM_FAO_per_animal.csv', row.names=FALSE)
-write.csv(.human_fao, './output/Supplementary_Figure_6/RV_human_CM_FAO_per_patient.csv', row.names=FALSE)
+write.csv(.mouse_fao, './output/PAB_mouse_CM_FAO_per_animal.csv', row.names=FALSE)
+write.csv(.human_fao, './output/RV_human_CM_FAO_per_patient.csv', row.names=FALSE)
 
 p_fao_mouse <- .subject_box(.mouse_fao, mhc_pal_mouse,
   'Mouse PAB — FAO program', 'Per-animal mean score', mouse_cmp)
 p_fao_human <- .subject_box(.human_fao, mhc_pal_human,
   'Human RV — FAO program', 'Per-patient mean score', human_cmp)
 p_fao <- p_fao_mouse | p_fao_human
-pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_FAO.pdf', width = 5, height = 3)
+pdf('./output/S6J_PAB_RV_CM_FAO.pdf', width = 5, height = 3)
 print(p_fao); dev.off()
-ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_FAO.pdf',
+ggsave(file.path(V52_FIG_DIR, 'S6J_PAB_RV_CM_FAO.pdf'),
        p_fao, width = 5, height = 3)
 
 ## (iii) Failure / fetal-program score per-subject
@@ -736,17 +731,17 @@ M3 <- AddModuleScore(M3, list(intersect(fail_genes, rownames(M3))),
                      name = 'Failure')
 .mouse_fail <- .subject_mean(M2, 'Failure1', c('Nor','Mod','Sev'))
 .human_fail <- .subject_mean(M3, 'Failure1', c('NF','pRV','RVF'))
-write.csv(.mouse_fail, './output/Supplementary_Figure_6/PAB_mouse_CM_Failure_per_animal.csv', row.names=FALSE)
-write.csv(.human_fail, './output/Supplementary_Figure_6/RV_human_CM_Failure_per_patient.csv', row.names=FALSE)
+write.csv(.mouse_fail, './output/PAB_mouse_CM_Failure_per_animal.csv', row.names=FALSE)
+write.csv(.human_fail, './output/RV_human_CM_Failure_per_patient.csv', row.names=FALSE)
 
 p_fail_mouse <- .subject_box(.mouse_fail, mhc_pal_mouse,
   'Mouse PAB — Failure program', 'Per-animal mean score', mouse_cmp)
 p_fail_human <- .subject_box(.human_fail, mhc_pal_human,
   'Human RV — Failure program', 'Per-patient mean score', human_cmp)
 p_fail <- p_fail_mouse | p_fail_human
-pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_Failure_program.pdf', width = 5, height = 3)
+pdf('./output/S6J_PAB_RV_CM_Failure_program.pdf', width = 5, height = 3)
 print(p_fail); dev.off()
-ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_Failure_program.pdf',
+ggsave(file.path(V52_FIG_DIR, 'S6J_PAB_RV_CM_Failure_program.pdf'),
        p_fail, width = 5, height = 3)
 
 ## (iv) GR axis: FKBP5 + NR3C1 per-subject (single-gene module scores)
@@ -762,8 +757,8 @@ M3 <- AddModuleScore(M3, list('NR3C1'), name = 'NR3C1score')
                    cbind(.mouse_nr3c1, gene = 'NR3C1'))
 .human_gr <- rbind(cbind(.human_fkbp5, gene = 'FKBP5'),
                    cbind(.human_nr3c1, gene = 'NR3C1'))
-write.csv(.mouse_gr, './output/Supplementary_Figure_6/PAB_mouse_CM_GR_axis_per_animal.csv', row.names=FALSE)
-write.csv(.human_gr, './output/Supplementary_Figure_6/RV_human_CM_GR_axis_per_patient.csv', row.names=FALSE)
+write.csv(.mouse_gr, './output/PAB_mouse_CM_GR_axis_per_animal.csv', row.names=FALSE)
+write.csv(.human_gr, './output/RV_human_CM_GR_axis_per_patient.csv', row.names=FALSE)
 
 .gr_box <- function(df, palette, title, comparisons) {
   ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -785,9 +780,9 @@ write.csv(.human_gr, './output/Supplementary_Figure_6/RV_human_CM_GR_axis_per_pa
 p_gr_mouse <- .gr_box(.mouse_gr, mhc_pal_mouse, 'Mouse PAB — GR axis', mouse_cmp)
 p_gr_human <- .gr_box(.human_gr, mhc_pal_human, 'Human RV — GR axis', human_cmp)
 p_gr <- p_gr_mouse | p_gr_human
-pdf('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_GR_axis.pdf', width = 7, height = 3)
+pdf('./output/S6J_PAB_RV_CM_GR_axis.pdf', width = 7, height = 3)
 print(p_gr); dev.off()
-ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_GR_axis.pdf',
+ggsave(file.path(V52_FIG_DIR, 'S6J_PAB_RV_CM_GR_axis.pdf'),
        p_gr, width = 7, height = 3)
 
 
@@ -813,9 +808,9 @@ p_small_combined <- patchwork::wrap_plots(
   nrow = 1
 ) + patchwork::plot_layout(widths = rep(1, 6))
 
-ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_small_panels_combined.pdf',
+ggsave('./output/S6J_PAB_RV_CM_small_panels_combined.pdf',
        p_small_combined, width = 9, height = 3)
-ggsave('./output/Supplementary_Figure_6/S6J_PAB_RV_CM_small_panels_combined.pdf',
+ggsave(file.path(V52_FIG_DIR, 'S6J_PAB_RV_CM_small_panels_combined.pdf'),
        p_small_combined, width = 9, height = 3)
 
 #######################################
@@ -836,7 +831,7 @@ sirius_long <- data.frame(
   sirius = as.numeric(unlist(.sirius_raw[1, ]))
 )
 sirius_long <- sirius_long[!is.na(sirius_long$sirius), ]
-write.csv(sirius_long, './output/Supplementary_Figure_6/PAB_Sirius_long.csv', row.names = FALSE)
+write.csv(sirius_long, './output/PAB_Sirius_long.csv', row.names = FALSE)
 
 sirius_pal <- setNames(disease_pal[c('NF','pRV','RVF')], c('Sham','Mod','Sev'))
 
@@ -856,10 +851,13 @@ p_sirius <- ggplot(sirius_long, aes(x = group, y = sirius, fill = group)) +
   theme(legend.position = 'none')
 
 save_figure(p_sirius, 'PAB_Sirius_box.pdf', width = 2.4, height = 2.1)
-ggsave('./output/Supplementary_Figure_6/S6I_PAB_Sirius_box.pdf', p_sirius, width = 2.4, height = 2.1)
+ggsave('./output/S6I_PAB_Sirius_box.pdf', p_sirius, width = 2.4, height = 2.1)
 
+## S6G (v57): MitoCarta volcano (+ Sirius companion) composite. Was saved
+## under the leftover wrong name 'SupplementaryFigure_7.pdf' (port artifact);
+## content is correct — give it an S6-correct name the v57 emission map picks.
 p_final <- (p_volcano | p_sirius) + patchwork::plot_layout(widths = c(3, 1))
-save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
+save_figure(p_final, 'S6G_mitocarto_volcano.pdf', width = 8, height = 11)
 
 # TODO v52: add other PAB echo/histology panels (new data)
 
@@ -950,17 +948,17 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -1050,7 +1048,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 
 
-# M2 <- readRDS('./output/Supplementary_Figure_6/PAB_data_clean.rds')
+# M2 <- readRDS('./output/PAB_data_clean.rds')
 
 # M2 <- SetIdent(M2, value = "Names")
 # M2$group <- M2$orig.ident
@@ -1292,7 +1290,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 #       plot.margin = margin(0,0,0,0)
 #     )
 
-# pdf(paste0('./output/Supplementary_Figure_6/rMac_hubgene_umap_ggplot.pdf'), width=8, height=8)
+# pdf(paste0('./output/rMac_hubgene_umap_ggplot.pdf'), width=8, height=8)
 # print(p)
 # dev.off()
 
@@ -1309,7 +1307,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # EnrichrBarPlot(
 #   M2,
-#   outdir = "./output/Supplementary_Figure_6/Myeloid_rMac_consensus_modules", # name of output directory
+#   outdir = "./output/Myeloid_rMac_consensus_modules", # name of output directory
 #   n_terms = 10, # number of enriched terms to show (sometimes more show if there are ties!!!)
 #   plot_size = c(5,7), # width, height of the output .pdfs
 #   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -1325,7 +1323,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # cat(rownames(subset(modules,module=='rMac-CM11')),sep='\n')
 # cat(rownames(subset(modules,module=='rMac-CM12')),sep='\n')
 
-# write.csv(modules,"./output/Supplementary_Figure_6/consensusWGCNA_rMac_modules.csv")
+# write.csv(modules,"./output/consensusWGCNA_rMac_modules.csv")
 
 # modules <- GetModules(M2)
 # color_df <- modules %>% subset(module!='grey') %>%
@@ -1348,7 +1346,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
 
 # selected_terms<-selected_terms[idx_top_1,]
-# #key_terms <- read.csv('./output/Supplementary_Figure_6/bulkRNA_GOterms_ofinterest.csv')
+# #key_terms <- read.csv('./output/bulkRNA_GOterms_ofinterest.csv')
 # #selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 # #selected_terms <- subset(combined_output, Term %in% selected_terms$Term & P.value < 0.05)
 
@@ -1424,7 +1422,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 #   )
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/Consensus_WGNCA_rMac_selected_GO_terms.pdf'), width=13, height=8)
+# pdf(paste0('./output/Consensus_WGNCA_rMac_selected_GO_terms.pdf'), width=13, height=8)
 # p / colorbar #+ plot_layout(heights=c(20,1))
 # dev.off()
 
@@ -1535,7 +1533,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 #       plot.margin = margin(0,0,0,0)
 #     )
 
-# pdf(paste0('./output/Supplementary_Figure_6/HLA_hubgene_umap_ggplot.pdf'), width=8, height=8)
+# pdf(paste0('./output/HLA_hubgene_umap_ggplot.pdf'), width=8, height=8)
 # print(p)
 # dev.off()
 
@@ -1554,7 +1552,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # EnrichrBarPlot(
 #   M2,
-#   outdir = "./output/Supplementary_Figure_6/Myeloid_HLA_consensus_modules", # name of output directory
+#   outdir = "./output/Myeloid_HLA_consensus_modules", # name of output directory
 #   n_terms = 10, # number of enriched terms to show (sometimes more show if there are ties!!!)
 #   plot_size = c(5,7), # width, height of the output .pdfs
 #   logscale=TRUE # do you want to show the enrichment as a log scale?
@@ -1562,7 +1560,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # modules <- GetModules(M2) %>% subset(module != 'grey')
 
-# write.csv(modules,"./output/Supplementary_Figure_6/consensusWGCNA_HLA_modules.csv")
+# write.csv(modules,"./output/consensusWGCNA_HLA_modules.csv")
 
 # cat(rownames(subset(modules,module=='HLA-CM10')),sep='\n')
 # cat(rownames(subset(modules,module=='HLA-CM20')),sep='\n')
@@ -1589,7 +1587,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # idx_top_3 <- sort(c(idx_top_1,idx_top_1+1,idx_top_1+2))
 
 # selected_terms<-selected_terms[idx_top_1,]
-# #key_terms <- read.csv('./output/Supplementary_Figure_6/bulkRNA_GOterms_ofinterest.csv')
+# #key_terms <- read.csv('./output/bulkRNA_GOterms_ofinterest.csv')
 # #selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 # #selected_terms <- subset(combined_output, Term %in% selected_terms$Term & P.value < 0.05)
 
@@ -1665,7 +1663,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 #   )
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/Consensus_WGNCA_HLA_selected_GO_terms.pdf'), width=13, height=8)
+# pdf(paste0('./output/Consensus_WGNCA_HLA_selected_GO_terms.pdf'), width=13, height=8)
 # p / colorbar #+ plot_layout(heights=c(20,1))
 # dev.off()
 
@@ -1679,7 +1677,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # #1632,1467 RVF
 # #1681 1691 1697 NF
 
-# M1 <- readRDS('./output/Supplementary_Figure_6/PAB_data_clean.rds')
+# M1 <- readRDS('./output/PAB_data_clean.rds')
 
 # M1 <- SetIdent(M1, value = "Names")
 # M1$group <- M1$orig.ident
@@ -1781,7 +1779,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # p1 <- DimPlot(M1, reduction = "umap", group.by = "Names", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/', 'RV_PAB_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
@@ -1838,7 +1836,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # bulk$group <- paste0(bulk$Origin,'_',bulk$Type)
 # p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(bulk, reduction = "ref.umap", group.by = "group", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + ggtitle("Query transferred labels")
-# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
@@ -1862,7 +1860,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # cor(dataset[,1],dataset[,2])
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
+# pdf(paste0('./output/', 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf'), width=10, height=10)
 # ggplot(dataset, aes(x = sn, y=bulk)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=25) + theme_classic()
 # dev.off()
@@ -1938,7 +1936,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # modules_int <- c('M1','M3','M4',"M8")
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
+# pdf(paste0('./output/', 'PAB_myeloid_dot_subclust.pdf'), width=5, height=2)
 
 # p <- DotPlot(M2,paste0('module_',modules_int),group.by='Subnames',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
 #   RotatedAxis() + ylab('')+ xlab('')+
@@ -1955,7 +1953,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
+# pdf(paste0('./output/', 'PAB_myeloid_dot_disease.pdf'), width=5, height=2.5)
 
 # p <- DotPlot(M2,paste0('module_',modules_int),group.by='group',dot.min=0,col.min=-1,col.max=1,scale.min=50,scale.max=100) +
 #   RotatedAxis() + ylab('')+ xlab('')+
@@ -1974,7 +1972,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # M2 <- AddModuleScore(M2,list(c('Ciita','Cd74','H2-Ab1','H2-Aa',
 # 	'H2-Eb1','H2-Eb2','H2-Ob','H2-DMb1','H2-DMb2','H2-DMa','H2-Oa')),name='MHCII')
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
+# pdf(paste0('./output/', 'PAB_myeloid_MHC.pdf'), width=3, height=3)
 
 # VlnPlot(subset(M2,Subnames=='HLA'),'MHCII1',group.by='group',pt.size=0)
 # dev.off()
@@ -1991,13 +1989,13 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # M2 <- AddModuleScore(M2,list(gluc_response_mouse),name='nr3c1')
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
+# pdf(paste0('./output/', 'PAB_myeloid_nr3c1.pdf'), width=3, height=3)
 
 # VlnPlot(M2,'nr3c11',group.by='group',pt.size=0)
 # dev.off()
 
 # M1$group <- M1$orig.ident
-# pdf(paste0('./output/Supplementary_Figure_6/', 'Wnt1.pdf'), width=3, height=3)
+# pdf(paste0('./output/', 'Wnt1.pdf'), width=3, height=3)
 # DimPlot(M1)
 # dev.off()
 
@@ -2094,7 +2092,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==1)$gene_name)
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+# pdf(paste0('./output/', 'PAB_M1_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 # EnhancedVolcano(gene_set,lab=rownames(gene_set),
 # 	x='avg_log2FC',y='p_val_adj',
@@ -2103,7 +2101,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # gene_set <- FindMarkers(M2, ident.1 = 'Sev', ident.2 = 'Nor',recorrect_umi=F,features=subset(bulk_modules,module==8)$gene_name)
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
+# pdf(paste0('./output/', 'PAB_M8_Myeloid_module_volcano_all_RVF_vs_NF.pdf'), width=8, height=6)
 
 # EnhancedVolcano(gene_set,lab=rownames(gene_set),
 # 	x='avg_log2FC',y='p_val_adj',
@@ -2125,7 +2123,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # M2$Names <- M2@active.ident
 # markers<-FindAllMarkers(M2,recorrect_umi=F)
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
+# pdf(paste0('./output/', 'PAB_CM_snUMAP.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='Names',point_size=1,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -2320,17 +2318,17 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # p1 <- DimPlot(M3, reduction = "umap", group.by = "Subnames", label = TRUE, label.size = 3, repel = TRUE,raster=TRUE,pt.size=1.5) + NoLegend() + ggtitle("Reference annotations")
 # p2 <- DimPlot(M2, reduction = "ref.umap", group.by = "predicted.celltype", label = TRUE, label.size = 3, pt.size=1.5,repel = TRUE,raster=TRUE) + NoLegend() + ggtitle("Query transferred labels")
-# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
+# pdf(paste0('./output/', 'RV_PAB_CM_ref_mapped.pdf'), width=10, height=5)
 # p1 + p2
 # dev.off()
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/', 'PAB_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M2,group.by='predicted.celltype',reduction = "ref.umap",point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
+# pdf(paste0('./output/', 'RV_CM_ref_mapped.pdf'), width=5, height=5)
 # PlotEmbedding(M3,group.by='Subnames',point_size=0.2,plot_under=TRUE,plot_theme=umap_theme()+NoLegend(),raster_dpi=400,raster_scale=0.5)
 # dev.off()
 
@@ -2356,7 +2354,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 # M2$predicted.celltype <- factor(M2$predicted.celltype,levels=levels(M3))
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
+# pdf(paste0('./output/', 'PAB_CM_marker_scores.pdf'), width=6, height=4)
 
 # DotPlot(M2,c('RV_marks1','RV_marks2','RV_marks3','RV_marks4','RV_marks5'
 # 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),
@@ -2369,7 +2367,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # 	,'RV_marks6','RV_marks7','RV_marks8','RV_marks9','RV_marks10'),col.min = 0) +
 # scale_x_discrete(labels=c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10'))
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
+# pdf(paste0('./output/', 'PAB_CM_scores.pdf'), width=3.75, height=4.25)
 # VlnPlot(M2,'map_score',group.by='predicted.celltype',pt.size=0)
 # dev.off()
 
@@ -2390,7 +2388,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/', 'PAB_vs_RV_CM__dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 # dev.off()
@@ -2405,7 +2403,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/', 'PAB_vs_RV_CM_Mod_Nor_dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 # dev.off()
@@ -2420,7 +2418,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # #labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/', 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=50) + theme_classic()
 # dev.off()
@@ -2435,7 +2433,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # labs[abs(dataset$PAB - dataset$RV)<1] <- NA
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
+# pdf(paste0('./output/', 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf'), width=6, height=8)
 # ggplot(dataset, aes(x = RV, y=PAB)) + geom_point() + 
 #   geom_text_repel(label=labs,max.overlaps=10) + theme_classic()
 # dev.off()
@@ -2466,7 +2464,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # M2$group <- factor(M2$group,levels=c('Nor','Mod','Sev'))
 
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
+# pdf(paste0('./output/', 'PAB_seurat_dot_CM.pdf'), width=5, height=2.5)
 
 # p <- DotPlot(M2,paste0('module_',
 #   c('M2','M10','M12','M25','M26','M28')),dot.min=0,col.min=0,col.max=2,group.by='group') +
@@ -2496,7 +2494,7 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 # p1<-VlnPlot(M2,'mito1',group.by='group',pt.size=0)
 # p2<-VlnPlot(M3,'mito1',group.by='group',pt.size=0)
 
-# pdf(paste0('./output/Supplementary_Figure_6/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
+# pdf(paste0('./output/', 'PAB_RV_CM_mitocarto.pdf'), width=3, height=4)
 
 # p1 / p2
 # dev.off()
@@ -2519,9 +2517,56 @@ save_figure(p_final, 'SupplementaryFigure_7.pdf', width = 8, height = 11)
 
 
 # library(EnhancedVolcano)
-# pdf(paste0('./output/Supplementary_Figure_6/', 'CM_RV_Mito.pdf'), width=6, height=11)
+# pdf(paste0('./output/', 'CM_RV_Mito.pdf'), width=6, height=11)
 
 # EnhancedVolcano(a,lab=rownames(a),
 #   x='avg_log2FC',y='p_val_adj',
 #   FCcutoff = 0.1,pCutoff=0.05,colCustom = colors,xlim=c(-6.25,3),ylim=c(0,52))
 # dev.off()
+
+###############################################################################
+## v57 standardized per-panel emission — keyed to the v57 S6 legend
+## (.figure_run_logs/v57_figure_legends.md), NOT the reference's internal
+## letters. Reference writes legacy ./output/<name>.pdf; copy each to
+## V52_FIG_DIR/Figure_S6_panel_<L>.pdf. v57 S6:
+##   A mouse→human CM ref-map | B human-CM-marker score in mouse |
+##   C per-subcluster mapping score | D cross-species FC scatter |
+##   E mouse-CM WGCNA module dot by disease | F per-subject MitoCarta |
+##   G pseudobulk DESeq2 MitoCarta volcano (apeglm) |
+##   H within-mouse FC traj (i)+(ii) | I Sirius-Red fibrosis |
+##   J cross-species 3-program concordance (FAO/Failure/GR).
+###############################################################################
+.s6_v57 <- list(
+  A   = c('RV_PAB_CM_ref_mapped.pdf','PAB_CM_ref_mapped.pdf'),
+  B   = 'PAB_CM_marker_scores.pdf',
+  C   = 'PAB_CM_scores.pdf',
+  D   = 'PAB_vs_RV_CM__dot.pdf',
+  E   = 'PAB_seurat_dot_CM.pdf',
+  F   = 'PAB_RV_CM_mitocarto.pdf',
+  G   = c('S6G_mitocarto_volcano.pdf', 'PAB_RV_CM_mitocarto_volcano.pdf'),
+  Hi  = 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf',
+  Hii = 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf',
+  I   = 'PAB_Sirius_box.pdf',
+  J   = 'S6J_PAB_RV_CM_FAO.pdf',
+  Jii = 'S6J_PAB_RV_CM_Failure_program.pdf',
+  Jiii= 'S6J_PAB_RV_CM_GR_axis.pdf')
+.s6_emit_dir <- if (exists('V52_FIG_DIR')) V52_FIG_DIR else
+                './output/Supplementary_Figure_6'
+dir.create(.s6_emit_dir, showWarnings = FALSE, recursive = TRUE)
+message('Supplementary Figure 6 v57-keyed standardized panels:')
+for (.L in names(.s6_v57)) {
+  .cands <- .s6_v57[[.L]]
+  .src <- NA_character_
+  for (.c in .cands) {
+    for (.d in c('./output', .s6_emit_dir,
+                 './output/Supplementary_Figure_6')) {
+      if (file.exists(file.path(.d, .c))) { .src <- file.path(.d, .c); break }
+    }
+    if (!is.na(.src)) break
+  }
+  if (!is.na(.src)) {
+    file.copy(.src, file.path(.s6_emit_dir,
+              sprintf('Figure_S6_panel_%s.pdf', .L)), overwrite = TRUE)
+    message('  ', .L, ': OK (', basename(.src), ')')
+  } else message('  ', .L, ': MISSING (', .cands[1], ')')
+}

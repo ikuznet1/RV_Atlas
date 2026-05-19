@@ -180,9 +180,18 @@ cols_current[startsWith(colnames(M2@meta.data), 'module_score')] <-
   paste0('module_', module_colors)
 colnames(M2@meta.data) <- cols_current
 
-## origin in this object is logical (TRUE = Peds, FALSE = Adult). Coerce to chars.
-M2$origin <- ifelse(as.logical(M2$origin), 'Peds', 'Adult')
-M2$CombinedNamesSplit <- paste0(M2$CombinedNames, '_', M2$origin)
+## origin was ALREADY coerced to 'Peds'/'Adult' on M1 above, and M2 is an alias
+## of M1 — do NOT re-run as.logical() here: as.logical('Peds')/as.logical('Adult')
+## are both NA, which previously made every label '<lineage>_NA'.
+.origin_short <- ifelse(M2$origin == 'Peds', 'ped', 'adult')
+M2$CombinedNamesSplit <- paste0(.origin_short, '-', as.character(M2$CombinedNames))
+## Order rows to match the published Panel C (lineage-grouped, ped above adult).
+## Seurat DotPlot puts the first factor level at the bottom, so list bottom->top.
+.cns_lv <- c('adult-CM','ped-CM','adult-EC','ped-EC','adult-FB','ped-FB',
+             'adult-Myeloid','ped-Myeloid','adult-PC','ped-PC','adult-SM','ped-SM')
+M2$CombinedNamesSplit <- factor(
+  M2$CombinedNamesSplit,
+  levels = intersect(.cns_lv, unique(M2$CombinedNamesSplit)))
 
 p_S8C <- DotPlot(
   M2,
@@ -312,4 +321,14 @@ fig_S8 <- (p_S8A / p_S8B / p_S8C / p_S8D / p_S8E / p_S8F) +
   )
 
 save_figure(fig_S8, 'SupplementaryFigure_8.pdf', width = 14, height = 28)
-message('Supplementary Figure 8 (v54: adult vs pediatric NF) complete.')
+
+## Individual subpanels (same plot objects, saved separately for assembly)
+save_figure(p_S8A,       'Supplementary_Figure_8_panel_A_umap.pdf',           width =  7, height = 6)
+save_figure(p_S8B,       'Supplementary_Figure_8_panel_B_abundance.pdf',      width = 14, height = 4)
+save_figure(p_S8C,       'Supplementary_Figure_8_panel_C_module_dotplot.pdf', width = 10, height = 6)
+save_figure(p_S8D,       'Supplementary_Figure_8_panel_D_volcano.pdf',        width =  8, height = 8)
+save_figure(p_S8E,       'Supplementary_Figure_8_panel_E_pca.pdf',            width =  6, height = 6)
+save_figure(p_S8F,       'Supplementary_Figure_8_panel_F_GO.pdf',             width = 14, height = 5)
+save_figure(p_S8F_peds,  'Supplementary_Figure_8_panel_F_GO_peds.pdf',        width =  7, height = 5)
+save_figure(p_S8F_adult, 'Supplementary_Figure_8_panel_F_GO_adult.pdf',       width =  7, height = 5)
+message('Supplementary Figure 8 (v54: adult vs pediatric NF) complete — combined + 8 subpanels.')

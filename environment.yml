@@ -51,6 +51,14 @@ dependencies:
   - bioconductor-summarizedexperiment
   - bioconductor-biocparallel
 
+  ## ── SCTransform/DE accelerators (required for v2 SCT fidelity + speed) ─────
+  ## glmGamPoi: SCTransform(vst.flavor='v2') backend — without it Seurat
+  ## falls back to a slower glm with subtly different Pearson residuals.
+  ## presto: fast Wilcoxon for FindMarkers/FindAllMarkers (identical results).
+  - bioconductor-glmgampoi
+  - bioconductor-presto
+  - r-openxlsx   # Generate_Supplementary_Tables.R xlsx writer
+
   ## ── Enrichment, TF activity, gene-set scoring ─────────────────────────────
   - bioconductor-dose
   - bioconductor-geneoverlap

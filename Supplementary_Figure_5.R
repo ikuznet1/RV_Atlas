@@ -824,6 +824,31 @@ tryCatch({  # v53: skip ref-mapping if multi-batch SCT error fires
   
   cat(rownames(subset(dataset, bulk > 0.1 & sn > 0.1)),sep='\n')
   cat(rownames(subset(dataset, bulk < 0.1 & sn < 0.1)),sep='\n')
+
+  ## v57 S5 Panel I sub-panels (I-i = bulk-vs-sn scatter above):
+  ##  I-ii  = PCA of bulk RV macrophages — PAB vs Sham cluster separation
+  ##  I-iii = bulk RV PAB-vs-Sham DEG volcano (MHCII transcripts down)
+  tryCatch({
+    .v  <- bulk_RV[['pca']]@stdev^2
+    .v  <- round(100 * .v / sum(.v))
+    .pd <- data.frame(PC1 = Embeddings(bulk_RV, 'pca')[, 1],
+                      PC2 = Embeddings(bulk_RV, 'pca')[, 2],
+                      grp = paste0('RV ', as.character(bulk_RV$Type)))
+    p_S5Iii <- ggplot(.pd, aes(PC1, PC2, color = grp)) +
+      geom_point(size = 3) +
+      scale_color_manual(values = c('RV PAB' = '#E41A1C',
+                                    'RV Sham' = '#4DAF4A'), name = NULL) +
+      labs(x = sprintf('PC1: %d%% variance', .v[1]),
+           y = sprintf('PC2: %d%% variance', .v[2]),
+           title = 'Module score') +
+      theme_v52(COMP_W)
+    save_figure(p_S5Iii, 'Figure_S5_panel_Iii.pdf', width = 4.5, height = 3.5)
+    ## I-iii is the script's own bulk_PAB_myeloid_RV_PAB_vs_RV_Sham.pdf
+    ## (generated later, L~989) — copied to Figure_S5_panel_Iiii.pdf by
+    ## the rename-map at the end. Do NOT build a custom volcano here.
+    message('S5 panel I-ii (PCA) built')
+  }, error = function(e)
+     message('S5 I-ii build failed: ', conditionMessage(e)))
   
   
   
@@ -1331,5 +1356,154 @@ cat(rownames(subset(rv_pab,padj<0.05 & log2FoldChange<0)),sep="\n")
 
 
 # FeaturePlot(M2,'map_score',reduction = "ref.umap")
+
+.s5_dir <- './output/Supplementary_Figure_5/'
+dir.create(.s5_dir, showWarnings = FALSE, recursive = TRUE)
+
+###############################################################################
+## FIGURE S5G — cross-species myeloid programs in PAB (built; v57)
+## Per-mouse pseudobulk module scores for the 4 human RVF Phase-1 myeloid
+## programs (same gene sets as S4 Panel I), mouse PAB myeloid, box +
+## per-mouse jitter by Nor/Mod/Sev, Kruskal-Wallis + pairwise Wilcoxon.
+###############################################################################
+tryCatch({
+  suppressPackageStartupMessages({library(Seurat); library(ggplot2)
+                                  library(dplyr); library(patchwork)})
+  GR_homeostatic <- c('TSC22D3','FKBP5','KLF9','KLF13','MERTK','CD163','MARCO',
+                      'MT2A','GLUL','ZBTB16','BCL6','CEBPB','TFCP2L1','MAFB',
+                      'GADD45B','ANGPTL4')
+  HIF_vascular   <- c('EPAS1','RAMP3','NAMPT','TIMP3','PECAM1','MYH9','LDLR',
+                      'PODXL','ID1','MAF','CHD7','ADIPOR2')
+  NFkB_MHCII     <- c('CD74','HLA-DRB1','HLA-DRA','HLA-DPA1','HLA-DPB1',
+                      'NLRP1','NLRP3','AIM2','CIITA','RUNX1','FOSL2','SRGN',
+                      'FOXO3','IRF1','CD83')
+  IFNg_AP        <- c('STAT1','IRF1','IRF8','JAK2','B2M','HLA-A','HLA-B',
+                      'HLA-C','PSMB8','PSMB9','TAP1','IFI30','GBP1','GBP2',
+                      'GBP4','GBP5','ICAM1')
+  .pab <- readRDS('./dependencies/shared/PAB_data_clean.rds')
+  .pab <- subset(.pab, Names == 'Myeloid')
+  DefaultAssay(.pab) <- 'RNA'
+  if (!'data' %in% SeuratObject::Layers(.pab[['RNA']]))
+    .pab <- NormalizeData(.pab, verbose = FALSE)
+  ## human symbol -> match against PAB rownames (try as-is, UPPER, Title)
+  .rn <- rownames(.pab); .rnU <- toupper(.rn)
+  .mm <- function(g) {
+    h <- intersect(g, .rn)
+    h <- union(h, .rn[match(setdiff(toupper(g), toupper(h)), .rnU)])
+    h[!is.na(h)]
+  }
+  .progs <- list(GR_homeostatic = GR_homeostatic, HIF_vascular = HIF_vascular,
+                 NFkB_MHCII = NFkB_MHCII, IFNg_AP = IFNg_AP)
+  for (nm in names(.progs)) {
+    gg <- .mm(.progs[[nm]])
+    .pab <- AddModuleScore(.pab, features = list(gg), name = nm, assay = 'RNA')
+  }
+  .pcol <- paste0(names(.progs), '1')
+  .gmeta <- .pab@meta.data
+  ## PAB_data_clean: $group has 665 NA myeloid cells; $orig.ident is the
+  ## clean group label (Nor/Mod/Sev, 0 NA), $patient = per-animal. Use
+  ## orig.ident for the group (kills the spurious NA box) + patient as
+  ## the per-mouse pseudobulk key.
+  .gmeta$.pt <- if ('patient' %in% colnames(.gmeta)) as.character(.gmeta$patient) else as.character(.gmeta$orig.ident)
+  .gmeta$.gr <- factor(as.character(.gmeta$orig.ident), levels = c('Nor','Mod','Sev'))
+  .gmeta <- .gmeta[!is.na(.gmeta$.gr) & !is.na(.gmeta$.pt), ]
+  .pb <- .gmeta %>% group_by(.pt, .gr) %>%
+    summarise(across(all_of(.pcol), mean), .groups = 'drop')
+  .titles <- c('GR-homeostatic','HIF / vascular drift',
+               'NF-kB MHCII / inflammasome','IFNg antigen presentation')
+  .plist <- lapply(seq_along(.pcol), function(i) {
+    d <- data.frame(score = .pb[[.pcol[i]]], grp = .pb$.gr)
+    kw <- tryCatch(kruskal.test(score ~ grp, d)$p.value, error = function(e) NA)
+    ggplot(d, aes(grp, score, fill = grp)) +
+      geom_boxplot(outlier.shape = NA, width = 0.6) +
+      geom_jitter(width = 0.15, size = 0.8) +
+      ggpubr::stat_compare_means(comparisons = list(c('Nor','Mod'),
+        c('Mod','Sev'), c('Nor','Sev')), method = 'wilcox.test',
+        size = 2.2) +
+      scale_fill_manual(values = c(Nor='#4DAF4A',Mod='#377EB8',Sev='#E41A1C')) +
+      ggtitle(sprintf('%s (KW p=%.2g)', .titles[i], kw)) +
+      ylab('Per-mouse mean score') + xlab(NULL) +
+      theme_v52(COMP_W) + theme(legend.position = 'none')
+  })
+  p_S5G <- wrap_plots(.plist, nrow = 1)
+  save_figure(p_S5G, 'Figure_S5_panel_G.pdf', width = 14, height = 3.6)
+  rm(.pab); invisible(gc(verbose = FALSE))
+  message('S5 panel G (cross-species myeloid programs) built')
+}, error = function(e) message('S5 G build failed: ', conditionMessage(e)))
+
+###############################################################################
+## FIGURE S5H — PAB flow-cytometry validation (built; v57)
+## 5 stains (PAB_Immune_*.xlsx). Each file: row-2 = 24 values; cols
+## 1-8 Sham, 9-16 PAB Mod, 17-24 PAB Sev. Normalize per-experiment to
+## Sham mean = 1. Box + per-mouse jitter, KW + pairwise Wilcoxon / stain.
+###############################################################################
+tryCatch({
+  suppressPackageStartupMessages({library(ggplot2); library(patchwork)})
+  .stains <- c('PAB_Immune_Pan_Immune'='Pan-immune (CD45+)',
+               'PAB_Immune_Pan_Mono'='Monocyte',
+               'PAB_Immune_Pan_Macro'='Macrophage',
+               'PAB_Immune_rMac'='Resident Mac (rMac)',
+               'PAB_Immune_TREM2'='TREM2+')
+  .fl <- lapply(names(.stains), function(f) {
+    x <- suppressMessages(readxl::read_excel(
+      sprintf('./dependencies/shared/%s.xlsx', f), col_names = FALSE))
+    v <- suppressWarnings(as.numeric(unlist(x[nrow(x), ])))
+    grp <- rep(c('Sham','Mod','Sev'), each = 8)[seq_along(v)]
+    d <- data.frame(val = v, grp = grp, stain = .stains[[f]])
+    d <- d[is.finite(d$val), ]
+    d$val <- d$val / mean(d$val[d$grp == 'Sham'], na.rm = TRUE)
+    d
+  })
+  .fdf <- do.call(rbind, .fl)
+  .fdf$grp <- factor(.fdf$grp, levels = c('Sham','Mod','Sev'))
+  .fdf$stain <- factor(.fdf$stain, levels = unname(.stains))
+  .pl <- lapply(levels(.fdf$stain), function(s) {
+    d <- subset(.fdf, stain == s)
+    kw <- tryCatch(kruskal.test(val ~ grp, d)$p.value, error=function(e) NA)
+    ggplot(d, aes(grp, val, fill = grp)) +
+      geom_boxplot(outlier.shape = NA, width = 0.6) +
+      geom_jitter(width = 0.15, size = 0.8) +
+      ggpubr::stat_compare_means(comparisons = list(c('Sham','Mod'),
+        c('Mod','Sev'), c('Sham','Sev')), method = 'wilcox.test',
+        size = 2.2) +
+      scale_fill_manual(values = c(Sham='#4DAF4A',Mod='#377EB8',Sev='#E41A1C')) +
+      ggtitle(sprintf('%s (KW p=%.2g)', s, kw)) +
+      ylab('Norm. to Sham mean') + xlab(NULL) +
+      theme_v52(COMP_W) + theme(legend.position = 'none')
+  })
+  p_S5H <- wrap_plots(.pl, nrow = 1)
+  save_figure(p_S5H, 'Figure_S5_panel_H.pdf', width = 16, height = 3.4)
+  message('S5 panel H (PAB flow cytometry) built')
+}, error = function(e) message('S5 H build failed: ', conditionMessage(e)))
+
+###############################################################################
+## v57 standardized panel names — copy legacy PDFs to Figure_S5_panel_<L>.
+## G & H are BUILT above (saved directly) — excluded here so they are not
+## overwritten. S5 header is SKELETON; absent legacy PDFs flagged.
+###############################################################################
+## Mapping reconciled to v57 legend (.figure_run_logs/v57_figure_legends.md):
+## A=PAB UMAP, B=marker dot, C=celltype-prop bar, D=EC UMAP+inset,
+## E=EC-prop bar, F=mouse myeloid WGCNA module dot, I(i/ii/iii)=
+## bulk-sorted-mac orthogonal validation (I-ii PCA = task TODO).
+.s5_map <- c(
+  A   = 'PAB_snUMAP.pdf',
+  B   = 'PAB_sn_Dot.pdf',
+  C   = 'PAB_prev_stacked.pdf',
+  D   = 'PAB_EC_snUMAP.pdf',
+  E   = 'PAB_EC_prev_stacked.pdf',
+  F   = 'PAB_myeloid_dot_subclust.pdf',
+  Ii   = 'RV_PAB_Myeloid_Only_bulkMyeloid_scatter.pdf',
+  Iiii = 'bulk_PAB_myeloid_RV_PAB_vs_RV_Sham.pdf')
+## I-ii (PCA) is BUILT directly above as Figure_S5_panel_Iii.pdf.
+## I-iii is the script's own bulk_PAB_myeloid_RV_PAB_vs_RV_Sham.pdf
+## (generated ~L989) -> copied to Figure_S5_panel_Iiii.pdf here.
+for (.L in names(.s5_map)) {
+  .src <- file.path(.s5_dir, .s5_map[[.L]])
+  if (file.exists(.src)) {
+    file.copy(.src, file.path(.s5_dir, sprintf('Figure_S5_panel_%s.pdf', .L)),
+              overwrite = TRUE)
+  } else message('S5 panel ', .L, ': legacy PDF missing (',
+                 .s5_map[[.L]], ') — likely a SKELETON porting TODO')
+}
 
 #######################################

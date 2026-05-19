@@ -2438,37 +2438,21 @@ DAT.clr <- DAT.data[, -.cm_col_idx, drop = FALSE] + 1e-6  # small pseudocount to
 DAT.clr <- log(DAT.clr) - rowMeans(log(DAT.clr))
 DAT.clr <- scale(DAT.clr)  # z-score after CLR for balanced kmeans distances
 
-.cache_niche_kmeans <- './output/Figure_3/fig3_niche_kmeans_cache_cm_xenobj_clr_noCM.rds'
+## CANONICAL niche kmeans solution — a true DEPENDENCY, not a regenerable cache.
+## The niche_labels_cm15 map below is keyed to THIS specific MiniBatchKmeans
+## solution (cluster 10 = the ~82% Myocardium background). MiniBatchKmeans
+## numbering is NOT reproducible across runs, so recomputing kmeans here
+## silently scrambles every niche label. We therefore load the archived
+## solution and hard-stop if it is absent rather than recompute.
+.cache_niche_kmeans <- './dependencies/shared/fig3_niche_kmeans_cache_cm_xenobj_clr_noCM.rds'
 if (file.exists(.cache_niche_kmeans)) {
-  message('Loading cached MiniBatchKmeans niche clustering (CLR)...')
+  message('Loading canonical MiniBatchKmeans niche clustering (CLR) from dependencies...')
   res.clusters <- readRDS(.cache_niche_kmeans)
 } else {
-  res.clusters = data.frame(rownames = rownames(DAT.clr))
-
-  for ( k in niches.k.range ){ message("k=", k)
-      newCol = paste0("kmeans_", k)
-      km_mb = ClusterR::MiniBatchKmeans(
-          "data" = DAT.clr
-          , "clusters" = k
-          , "batch_size" = 20
-          , "num_init" = 20
-          , "max_iters" = 100
-          , "init_fraction" = 0.2
-          , "initializer" = "kmeans++"
-          , "early_stop_iter" = 10
-          , "verbose" = F
-          , "CENTROIDS" = NULL
-          , "tol" = 1e-04
-          , "tol_optimal_init" = 0.3
-          , "seed" = 1
-      )
-      res.clusters[,newCol] = ClusterR::predict_MBatchKMeans(
-          "data" = DAT.clr
-          , "CENTROIDS" = km_mb$centroids
-      )
-      res.clusters[,newCol] = as.factor( res.clusters[,newCol] )
-  }
-  saveRDS(res.clusters, .cache_niche_kmeans)
+  stop('Canonical niche kmeans dependency missing:\n  ', .cache_niche_kmeans,
+       '\n  niche_labels_cm15 is keyed to this exact solution; recomputing',
+       '\n  MiniBatchKmeans produces non-reproducible cluster numbering that',
+       '\n  scrambles every niche label. Restore the file from the data archive.')
 }
 
 
@@ -2478,7 +2462,10 @@ res.clusters.ordered <- res.clusters[colnames(M1), setdiff(colnames(res.clusters
 
 
 write.table(res.clusters.ordered,'./output/Figure_3/Xenium/Niche_bulk_clusters.csv',sep=',')
-# Use the freshly-computed clusters (the shared/ file may have stale barcodes from a prior run)
+# Barcode-keyed join: res.clusters is indexed by colnames(M1), so the canonical
+# (~513.9k-cell) kmeans solution maps onto the current object by barcode.
+# Cells outside the canonical niche.assay host set get cluster 0 -> 'Unassigned'
+# by design (they were never part of the niche solution).
 
 for(i in colnames(res.clusters.ordered))
   {
@@ -2527,68 +2514,36 @@ library(scCustomize)
 # (cells outside niche.assay's host set). Names follow XeniumReanalysis.r:7889.
 # Assigned by auditing niche_kmeans15_composition_rowprop.csv (top fractions
 # per cluster); duplicate labels collapse niches with shared dominant biology.
-## DATA-DRIVEN niche assignment.
-## MiniBatchKmeans cluster *numbering* is not stable across runs (upstream
-## Seurat 5 / RCTD / UpdateSeuratObject / cell-order changes shift centroids),
-## so a hardcoded cluster# -> name map silently scrambles every label and the
-## dominant myocardium ends up mislabeled. Assign each cluster from its actual
-## cell-type composition (niche.names rowprop) + a size anchor so the heart's
-## background tissue is always 'Myocardium' (published Panel G: Myo ~= 100%).
-.gfrac <- function(fr, pat) { ix <- grep(pat, names(fr)); if (length(ix)==0) 0 else sum(fr[ix], na.rm=TRUE) }
-.get1  <- function(fr, nm)  if (nm %in% names(fr)) as.numeric(fr[nm]) else 0
-## size_frac = this cluster's share of all assigned cells. Per published
-## Panel G the myocardial subtypes (Stressed/Fibro/Cap/Compact/Remod-myo)
-## are RARE focal niches; the bulk CM tissue is plain 'Myocardium' (~100%).
-## So a CM-dominant cluster only earns a subtype label if it is SMALL
-## (size_frac < .myo_subtype_max); large CM clusters are background Myo.
-.myo_subtype_max <- 0.05
-.assign_niche <- function(fr, size_frac = 0) {
-  cm <- .get1(fr,'CM'); cap <- .get1(fr,'Capillary_EC'); art <- .get1(fr,'Arterial_EC')
-  ven <- .get1(fr,'Venous_EC'); vsmc <- .gfrac(fr,'VSMC'); adipo <- .gfrac(fr,'^Adipo')
-  epi <- .get1(fr,'Epi'); macq <- .get1(fr,'Mac_C1q'); fb <- .gfrac(fr,'^FB')
-  fb_nox4 <- .get1(fr,'FB_NOX4'); fb_matri <- .get1(fr,'FB_Matrifibrocyte')
-  fb_act <- .get1(fr,'FB_Activated'); fb_homeo <- .get1(fr,'FB_Homeostatic')
-  fb_stress <- .get1(fr,'FB_Stress')
-  ## genuinely non-myocardial niches (size-independent)
-  if (vsmc >= 0.15)                              return('Arterial')
-  if (vsmc >= 0.06 && art >= 0.02 && cap < 0.04) return('Peri-arteriole')
-  if (adipo >= 0.10 && adipo >= cm) {
-    infl <- (macq >= 0.04 || fb_stress >= 0.04); vasc <- (ven >= 0.08)
-    if (infl && vasc) return('Inflamed adipose-venous stroma')
-    if (vasc)         return('Adipose-vascular niche')
-    if (infl)         return('Inflamed adipose stroma')
-    return('Adipose stroma')
-  }
-  if (fb_homeo >= 0.12 && epi >= 0.05)           return('Sub-epicardial niche')
-  if (cm < 0.30 && fb >= 0.10)                   return('Fibrotic remodeling stroma')
-  ## CM-dominant: large = background Myo; small = a focal subtype niche
-  if (size_frac < .myo_subtype_max) {
-    if (cap      >= 0.11)                        return('Capillary-rich myocardium')
-    if (fb_nox4  >= 0.04)                        return('Stressed myocardium')
-    if (fb_matri >= 0.05)                        return('Fibrotic myocardium')
-    if (fb_act   >= 0.04)                        return('Fibrotic remodeling myocardium')
-    if (cm >= 0.55 && cap < 0.045)               return('Compact myocardium')
-  }
-  'Myocardium'
-}
-.clust_ids   <- rownames(niche.names)
-.clust_sizes <- table(M2$kmeans_15)[.clust_ids]
-.nz          <- setdiff(names(.clust_sizes), '0')
-.tot_cells   <- sum(.clust_sizes[.nz])
-niche_labels_cm15 <- setNames(
-  vapply(.clust_ids, function(cl)
-           .assign_niche(niche.names[cl, ],
-                         size_frac = as.numeric(.clust_sizes[cl]) / .tot_cells),
-         character(1)),
-  .clust_ids)
-niche_labels_cm15['0'] <- 'Unassigned'
-## Anchor: single largest cluster is always the heart background = 'Myocardium'.
-.biggest <- names(which.max(.clust_sizes[.nz]))
-if (length(.biggest) == 1) niche_labels_cm15[.biggest] <- 'Myocardium'
-message('Data-driven niche labels (cluster -> niche, n cells):')
-for (cl in names(sort(.clust_sizes, decreasing = TRUE))) {
-  if (cl == '0') next
-  message(sprintf('  k%-3s n=%-8d -> %s', cl, .clust_sizes[cl], niche_labels_cm15[cl]))
+## CANONICAL hardcoded niche map. Keyed to the specific MiniBatchKmeans
+## solution loaded above from ./dependencies/shared (cluster 10 = the ~82%
+## Myocardium background). MiniBatchKmeans numbering is NOT reproducible, so
+## this map is ONLY valid against that archived solution — which is loaded as
+## a hard dependency, never recomputed. Duplicate labels intentionally
+## collapse clusters that share dominant biology (e.g. 8 & 13 -> Fibrotic
+## remodeling stroma). Composition notes are the audited rowprop fractions.
+niche_labels_cm15 <- c(
+  '0'  = 'Unassigned',
+  '1'  = 'Capillary-rich myocardium',            # Cap_EC 11% + FB_NOX4 5% (oxidative-stress FB)
+  '2'  = 'Arterial',                             # VSMC 20.8% + Arterial_EC 9.5% + Cap_EC 5.7% (vasa vasorum) + FB diversity ~18% (adventitia)
+  '3'  = 'Inflamed adipose stroma',              # Adipo ~29% + Venous_EC 8% + Mac_C1q 6% (CM 7%)
+  '4'  = 'Compact myocardium',                   # CM 59% + Cap_EC only 4.8% (lowest vascular density) + Adipo 5% + Epi_Quiescent 3%
+  '5'  = 'Sub-epicardial niche',                 # FB_Homeostatic 18% + Epi ~12% + Mac/Mono ~10%
+  '6'  = 'Peri-arteriole',                       # VSMC 9.1% + Arterial_EC 3.8%, no Cap_EC, CM 43% neighbors
+  '7'  = 'Stressed myocardium',                  # CM 59% + FB_NOX4 4.2% (oxidative-stress FB)
+  '8'  = 'Fibrotic remodeling stroma',           # FB_PCOLCE2/Matrifibrocyte ~11% + Cap + Mac
+  '9'  = 'Fibrotic myocardium',                  # CM 57% + FB_Matrifibrocyte 5.5% + Cap_EC 8.4%
+  '10' = 'Myocardium',                           # CM 56% + Cap_EC 9.1% + Arterial_EC 4% — majority cluster
+  '11' = 'Adipose-vascular niche',               # Adipo ~13% + Cap/Venous + Mac/FB mix (CM 20%)
+  '12' = 'Inflamed adipose-venous stroma',       # Adipo + Venous_EC 12.6% + FB_Stress 6.4% + CD8_T 4.4%
+  '13' = 'Fibrotic remodeling stroma',           # collapsed with cluster 8: FB_Matrifibrocyte 5.9% + Mac_C1q 6.8%
+  '14' = 'Fibrotic remodeling myocardium',       # CM 42% + FB_Matrifibrocyte/Activated/NOX4 + Cap
+  '15' = 'Adipose stroma'                        # Adipo ~20% + Venous 6.6% + FB_PCOLCE2 + Mac (CM 11%)
+)
+message('Canonical hardcoded niche labels (kmeans cluster -> niche):')
+for (.cl in names(sort(table(M2$kmeans_15), decreasing = TRUE))) {
+  if (.cl == '0') next
+  message(sprintf('  k%-3s n=%-8d -> %s', .cl,
+                  as.integer(table(M2$kmeans_15)[.cl]), niche_labels_cm15[.cl]))
 }
 Idents(M1) <- 'kmeans_15'
 
@@ -3213,4 +3168,31 @@ save_figure(p_niche_freq_stats, 'Figure_3_niche_clust_freq_stats.pdf', width=12.
 
 
 message('Figure 3 (v53) per-panel PDFs (A–G + supplementary) written to ', V52_FIG_DIR)
+
+###############################################################################
+## v57 standardized panel names (source of truth:
+## .figure_run_logs/v57_figure_legends.md). F3 content→letter already
+## matches v57 A–G (A=Xenium UMAP+inset, B=marker dot, C=cross-platform
+## concordance scatter, D=spatial maps by lineage, E=spatial maps by
+## niche, F=niche-composition stacked bar, G=niche-frequency boxplots);
+## only the filename idiom differs (Figure_3<L>.pdf). Copy → standardized.
+###############################################################################
+.f3_dir <- V52_FIG_DIR
+.f3_map <- c(A='Figure_3A.pdf', B='Figure_3B.pdf', C='Figure_3C.pdf',
+             D='Figure_3D.pdf', E='Figure_3E.pdf', F='Figure_3F.pdf',
+             G='Figure_3G.pdf')
+for (.L in names(.f3_map)) {
+  .src <- file.path(.f3_dir, .f3_map[[.L]])
+  if (file.exists(.src)) {
+    file.copy(.src, file.path(.f3_dir, sprintf('Figure_3_panel_%s.pdf', .L)),
+              overwrite = TRUE)
+  } else message('F3 panel ', .L, ': legacy PDF missing (', .f3_map[[.L]], ')')
+}
+## D/E carry separate legend + scalebar companions — standardize those too.
+for (.v in c('D_legend','D_scalebar','E_legend','E_scalebar')) {
+  .src <- file.path(.f3_dir, sprintf('Figure_3%s.pdf', .v))
+  if (file.exists(.src))
+    file.copy(.src, file.path(.f3_dir, sprintf('Figure_3_panel_%s.pdf',
+              sub('_', '_', .v))), overwrite = TRUE)
+}
 

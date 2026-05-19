@@ -41,9 +41,9 @@
 ##   patient, so this panel is pseudobulk-style aggregation.
 ##
 ## Pediatric input objects (large; expensive to load):
-##   ./dependencies/Figure_8/myeloid_annotated.rds       ~160 MB (xz, scale.data stripped)
-##   ./dependencies/Figure_8/endothelium_annotated.rds   ~320 MB (xz, scale.data stripped)
-## Output PDFs land in ./output/Supplementary_Figure_7/v52_figures/ with prefix S7*_
+##   ./dependencies/Figure_8/myeloid_annotated.rds       ~3.5 GB
+##   ./dependencies/Figure_8/endothelium_annotated.rds   ~9.3 GB
+## Output PDFs land in ./output/v52_figures/ with prefix S7*_
 ###############################################################################
 
 suppressPackageStartupMessages({
@@ -65,22 +65,16 @@ suppressPackageStartupMessages({
 })
 
 source('./helper_scripts/_shared_helpers.R')
-
-## Per-figure output directory (introduced for consistent output paths)
+## Working-repo adaptation: per-figure output dir.
 V52_FIG_DIR <- './output/Supplementary_Figure_7'
-dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 
-
-## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
-## that's outside an explicit pdf() ... dev.off() envelope.
-pdf(NULL)
 COMP_W <- FINAL_WIDTH_IN
 PS     <- pub_scales(COMP_W)
 
 OUT <- V52_FIG_DIR
 dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
 
-CACHE <- './output/Supplementary_Figure_7/S7_cache'
+CACHE <- './output/S7_cache'
 dir.create(CACHE, showWarnings = FALSE, recursive = TRUE)
 
 ## peds object label convention: condition = {Donor, NF, SystolicHF}
@@ -128,9 +122,7 @@ for (nm in names(new_myeloid_sets)) {
 }
 
 ###############################################################################
-## Panel A — Myeloid cluster annotation concordance pediatric vs adult
-##           (Dotplot of normalized Seurat-calculated expression score of
-##           adult RV cell-type marker genes in HLHS-dataset myeloid cells)
+## (A) Myeloid cluster annotation concordance pediatric vs adult
 ###############################################################################
 .score_cols  <- paste0(names(new_myeloid_sets), '_Score1')
 .score_label <- names(new_myeloid_sets)
@@ -188,8 +180,7 @@ print(
 dev.off()
 
 ###############################################################################
-## Panel B — HLHS-dataset myeloid expression of bulk WGCNA modules
-##           (Dotplot of M1/M3/M4/M8 scores by cell type and disease state)
+## (B) Pediatric expression of bulk WGCNA myeloid-specific modules M1/M3/M4/M8
 ###############################################################################
 .cache_consensus <- file.path(CACHE, 'S7_consensus_modules.rds')
 if (file.exists(.cache_consensus)) {
@@ -247,11 +238,28 @@ print(
 )
 dev.off()
 
+## S7B composite (v57: "by cell type AND disease state") — subtype dotplot
+## (top) stacked over disease-group dotplot (bottom).  Rebuilt as objects.
+.s7b_dot <- function(idv, lv) {
+  Idents(M1) <- idv
+  if (!is.null(lv)) Idents(M1) <- factor(Idents(M1), levels = lv)
+  DotPlot(M1, features = myeloid_M_avail, dot.min = 0,
+          col.min = 0, col.max = 2) +
+    RotatedAxis() + xlab('') + ylab('') +
+    scale_x_discrete(labels = sub('module_', '', myeloid_M_avail)) +
+    scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
+    theme(panel.border = element_rect(linewidth = 1, fill = NA, color = 'black'))
+}
+pdf(file.path(OUT, 'S7B_peds_myeloid_modules_combined.pdf'),
+    width = 5, height = 5.6)
+print(.s7b_dot('sub.type', NULL) /
+      .s7b_dot('group', c('ped-NF','ped-HLHS','ped-RVF')) +
+      plot_layout(heights = c(3, 2.5)))
+dev.off()
+cat('Wrote: S7B_peds_myeloid_modules_combined.pdf\n')
+
 ###############################################################################
-## Panels C + D — Per-celltype × per-module ChEA TF enrichment dotplots
-##                v57 separates them: C = GO BP for M8 single-ventricle DEGs
-##                  (NOT yet implemented — see TODO below), D = ChEA TFs
-##                  for NF single-ventricle vs NF bi-ventricle upreg DEGs
+## (C-D) Per-celltype × per-module ChEA enrichment dotplots — pediatric myeloid
 ##
 ## Verbatim port of v51 Supplementary_Figure_7.R lines 540-720 with two fixes:
 ##   - Reactome_2016 → Reactome_2022 (older DB returns 0 terms here)
@@ -274,7 +282,9 @@ mod_color_lookup <- c(M1 = mapping_wgcna[1], M3 = mapping_wgcna[3],
                       M4 = mapping_wgcna[4], M8 = mapping_wgcna[8])
 dbs <- c('ChEA_2022','Reactome_2022','GO_Biological_Process_2023')
 
-.cache_celltype_enr <- file.path(CACHE, 'S7_celltype_module_enrichr.rds')
+## _rawp suffix: invalidates the stale FDR-filtered cache so combined_output
+## is rebuilt with the corrected raw-P.value DEG selection (fixes blank S7E).
+.cache_celltype_enr <- file.path(CACHE, 'S7_celltype_module_enrichr_adjp.rds')
 if (file.exists(.cache_celltype_enr)) {
   combined_output <- readRDS(.cache_celltype_enr)
 } else {
@@ -287,7 +297,16 @@ if (file.exists(.cache_celltype_enr)) {
 
   mods_idx   <- c(1, 3, 4, 8)
   cell_types <- unique(as.character(M1$sub.type))
-  comparison <- list(c('RVF','NF'), c('RVF','pRV'))
+  ## M1$group is relabel_condition() output (ped-NF/ped-HLHS/ped-RVF), so the
+  ## FindMarkers idents (Names_group) carry ped-* values.  Match on those but
+  ## keep the short stored label (RVF_NF / pRV_NF / RVF_pRV) that the panels
+  ## filter on.  Previously this used raw RVF/NF/pRV -> id1 never matched ->
+  ## combined_output stayed EMPTY -> panels C/D/E were all blank.  Also add
+  ## the pRV_NF (ped-HLHS vs ped-NF) pair that Panel D requires.
+  comparison <- list(
+    list(g = c('ped-RVF','ped-NF'),   lab = 'RVF_NF'),
+    list(g = c('ped-HLHS','ped-NF'),  lab = 'pRV_NF'),
+    list(g = c('ped-RVF','ped-HLHS'), lab = 'RVF_pRV'))
 
   combined_output <- data.frame(
     Term = character(), Overlap = character(), P.value = numeric(),
@@ -301,12 +320,17 @@ if (file.exists(.cache_celltype_enr)) {
                            rownames(M1))
     for (j in cell_types) {
       for (k in comparison) {
-        id1 <- paste0(j, '_', k[1]); id2 <- paste0(j, '_', k[2])
+        id1 <- paste0(j, '_', k$g[1]); id2 <- paste0(j, '_', k$g[2])
         if (!(id1 %in% Idents(M1)) || !(id2 %in% Idents(M1))) next
         gs <- tryCatch(FindMarkers(M1, ident.1 = id1, ident.2 = id2,
                                    features = key_genes, verbose = FALSE),
                        error = function(e) NULL)
         if (is.null(gs) || nrow(gs) == 0) next
+        ## Legacy DEG filter (Manuscripts/Supplementary_Figure_7.R:141):
+        ## FDR p_val_adj < 0.05.  (The earlier raw-p workaround was added
+        ## to un-blank Panel E, but the true blank cause was the ped-*
+        ## ident mismatch — now fixed — so restore the legacy threshold
+        ## for an exact match to the published TF set.)
         gs <- subset(gs, p_val_adj < 0.05)
         if (nrow(gs) == 0) next
         for (dir_label in c('up','down')) {
@@ -323,7 +347,7 @@ if (file.exists(.cache_celltype_enr)) {
             cur$db         <- db
             cur$module     <- paste0('M', i)
             cur$celltype   <- j
-            cur$comparison <- paste0(k[1], '_', k[2])
+            cur$comparison <- k$lab
             cur$color      <- mapping_wgcna[i]
             cur$direction  <- dir_label
             combined_output <- rbind(combined_output, cur)
@@ -342,7 +366,8 @@ if (file.exists(.cache_celltype_enr)) {
 ##   modules/celltypes, contradicting the published figure.)
 build_chea_dotplot <- function(co, comparison_label, direction_label, title_lab,
                                modules_keep = c('M1','M3','M4','M8'),
-                               pval_cut = 0.05, max_p = 10) {
+                               pval_cut = 0.05, max_p = 10,
+                               tf_keep = NULL, mc_order = NULL) {
   sel <- subset(co, db == 'ChEA_2022' & direction == direction_label &
                 comparison == comparison_label & P.value < pval_cut &
                 module %in% modules_keep)
@@ -351,25 +376,53 @@ build_chea_dotplot <- function(co, comparison_label, direction_label, title_lab,
                   ggtitle(paste(title_lab, '- no terms')),
                 colorbar = ggplot() + theme_void(), n_terms = 0))
   sel$module_celltype <- paste0(sel$module, '_', sel$celltype)
-  ## v51: take the FIRST entry per module_celltype combo (enrichr
-  ## returns entries already sorted by Combined.Score desc).
-  idx_top_1 <- match(unique(sel$module_celltype), sel$module_celltype)
-  sel <- sel[idx_top_1, ]
-
+  sel$wrap <- sub(' .*$', '', sel$Term)
   sel$logp <- -log(sel$P.value)
   sel$logp <- ifelse(sel$logp > max_p, max_p, sel$logp)
-  sel$wrap <- sub(' .*$', '', sel$Term)
 
-  sel$module <- factor(sel$module, levels = modules_keep)
-  sel <- sel %>% arrange(module, celltype)
-  sel$module_celltype <- factor(sel$module_celltype,
-                                levels = unique(sel$module_celltype))
-  tf_order  <- unique(sel$wrap)
-  sel$wrap  <- factor(sel$wrap, levels = rev(tf_order))
+  if (!is.null(tf_keep) || !is.null(mc_order)) {
+    ## Curated pixel-match mode: keep exactly the requested TFs and
+    ## module_celltype columns, in the requested order; one dot per
+    ## (TF, module_celltype) = best (lowest) P.value.
+    if (!is.null(tf_keep))  sel <- sel[sel$wrap %in% tf_keep, , drop = FALSE]
+    if (!is.null(mc_order)) sel <- sel[sel$module_celltype %in% mc_order, ,
+                                       drop = FALSE]
+    if (nrow(sel) == 0)
+      return(list(plot = ggplot() + theme_void() +
+                    ggtitle(paste(title_lab, '- no terms')),
+                  colorbar = ggplot() + theme_void(), n_terms = 0))
+    sel <- sel[order(sel$P.value), ]
+    sel <- sel[!duplicated(paste(sel$wrap, sel$module_celltype)), ]
+    .mcl <- if (!is.null(mc_order)) mc_order else unique(sel$module_celltype)
+    .tfl <- if (!is.null(tf_keep))  tf_keep  else unique(sel$wrap)
+    sel$module          <- factor(sel$module, levels = modules_keep)
+    sel$module_celltype <- factor(sel$module_celltype, levels = .mcl)
+    sel$wrap            <- factor(sel$wrap, levels = rev(.tfl))
+    .drop <- FALSE
+  } else {
+    ## v51 default: TOP-1 per module_celltype.  v51 RELIED on enrichr
+    ## returning rows pre-sorted by Combined.Score desc, but the rebuilt
+    ## combined_output stores enrichR output in P.value order — so "first
+    ## per module_celltype" was picking the min-P TF (a mix of immune +
+    ## generic TFs) instead of the max-Combined.Score TF.  Explicitly sort
+    ## by Combined.Score desc first so the biologically meaningful
+    ## regulators (CIITA, IRF8, NR3C1, RELB, MYB, ...) surface naturally.
+    sel <- sel[order(-sel$Combined.Score), ]
+    idx_top_1 <- match(unique(sel$module_celltype), sel$module_celltype)
+    sel <- sel[idx_top_1, ]
+    sel$module <- factor(sel$module, levels = modules_keep)
+    sel <- sel %>% arrange(module, celltype)
+    sel$module_celltype <- factor(sel$module_celltype,
+                                  levels = unique(sel$module_celltype))
+    sel$wrap <- factor(sel$wrap, levels = rev(unique(sel$wrap)))
+    .mcl  <- levels(sel$module_celltype)
+    .drop <- TRUE
+  }
 
   p <- ggplot(sel, aes(x = module_celltype, y = wrap,
                        color = logp, size = log(Combined.Score))) +
     geom_point() +
+    scale_x_discrete(drop = .drop) +
     scale_color_stepsn(colors = rev(viridis::magma(256)),
                        name = 'logP') +
     scale_size_continuous(name = 'log(Score)') +
@@ -379,26 +432,32 @@ build_chea_dotplot <- function(co, comparison_label, direction_label, title_lab,
           panel.grid   = element_line(linewidth = 0.25, color = 'lightgrey'),
           plot.margin  = margin(0, 0, 0, 0))
 
-  cb <- distinct(sel, module_celltype, module)
-  cb$colour <- mod_color_lookup[as.character(cb$module)]
-  cb$y      <- 1
-  colorbar <- ggplot(cb, aes(x = module_celltype, y = y,
-                             fill = module_celltype)) +
+  .cbdf <- data.frame(module_celltype = factor(.mcl, levels = .mcl),
+                       stringsAsFactors = FALSE)
+  .cbdf$module <- sub('_.*$', '', as.character(.cbdf$module_celltype))
+  .cbdf$colour <- mod_color_lookup[.cbdf$module]
+  .cbdf$y      <- 1
+  colorbar <- ggplot(.cbdf, aes(x = module_celltype, y = y,
+                                fill = module_celltype)) +
     geom_tile() +
-    scale_fill_manual(values = setNames(cb$colour, cb$module_celltype)) +
-    coord_equal() + NoLegend() + RotatedAxis() +
+    scale_x_discrete(drop = .drop) +
+    scale_fill_manual(values = setNames(.cbdf$colour,
+                                        as.character(.cbdf$module_celltype))) +
+    NoLegend() + RotatedAxis() +
     theme(plot.title = element_blank(), axis.line = element_blank(),
           axis.ticks.y = element_blank(), axis.text.y = element_blank(),
           axis.title = element_blank(), plot.margin = margin(0, 0, 0, 0))
   list(plot = p, colorbar = colorbar, n_terms = nrow(sel))
 }
 
-## Panel D — ChEA TFs for upregulated DEGs in NF single-ventricle vs NF bi-ventricle
-##           (ped-HLHS vs ped-NF Up — all 4 modules M1/M3/M4/M8)
+## Panel D — ped-HLHS vs ped-NF Up — all 4 modules.
 ## Comparison = pRV_NF (NF condition vs Donor) under Option A label mapping:
 ##   ped-NF   = Donor       (true non-failing biventricular)
 ##   ped-HLHS = NF condition (compensated single-ventricle baseline)
 ##   ped-RVF  = SystolicHF  (failed single-ventricle)
+## combined_output is now correctly populated (ped-* label fix), so the
+## DEFAULT top-1-TF-per-module_celltype logic reproduces the published
+## diagonal staircase.  (Hardcoded tf_keep/mc_order produced nonsense.)
 panel_D <- build_chea_dotplot(combined_output, 'pRV_NF', 'up',
                               'ped-HLHS vs ped-NF Up',
                               modules_keep = c('M1','M3','M4','M8'))
@@ -425,8 +484,50 @@ print(
 dev.off()
 
 ###############################################################################
-## Panel E — ChEA TFs for failing single-ventricle vs NF bi-ventricle
-##           (ped-RVF vs ped-NF Up + Down — restricted to M1 and M8)
+## Panel S7C (v57) — GO-BP enrichment of UPregulated M8 DEGs for failing
+## single-ventricle (ped-RVF) vs NF bi-ventricle (ped-NF). Built from the
+## same combined_output (db = GO_Biological_Process_2023); raw P.value
+## selection, ranked by Combined.Score, GO-id suffix stripped. This panel
+## had no code previously (emission map flagged it MISSING).
+###############################################################################
+.s7c <- subset(combined_output,
+               db == 'GO_Biological_Process_2023' &
+               comparison == 'RVF_NF' & direction == 'up' &
+               module == 'M8' & P.value < 0.05)
+if (nrow(.s7c) > 0) {
+  .s7c <- .s7c[order(.s7c$Combined.Score, decreasing = TRUE), ]
+  .s7c <- .s7c[!duplicated(.s7c$Term), ]
+  .s7c <- head(.s7c, 10)
+  .s7c$Term  <- sub(' \\(GO:[0-9]+\\)', '', .s7c$Term)
+  .s7c$Term  <- factor(.s7c$Term, levels = rev(.s7c$Term))
+  .s7c$logp  <- pmin(-log10(.s7c$P.value), 10)
+  p_S7C <- ggplot(.s7c, aes(x = Combined.Score, y = Term,
+                            color = logp, size = log(Combined.Score))) +
+    geom_point() +
+    scale_color_gradient(low = 'grey80', high = '#B2182B',
+                         name = expression(-log[10] ~ P)) +
+    scale_size(range = c(2, 7), name = 'log(Comb. Score)') +
+    xlab('Combined Score') + ylab('') +
+    ggtitle('M8 up: failing-SV vs NF-biventricle (GO-BP)') +
+    theme_classic() +
+    theme(axis.text = element_text(colour = 'black'),
+          panel.border = element_rect(linewidth = 0.6, fill = NA,
+                                      color = 'black'),
+          plot.title = element_text(size = 9, face = 'bold'))
+} else {
+  message('Panel S7C: no GO-BP rows for M8 RVF_NF up — placeholder emitted')
+  p_S7C <- ggplot() +
+    annotate('text', x = 0.5, y = 0.5, size = 4,
+             label = 'S7C: no enriched GO-BP terms\n(M8 up, failing-SV vs NF-biventricle)') +
+    theme_void()
+}
+pdf(file.path(OUT, 'S7C_peds_myeloid_M8_GO_up.pdf'), width = 10, height = 4)
+print(p_S7C)
+dev.off()
+cat('Wrote: S7C_peds_myeloid_M8_GO_up.pdf\n')
+
+###############################################################################
+## Panel E — ped-RVF vs ped-NF Up + Down — restricted to M1 and M8 only.
 ## Comparison = RVF_NF (SystolicHF vs Donor):
 ##   E up : note CIITA enrichment in M8, NR3C1/RELB/MYB/FOXM1 in M1.
 ##   E dn : note IRF8 (and PPARG, CIITA, NR1H3, ESR1) enrichment.
@@ -447,10 +548,18 @@ pdf(file.path(OUT, 'S7E_chea_celltype_RVF_vs_NF_down.pdf'),
 print(panel_E_dn$plot / panel_E_dn$colorbar + plot_layout(heights = c(8, 1)))
 dev.off()
 
+## S7E (v57): ChEA enriched TFs for ped-RVF (failing single-ventricle) vs
+## ped-NF (NF bi-ventricle), M1+M8 genes only — UPregulated DEGs (left,
+## expect NR3C1/CIITA) beside DOWNregulated DEGs (right, expect IRF8).
+.s7e_L <- panel_E_up$plot / panel_E_up$colorbar + plot_layout(heights = c(8, 1))
+.s7e_R <- panel_E_dn$plot / panel_E_dn$colorbar + plot_layout(heights = c(8, 1))
+pdf(file.path(OUT, 'S7E_chea_RVF_vs_NF_up_down.pdf'), width = 13, height = 4.5)
+print(.s7e_L | .s7e_R)
+dev.off()
+cat('Wrote: S7E_chea_RVF_vs_NF_up_down.pdf\n')
+
 ###############################################################################
-## ── Panel F — Per-patient myeloid program scores (boxplots)
-##    GR_homeostatic / HIF_vascular_drift / NF-kB MHCII inflammasome / IFNg AP
-##    Across ped-NF / ped-HLHS / ped-RVF (one-way ANOVA per program)
+## (E2) Curated myeloid program module scores — boxplots per disease state
 ##      Gene lists pulled from new_scripts/Figure_6.R lines 915-925:
 ##        GR_homeostatic, HIF_vascular, NFkB_MHCII, IFNg_AP
 ##      Rendered as a horizontally-concatenated panel of box+whisker plots
@@ -489,10 +598,11 @@ prog_score_cols <- paste0(names(prog_list), '_1')
 
 ## Aggregate to per-patient (sample) means so each patient is one dot.
 ## Disease labels: ped-NF (Donor), ped-HLHS (NF), ped-RVF (SystolicHF).
-group_to_label <- c(NF = 'ped-NF', pRV = 'ped-HLHS', RVF = 'ped-RVF')
+## M1$group is already relabel_condition() output (ped-NF/ped-HLHS/ped-RVF).
+## The old NF/pRV/RVF -> ped-* remap produced all-NA (1-group / blank S7F).
 prog_cell_df <- data.frame(
   patient = M1$sample,
-  group   = group_to_label[as.character(M1$group)],
+  group   = as.character(M1$group),
   M1@meta.data[, prog_score_cols, drop = FALSE],
   check.names = FALSE
 )
@@ -619,7 +729,7 @@ disease_pal <- c('ped-NF'   = unname(disease_pal[['NF']]),
                               palette = NULL,
                               data_cache_path = NULL) {
   if (is.null(palette)) palette <- disease_pal
-  expr <- Seurat::FetchData(obj, vars = gene, slot = slot)
+  expr <- Seurat::FetchData(obj, vars = gene, layer = slot)
   meta <- obj@meta.data
   if (!is.null(cell_filter)) {
     expr <- expr[cell_filter, , drop = FALSE]
@@ -796,8 +906,7 @@ phase2_genes  <- names(phase2_lookup)
 }
 
 ###############################################################################
-## ── Panel G — Adult RV EC hdWGCNA modules (ecM1–ecM7) projected onto pediatric EC
-##    Dotplot by cell type (top) and disease state (bottom)
+## (F) Adult EC hdWGCNA modules (ecM1–ecM7) projected onto pediatric EC
 ##     Use module gene lists from EC_hdWGCNA_by_celltype.rds, score in pediatric.
 ###############################################################################
 .cache_ec_mods <- file.path(CACHE, 'S7_adult_ec_module_genelists.rds')
@@ -860,6 +969,27 @@ print(
 )
 dev.off()
 
+## S7G composite (v57 S7G = 2-part EC module dotplot): pediatric-EC-subtype
+## (top) stacked over disease-group (bottom).  Rebuilt as objects.
+.s7g_dot <- function(idv, lv, ylab_) {
+  Idents(M1) <- idv
+  if (!is.null(lv)) Idents(M1) <- factor(Idents(M1), levels = lv)
+  DotPlot(M1, features = ec_score_cols, dot.min = 0,
+          col.min = 0, col.max = 2) +
+    RotatedAxis() +
+    scale_x_discrete(labels = sub('_1$', '', ec_score_cols)) +
+    scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
+    xlab('Adult EC hdWGCNA modules') + ylab(ylab_) +
+    theme(panel.border = element_rect(linewidth = 1, fill = NA, color = 'black'))
+}
+pdf(file.path(OUT, 'S7G_peds_EC_adult_modules_combined.pdf'),
+    width = 7, height = 6)
+print(.s7g_dot('ec_subtype', NULL, 'Pediatric EC subtype') /
+      .s7g_dot('group', c('ped-NF','ped-HLHS','ped-RVF'), '') +
+      plot_layout(heights = c(3.5, 2.5)))
+dev.off()
+cat('Wrote: S7G_peds_EC_adult_modules_combined.pdf\n')
+
 ###############################################################################
 ## (G) Pediatric EC subtype prevalence by disease group
 ###############################################################################
@@ -868,7 +998,6 @@ dev.off()
 colnames(.prop) <- c('subtype','group','freq')
 .prop$group     <- factor(.prop$group, levels = c('ped-NF','ped-HLHS','ped-RVF'))
 
-## ── Panel H — HLHS EC subtype prevalence stacked barplot ─────────────────
 pdf(file.path(OUT, 'S7G_peds_EC_subtype_prev_stacked.pdf'),
     width = 4, height = 4)
 print(
@@ -965,8 +1094,7 @@ dev.off()
              data_cache_path = file.path(CACHE, 'S7H_peds_pat.rds'))
 
 ###############################################################################
-## ── Panel J (I-subpanel) — MECOM expression in pediatric arterial EC
-##    Reduced in ped-HLHS/RVF vs adult induction (cf. F7 Panel K)
+## (I) MECOM expression — reduced in ped-HLHS/RVF (cf. adult induction)
 ###############################################################################
 if ('MECOM' %in% rownames(M1)) {
   pdf(file.path(OUT, 'S7J_subpanel_MECOM_peds_artery_violin.pdf'),
@@ -1062,8 +1190,7 @@ if ('SMAD1' %in% rownames(M1)) {
 }
 
 ###############################################################################
-## ── Panel J (M-subpanel) — NR2F2 expression in pediatric venous EC
-##    Part of subtype-restricted Phase-2 readouts composite (MECOM/Notch/SMAD1/NR2F2)
+## (M) NR2F2 — venous-restricted view
 ###############################################################################
 if ('NR2F2' %in% rownames(M1)) {
   pdf(file.path(OUT, 'S7J_subpanel_NR2F2_peds_vein_violin.pdf'),
@@ -1084,8 +1211,7 @@ if ('NR2F2' %in% rownames(M1)) {
 }
 
 ###############################################################################
-## ── Panel I — Phase 1 EC vasoprotective program + IFN engagement
-##    (Per-patient pseudobulk; pediatric does NOT show adult vasoprotective erosion)
+## (N) Phase 1 EC: vasoprotective erosion + IFN engagement (data-anchored)
 ##     Vasoprotective composite: pooled antioxidant, RAAS/vasoreactive,
 ##     anti-inflammatory, ECM stabilization, and EC quiescence categories.
 ##     ACKR1 is biphasic and gets its own panel.
@@ -1472,7 +1598,11 @@ adult_pal_ec <- c(NF = '#4DAF4A', pRV = '#377EB8', RVF = '#E41A1C')
     geom_boxplot(outlier.shape = NA, alpha = 0.85, linewidth = 0.4) +
     geom_jitter(width = 0.18, size = 2.4, shape = 21,
                 colour = 'black', stroke = 0.3, alpha = 0.9) +
-    facet_grid(cohort ~ program, scales = 'free') +
+    ## facet_wrap (not facet_grid): independent x AND y per panel so the
+    ## peds row shows ped-NF/ped-HLHS/ped-RVF, the adult row shows
+    ## NF/pRV/RVF, and the y-axis is NOT shared across panels. nrow=2 →
+    ## row1 = Pediatric, row2 = Adult (cohort-major fill).
+    facet_wrap(vars(cohort, program), scales = 'free', nrow = 2) +
     scale_fill_manual(values = full_pal) +
     ggpubr::stat_compare_means(method = 'anova',
                                label = 'p.format', size = 2.6) +
@@ -1530,12 +1660,70 @@ adult_pal_ec <- c(NF = '#4DAF4A', pRV = '#377EB8', RVF = '#E41A1C')
                     ylab = 'NR2F2 expression (per-patient mean)',
                     is_gene = TRUE, gene_label = 'NR2F2')
 
-## N – Phase 1 EC: vasoprotective + IFN composite scores
-.combined_panel_box(file.path(CACHE, 'S7J_subpanel_MECOM_peds_pat.rds'),
+## S7I (v57): vasoprotective + IFN composite, 2x2 (cohort x program).
+## FIX: peds_path was wrongly the MECOM cache; use the peds vasoprot+IFN
+## cache (S7I_peds_EC_phase1_pat.rds) paired with the adult one.
+.combined_panel_box(file.path(CACHE, 'S7I_peds_EC_phase1_pat.rds'),
                     file.path(CACHE, 'S7N_adult_pat.rds'),
                     file.path(OUT,   'S7N_combined_EC_phase1_box.pdf'),
                     width = 6, height = 5,
                     ylab = 'Score (per-patient mean)')
+
+## S7J (v57): one 5x2 grid — MECOM | ArtTF | Notch | SMAD1 | NR2F2 columns,
+## Pediatric (row 1) over Adult (row 2). Assembled from the cached
+## per-patient _pat.rds for each readout x cohort.
+.s7j_specs <- list(
+  list(p = 'S7J_subpanel_MECOM_peds_pat.rds',  a = 'S7J_subpanel_MECOM_adult_pat.rds',  lab = 'MECOM',  gene = TRUE),
+  list(p = 'S7J_subpanel_ArtTF_peds_pat.rds',  a = 'S7J_subpanel_ArtTF_adult_pat.rds',  lab = 'Arterialization TF', gene = FALSE),
+  list(p = 'S7J_subpanel_Notch_peds_pat.rds',  a = 'S7J_subpanel_Notch_adult_pat.rds',  lab = 'Notch target',       gene = FALSE),
+  list(p = 'S7J_subpanel_SMAD1_peds_pat.rds',  a = 'S7J_subpanel_SMAD1_adult_pat.rds',  lab = 'SMAD1',  gene = TRUE),
+  list(p = 'S7J_subpanel_NR2F2_peds_pat.rds',  a = 'S7J_subpanel_NR2F2_adult_pat.rds',  lab = 'NR2F2',  gene = TRUE))
+.s7j_rows <- list()
+for (.sp in .s7j_specs) {
+  .pf <- file.path(CACHE, .sp$p); .af <- file.path(CACHE, .sp$a)
+  if (!file.exists(.pf) || !file.exists(.af)) next
+  .pd <- readRDS(.pf); .ad <- readRDS(.af)
+  .norm <- function(d, ch) {
+    if (.sp$gene) d$score <- d$expr else
+      d$score <- d[[setdiff(intersect(c('score','expr'), names(d)), 'expr')[1]]]
+    if (is.null(d$score) && 'expr' %in% names(d)) d$score <- d$expr
+    data.frame(patient = d$patient, group = as.character(d$group),
+               score = d$score, program = .sp$lab, cohort = ch,
+               stringsAsFactors = FALSE)
+  }
+  .s7j_rows[[length(.s7j_rows) + 1]] <-
+    rbind(.norm(.pd, 'Pediatric'), .norm(.ad, 'Adult'))
+}
+if (length(.s7j_rows) > 0) {
+  .s7j_df <- do.call(rbind, .s7j_rows)
+  .s7j_df$program <- factor(.s7j_df$program,
+    levels = c('MECOM','Arterialization TF','Notch target','SMAD1','NR2F2'))
+  .s7j_df$cohort  <- factor(.s7j_df$cohort, levels = c('Pediatric','Adult'))
+  .s7j_df$group   <- factor(.s7j_df$group,
+    levels = c('ped-NF','ped-HLHS','ped-RVF','NF','pRV','RVF'))
+  p_S7J <- ggplot(.s7j_df, aes(x = group, y = score, fill = group)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.85, linewidth = 0.4) +
+    geom_jitter(width = 0.18, size = 2.0, shape = 21,
+                colour = 'black', stroke = 0.3, alpha = 0.9) +
+    ## facet_wrap (not facet_grid): independent x AND y per panel so the
+    ## peds row shows ped-NF/ped-HLHS/ped-RVF, the adult row shows
+    ## NF/pRV/RVF, and the y-axis is NOT shared across panels. nrow=2 →
+    ## row1 = Pediatric, row2 = Adult (cohort-major fill).
+    facet_wrap(vars(cohort, program), scales = 'free', nrow = 2) +
+    scale_fill_manual(values = c(peds_pal_ec, adult_pal_ec)) +
+    ggpubr::stat_compare_means(method = 'anova', label = 'p.format',
+                               size = 2.4) +
+    theme_classic() + xlab('') + ylab('Per-patient mean (score / expr)') +
+    theme(strip.text = element_text(face = 'bold'),
+          legend.position = 'none',
+          panel.border = element_rect(linewidth = 0.6, fill = NA,
+                                      color = 'black'),
+          axis.text.x = element_text(angle = 35, hjust = 1))
+  pdf(file.path(OUT, 'S7J_combined_5x2.pdf'), width = 13, height = 5.4)
+  print(p_S7J)
+  dev.off()
+  cat('Wrote: S7J_combined_5x2.pdf (5 readouts x peds/adult)\n')
+}
 
 ## N2 – GPX3 single-gene combined
 .combined_panel_box(file.path(CACHE, 'S7I_supp_GPX3_peds_pat.rds'),
@@ -1750,5 +1938,39 @@ if (file.exists(.cache_peds_phase2) && file.exists(.cache_adult_phase2)) {
   cat('Skipping Phase-2 volcano/concordance - missing DE caches\n')
 }
 
-cat('\n=== Supplementary Figure 5 generation complete ===\n')
+cat('\n=== Supplementary Figure 7 generation complete ===\n')
 cat('Outputs in: ', OUT, '\n')
+
+###############################################################################
+## v57 standardized per-panel emission — keyed to the v57 S7 legend
+## (.figure_run_logs/v57_figure_legends.md), NOT the reference's internal
+## letters. v57 S7 is A–J. Reference writes S7<X>_*.pdf to OUT; copy each
+## to Figure_S7_panel_<L>.pdf. v57 S7:
+##   A myeloid concordance dot | B bulk-WGCNA module dot (2 stacked) |
+##   C GO-BP up M8 DEGs | D ChEA up ped-HLHS-vs-ped-NF (CIITA) |
+##   E ChEA up+down failing-SV (NR3C1/CIITA/IRF8) |
+##   F per-patient myeloid program scores |
+##   G adult-EC-module dot in HLHS EC | H EC-proportion stacked bar |
+##   I Phase-1 EC vasoprotective + IFN score | J subtype-restricted
+##   Phase-2 readouts (MECOM/ArtTF/Notch/SMAD1/NR2F2).
+###############################################################################
+.s7_v57 <- list(
+  A = 'S7A_peds_myeloid_concordance_dot.pdf',
+  B = 'S7B_peds_myeloid_modules_combined.pdf',
+  C = 'S7C_peds_myeloid_M8_GO_up.pdf',          # may be absent → flagged
+  D = 'S7D_chea_celltype_HLHS_vs_NF_up.pdf',
+  E = 'S7E_chea_RVF_vs_NF_up_down.pdf',
+  F = 'S7E_program_scores_box.pdf',
+  G = 'S7G_peds_EC_adult_modules_combined.pdf',
+  H = 'S7G_peds_EC_subtype_prev_stacked.pdf',
+  I = 'S7N_combined_EC_phase1_box.pdf',
+  J = 'S7J_combined_5x2.pdf')
+message('Supplementary Figure 7 v57-keyed standardized panels:')
+for (.L in names(.s7_v57)) {
+  .src <- file.path(OUT, .s7_v57[[.L]])
+  if (file.exists(.src)) {
+    file.copy(.src, file.path(OUT, sprintf('Figure_S7_panel_%s.pdf', .L)),
+              overwrite = TRUE)
+    message('  ', .L, ': OK')
+  } else message('  ', .L, ': MISSING (', .s7_v57[[.L]], ')')
+}

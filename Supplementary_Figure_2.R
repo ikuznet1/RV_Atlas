@@ -642,71 +642,51 @@ if (file.exists(.cm_cache_for_inset)) {
 ##############################################
 ##############################################
 
-RV_data <- readRDS('./dependencies/shared/RV_data.rds')
-RV_data <- subset(RV_data, Names == 'CM')
-
-RV_data <- SCTransform(RV_data, vst.flavor = 'v2', assay = 'RNA',
-                       vars.to.regress = c('nFeature_RNA', 'percent.mt'))
-RV_data <- RunPCA(RV_data, npcs = 30)
-RV_data <- RunHarmony(RV_data, 'patient')
-RV_data <- RunUMAP(RV_data, reduction = 'harmony', dims = 1:30)
-RV_data <- FindNeighbors(RV_data, reduction = 'harmony', dims = 1:30)
-RV_data <- FindClusters(RV_data, resolution = 0.3)
-
-## Only remove clusters that actually exist (Louvain cluster count varies by run)
-.bad_clusters <- intersect(c('4', '8'), levels(Idents(RV_data)))
-if (length(.bad_clusters) > 0) {
-  RV_data <- subset(RV_data, idents = .bad_clusters, invert = TRUE)
-} else {
-  message('S2 cleanup pass 1: clusters 4/8 not present in current Louvain output — skipping.')
-}
-
-RV_data <- SCTransform(RV_data, vst.flavor = 'v2', assay = 'decontXcounts',
-                       vars.to.regress = c('nFeature_RNA', 'percent.mt'))
-RV_data <- RunPCA(RV_data, npcs = 30, assay = 'SCT')
-RV_data <- RunHarmony(RV_data, 'patient')
-RV_data <- FindNeighbors(RV_data, reduction = 'harmony', dims = 1:30)
-RV_data <- RunUMAP(RV_data, reduction = 'harmony', dims = 1:30)
-RV_data <- FindClusters(RV_data, resolution = 0.3)
-
-.bad_clusters <- intersect(c('8'), levels(Idents(RV_data)))
-if (length(.bad_clusters) > 0) {
-  RV_data <- subset(RV_data, idents = .bad_clusters, invert = TRUE)
-} else {
-  message('S2 cleanup pass 2: cluster 8 not present in current Louvain output — skipping.')
-}
-
-feats <- setdiff(rownames(RV_data), c('XIST','TTTY14','TTTY10','UTY'))
-feats <- setdiff(feats, grep('^LINC', feats, value = TRUE))
-feats <- grep('-',  feats, invert = TRUE, value = TRUE)
-feats <- grep('\\.', feats, invert = TRUE, value = TRUE)
-
-RV_data <- SCTransform(RV_data[feats,], vst.flavor = 'v2', assay = 'decontXcounts',
-                       vars.to.regress = c('nFeature_RNA','percent.mt'))
-RV_data <- RunPCA(RV_data, npcs = 30, assay = 'SCT')
-RV_data <- RunHarmony(RV_data, 'patient')
-RV_data <- FindNeighbors(RV_data, reduction = 'harmony', dims = 1:30)
-RV_data <- RunUMAP(RV_data, reduction = 'harmony', dims = 1:30)
-RV_data <- FindClusters(RV_data, resolution = 0.3)
-
-RV.cm.marks <- FindAllMarkers(RV_data)
-marker.genes <- unique(subset(RV.cm.marks, p_val_adj < 0.05)$gene)
-
-new.cluster.ids <- c('Cm1','Cm2','Cm3','Cm4','Cm5','Cm6','Cm7','Cm8','Cm9','Cm10')
-names(new.cluster.ids) <- levels(RV_data)
-RV_data <- RenameIdents(RV_data, new.cluster.ids)
-
-RV_data$Subnames <- RV_data@active.ident
+## ---------------------------------------------------------------------------
+## CANONICAL CM-SUBCLUSTER OBJECT (Panel A reproducibility fix)
+##
+## The previous block re-clustered CM from scratch on every run
+## (SCTransform→Harmony→RunUMAP→Louvain ×3 → generic Cm1..Cm10 rename).
+## Louvain + UMAP are non-deterministic (the old comments even noted
+## "cluster count varies by run"), so Panel A — and B/C/D, which also
+## use RV_data — got a DIFFERENT embedding every run. Meanwhile the
+## Panel A inset correctly loads the committed cm_subclust_new_new.rds,
+## which is why the inset was right and the main Panel A was "totally
+## different". Same canonical-committed-artifact pattern as the F1
+## module / F3 niche fixes: load the committed object so Panel A is the
+## SAME UMAP as its patient-coloured inset (v57: "inset shows the same
+## UMAP coloured by patient") and downstream CM panels stay consistent.
+## ---------------------------------------------------------------------------
+.cm_canon <- if (file.exists('./dependencies/shared/cm_subclust_new_new.rds'))
+  './dependencies/shared/cm_subclust_new_new.rds' else
+  './output/Supplementary_Figure_2/cm_subclust_new_new.rds'
+message('Panel A: loading canonical CM-subcluster object ', .cm_canon)
+RV_data <- readRDS(.cm_canon)
+if (!'Subnames' %in% colnames(RV_data@meta.data))
+  RV_data$Subnames <- as.character(RV_data@active.ident)
+Idents(RV_data) <- 'Subnames'
 RV_data$SubNames_Groups <- paste(RV_data$Subnames, RV_data$group, sep = '_')
 
-# Apply the canonical CM_* rename so the UMAP labels match all downstream panels.
-RV_data <- .rename_cm_subnames(RV_data)
+## (No FindAllMarkers here: Panel A is just a DimPlot of the canonical
+## object's stored UMAP; the old per-cluster marker call existed only to
+## drive the Cm1..Cm10→CM_* rename, which the canonical object already
+## carries. Panel B/D reload RV_data and do their own marker work.)
 
+## DimPlot on the SAME object + 'umap' reduction the inset uses, so the
+## two panels are guaranteed to be the identical embedding (cluster vs
+## patient colouring only).
+p_S2A <- DimPlot(RV_data, reduction = 'umap', group.by = 'Subnames',
+                 label = TRUE, repel = TRUE, raster = TRUE,
+                 raster.dpi = c(400, 400), pt.size = 1) +
+  ggtitle(NULL) + NoLegend() + umap_theme() +
+  theme(plot.margin = margin(0, 0, 0, 0))
 pdf(paste0('./output/Supplementary_Figure_2/', 'CM_New_snUMAP.pdf'), width = 5, height = 5)
-print(PlotEmbedding(RV_data, group.by = 'Subnames', point_size = 1, plot_under = TRUE,
-                    plot_theme = umap_theme() + NoLegend(),
-                    raster_dpi = 400, raster_scale = 0.5))
+print(p_S2A)
 dev.off()
+## Canonical Panel A = CM subclusters coloured by CLUSTER NAME (Subnames),
+## NOT by patient. Previously the only Figure_S2_panel_A* files were the
+## patient-coloured insets, so "Panel A" appeared patient-coloured.
+save_figure(p_S2A, 'Figure_S2_panel_A.pdf', width = 5, height = 5)
 
 pdf(paste0('./output/Supplementary_Figure_2/', 'CM_New_snUMAP_patient.pdf'), width = 5, height = 5)
 print(PlotEmbedding(RV_data, group.by = 'patient', point_size = 1, plot_under = TRUE,
@@ -745,15 +725,17 @@ cm_markers <- c(
   'NPPA',   'NPPB'       # CM_NPP       — paired natriuretic peptides
 )
 
-pdf(paste0('./output/Supplementary_Figure_2/', 'CM_new_sn_Dot.pdf'), width = 11, height = 5)
-print(DotPlot(RV_data, features = cm_markers,
+p_S2B <- DotPlot(RV_data, features = cm_markers,
               group.by = 'Subnames', col.min = 0, col.max = 2) +
       RotatedAxis() +
       ylab('CM subtype') + xlab('Marker gene') +
       theme(panel.border = element_rect(size = 1, fill = NA, color = 'black'),
             axis.line.x = element_blank(),
-            axis.line.y = element_blank()))
+            axis.line.y = element_blank())
+pdf(paste0('./output/Supplementary_Figure_2/', 'CM_new_sn_Dot.pdf'), width = 11, height = 5)
+print(p_S2B)
 dev.off()
+save_figure(p_S2B, 'Figure_S2_panel_B.pdf', width = 11, height = 5)
 
 
 ##############################################
@@ -764,20 +746,26 @@ dev.off()
 
 cm.patient <- table(RV_data$Subnames, RV_data$patient)
 cm.patient <- t(t(cm.patient) / colSums(cm.patient))
+cm.patient <- data.frame(cm.patient)   # Var1=Subnames, Var2=patient, Freq
 
-disease  <- c('RVF','pRV','RVF','NF','pRV','pRV','RVF','NF','NF','pRV','NF')
-disease  <- c(t(replicate(10, disease)))
-
-cm.patient <- data.frame(disease = disease, cm.patient)
-cm.patient$disease <- factor(cm.patient$disease, levels = c('NF','pRV','RVF'))
+## BUG FIX: the old hardcoded 11-patient `disease` vector was assigned
+## POSITIONALLY to the melted table — scrambled if patient order/count
+## differed (same class as the F3 niche.patient fix). Derive disease per
+## patient dynamically from RV_data metadata.
+.p2g <- unique(data.frame(patient = as.character(RV_data$patient),
+                          disease = as.character(RV_data$group),
+                          stringsAsFactors = FALSE))
+.p2g <- setNames(.p2g$disease, .p2g$patient)
+cm.patient$disease <- factor(.p2g[as.character(cm.patient$Var2)],
+                             levels = c('NF','pRV','RVF'))
+cm.patient <- cm.patient[!is.na(cm.patient$disease), ]
 
 pdf('./output/Supplementary_Figure_2/CM_clust_counts.pdf', width = 10, height = 3)
 print(ggplot(cm.patient, aes(Var1, Freq, color = disease)) +
         geom_boxplot() + theme_classic())
 dev.off()
 
-pdf('./output/Supplementary_Figure_2/CM_clust_freq_stats.pdf', width = 12.5, height = 15)
-p <- ggboxplot(cm.patient, x = 'disease', y = 'Freq',
+p_S2C <- ggboxplot(cm.patient, x = 'disease', y = 'Freq',
                fill = 'disease', group = 'disease') +
   theme_classic() +
   theme(axis.text.x  = element_text(size = 16),
@@ -790,8 +778,10 @@ p <- ggboxplot(cm.patient, x = 'disease', y = 'Freq',
         axis.text    = element_text(color = 'black')) +
   facet_wrap(~Var1, ncol = 5) +
   stat_compare_means(aes(group = disease), method = 'kruskal.test')
-print(p)
+pdf('./output/Supplementary_Figure_2/CM_clust_freq_stats.pdf', width = 12.5, height = 15)
+print(p_S2C)
 dev.off()
+save_figure(p_S2C, 'Figure_S2_panel_C.pdf', width = 12.5, height = 15)
 
 
 ##############################################
@@ -904,6 +894,9 @@ p <- selected_terms %>%
 pdf(paste0('./output/Supplementary_Figure_2/', 'CM_by_cluster_New_GO.pdf'), width = 5.25, height = 8)
 print(p)
 dev.off()
+## Canonical Panel D (GO BP summary dot plot) — was only emitted under the
+## legacy CM_by_cluster_New_GO.pdf name.
+save_figure(p, 'Figure_S2_panel_D.pdf', width = 5.25, height = 8)
 
 
 ##############################################
@@ -940,9 +933,7 @@ colnames(seurat_ref@meta.data) <- cols_current
 
 modules_all <- c('M2','M12','M10','M25','M26','M28')
 
-pdf(paste0('./output/Supplementary_Figure_2/', 'CM_cluster_dot_new_subclust_mods.pdf'),
-    width = 6, height = 3.125)
-p <- DotPlot(seurat_ref, paste0('module_', modules_all),
+p_S2E <- DotPlot(seurat_ref, paste0('module_', modules_all),
              group.by = 'Subnames', dot.min = 0, col.min = 0) +
   RotatedAxis() + ylab('') + xlab('') +
   scale_color_gradient2(high = 'red', mid = 'grey95', low = 'blue') +
@@ -950,8 +941,12 @@ p <- DotPlot(seurat_ref, paste0('module_', modules_all),
   theme(panel.border = element_rect(size = 1, fill = NA, color = 'black'),
         axis.line.x  = element_blank(),
         axis.line.y  = element_blank())
-print(p)
+pdf(paste0('./output/Supplementary_Figure_2/', 'CM_cluster_dot_new_subclust_mods.pdf'),
+    width = 6, height = 3.125)
+print(p_S2E)
 dev.off()
+## Canonical Panel E (was only emitted under the legacy name above).
+save_figure(p_S2E, 'Figure_S2_panel_E.pdf', width = 6, height = 3.125)
 
 
 ##############################################
@@ -1015,6 +1010,8 @@ p_F <- ggplot(agg_mito,
 pdf('./output/Supplementary_Figure_2/CM_MitoCarta_dotplot.pdf', width = 8, height = 3)
 print(p_F)
 dev.off()
+## Canonical Panel F (MitoCarta3.0 module score) — header letter F.
+save_figure(p_F, 'Figure_S2_panel_F.pdf', width = 8, height = 3)
 
 
 ##############################################
@@ -1042,9 +1039,13 @@ RV_data <- AddModuleScore(RV_data, features = list(fao_genes),         name = 'F
 RV_data <- AddModuleScore(RV_data, features = list(glycolysis_genes),  name = 'Glycolysis',   assay = 'SCT')
 RV_data <- AddModuleScore(RV_data, features = list(oxphos_genes),      name = 'OXPHOS',       assay = 'SCT')
 
+p_S2G <- VlnPlot(RV_data, features = 'HMGCS2', group.by = 'Subnames',
+                 pt.size = 0) + NoLegend()
 pdf('./output/Supplementary_Figure_2/CM_HMGCS2_violin.pdf', width = 6, height = 3.5)
-print(VlnPlot(RV_data, features = 'HMGCS2', group.by = 'Subnames', pt.size = 0) + NoLegend())
+print(p_S2G)
 dev.off()
+## Canonical Panel G (CM_HMGCS2 violin) — header letter G.
+save_figure(p_S2G, 'Figure_S2_panel_G.pdf', width = 6, height = 3.5)
 
 pdf('./output/Supplementary_Figure_2/CM_HMGCS2_featureplot.pdf', width = 5, height = 5)
 print(FeaturePlot(RV_data, features = 'HMGCS2', order = TRUE) + NoAxes())
@@ -1073,21 +1074,22 @@ dev.off()
 
 RV_data <- readRDS('./dependencies/shared/cm_subclust_new_new.rds')
 
-# Composite Subnames × group identity for a 30-row × 2-column dot plot.
-RV_data$Subnames_group <- factor(
-  paste(as.character(RV_data$Subnames), as.character(RV_data$group), sep = '_'),
-  levels = paste(rep(unname(.cm_label_map), each = 3),
-                 c('NF','pRV','RVF'), sep = '_')
-)
-
-pdf('./output/Supplementary_Figure_2/CM_HAND2_EDNRA_dot.pdf', width = 5, height = 8)
-print(DotPlot(RV_data, features = c('HAND2','EDNRA'),
-              group.by = 'Subnames_group',
-              col.min = 0, col.max = 2, dot.min = 0) +
-      RotatedAxis() +
-      ylab('CM subtype × disease group') + xlab('Gene') +
-      ggtitle('HAND2 / EDNRA expression by CM subcluster × group'))
+# v57 Panel H = violin plots of HAND2 and EDNRA expression across disease
+# states (NF/pRV/RVF) with pairwise Wilcoxon — NOT a dot plot.
+RV_data$group <- factor(as.character(RV_data$group),
+                        levels = c('NF', 'pRV', 'RVF'))
+.s2h_cmp <- list(c('NF','pRV'), c('pRV','RVF'), c('NF','RVF'))
+p_S2H <- VlnPlot(RV_data, features = c('HAND2','EDNRA'),
+                 group.by = 'group', pt.size = 0,
+                 cols = c('darkorchid','grey','royalblue')) &
+  ggpubr::stat_compare_means(comparisons = .s2h_cmp,
+                             method = 'wilcox.test', size = 2.3) &
+  xlab(NULL) & theme(legend.position = 'none')
+pdf('./output/Supplementary_Figure_2/CM_HAND2_EDNRA_vln.pdf', width = 6, height = 4)
+print(p_S2H)
 dev.off()
+## Canonical Panel H — HAND2/EDNRA violins by disease state.
+save_figure(p_S2H, 'Figure_S2_panel_H.pdf', width = 6, height = 4)
 
 
 ##############################################
@@ -1389,10 +1391,44 @@ if (!is.null(.df)) {
                     ums_per_inch = 3000,
                     tissue_bboxes = .tissue_bboxes,
                     flip_y = TRUE)
+    ## Canonical Panel J (NPPA/NPPB Xenium spatial) — .tile_3D_canvas writes
+    ## a PDF directly, so copy it to the standardized panel name.
+    if (file.exists('./output/Supplementary_Figure_2/Xenium/CM_NPP_spatial_tiled.pdf'))
+      file.copy('./output/Supplementary_Figure_2/Xenium/CM_NPP_spatial_tiled.pdf',
+                './output/Supplementary_Figure_2/Figure_S2_panel_J.pdf',
+                overwrite = TRUE)
   }
   cat('  per-patient NPP tiles in', .tile_dir, '\n')
 }
 
+
+###############################################################################
+## v57 panel-letter reconciliation (source of truth:
+## .figure_run_logs/v57_figure_legends.md). The in-script section letters
+## are stale: the script emits its WGCNA-module dotplot as panel_E and
+## MitoCarta as panel_F, plus an extra HMGCS2 violin as panel_G. v57 S2 is:
+##   A=CM UMAP+inset  B=marker dot  C=cluster freq  D=GO-BP marker dot
+##   E=SPATIAL CM-subcluster Xenium map   F=WGCNA module dot by CM cluster
+##   G=MitoCarta3.0 gene dotplot CM×disease   H=HAND2/EDNRA pseudobulk
+##   I=WGA min-Feret   J=NPPA/NPPB spatial tiles
+## (HMGCS2 violin is NOT a v57 panel — kept only under its legacy name.)
+## This block runs last so its file.copy wins over the in-place calls.
+###############################################################################
+.s2_dir <- './output/Supplementary_Figure_2/'
+.s2_fix <- c(
+  E = 'Xenium/CM_sn_subtype_spatial_tiled.pdf',
+  F = 'CM_cluster_dot_new_subclust_mods.pdf',
+  G = 'CM_MitoCarta_dotplot.pdf',
+  I = 'Figure_S2_panel_I_WGA_CSA.pdf',
+  J = 'CM_NPP_spatial_tiled.pdf')
+for (.L in names(.s2_fix)) {
+  .src <- file.path(.s2_dir, .s2_fix[[.L]])
+  if (file.exists(.src)) {
+    file.copy(.src, file.path(.s2_dir, sprintf('Figure_S2_panel_%s.pdf', .L)),
+              overwrite = TRUE)
+  } else message('S2 v57 reconcile: panel ', .L,
+                 ' source missing (', .s2_fix[[.L]], ')')
+}
 
 ##############################################
 ##############################################

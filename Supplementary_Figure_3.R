@@ -63,6 +63,10 @@ suppressPackageStartupMessages({
   library(stringr)
   library(ggrepel)
   library(readxl)
+  ## hdWGCNA provides umap_theme() (used by the standardized UMAP
+  ## rendering of Panels A/N). PlotEmbedding() is separately a custom
+  ## function from helper_scripts/spatial_functions.R, sourced below.
+  library(hdWGCNA)
   # enrichR onAttach makes a network call to maayanlab.cloud which can hang.
   # Cached ChEA results in ./output/Supplementary_Figure_3/fig_s3_*_chea.rds make the live call
   # unnecessary; skip if network is unreachable.
@@ -71,6 +75,13 @@ suppressPackageStartupMessages({
                                        conditionMessage(e),
                                        ') — using cached ChEA results only'))
 })
+
+## PlotEmbedding() (used for the standardized UMAP rendering of Panels A
+## (FB) and N (mural)) is a CUSTOM project function defined in
+## helper_scripts/spatial_functions.R — NOT an hdWGCNA export. S2/F7/F8
+## source this file; S3 previously did not, causing the
+## "could not find function PlotEmbedding" crash.
+source('./helper_scripts/spatial_functions.R')
 
 ## ───────────────────────────────────────────────────────────────────────────
 ## Shared DEG table + helpers
@@ -236,16 +247,16 @@ fb_pb_matrifib <- .fb_pb_module(fb_matrifib_genes, 'Matrifibrocyte (Fu 2018)')
 cat('\n=== FB-identity score (Koenig) ===\n');     print(fb_pb_score)
 cat('\n=== Matrifibrocyte score (Fu 2018) ===\n'); print(fb_pb_matrifib)
 
-p_A <- DimPlot(M_fb, group.by = 'Subnames', label = TRUE,
-               label.size = PS$base_pt / .pt, repel = TRUE,
-               pt.size = PS$umap_pt, raster = TRUE) +
-  NoLegend() +
-  labs(title = 'Fibroblast subtypes') +
+## Standardized UMAP rendering (matches F7/S2/F8: PlotEmbedding with
+## point_size=PS$umap_pt + plot_under + raster). DimPlot's pt.size made the
+## dots far too small relative to the other figures' UMAPs.
+p_A <- PlotEmbedding(M_fb, group.by = 'Subnames', point_size = PS$umap_pt,
+                     plot_under = TRUE,
+                     plot_theme = umap_theme() + NoLegend(),
+                     raster_dpi = 400, raster_scale = 0.5) +
+  ggtitle('Fibroblast subtypes') +
   theme_v52(COMP_W) +
-  theme(plot.title = element_text(face = 'bold'),
-        axis.text  = element_blank(),
-        axis.ticks = element_blank(),
-        axis.line  = element_blank())
+  theme(plot.title = element_text(face = 'bold'))
 
 ## ───────────────────────────────────────────────────────────────────────────
 ## Panel B: FB dotplot — functional / novel markers (not generic Fb-scores)
@@ -277,6 +288,35 @@ p_B <- DotPlot(M_fb, features = fb_marker_vec, assay = 'SCT',
     legend.key.height = unit(3.5,'mm'),
     legend.key.width  = unit(1.5,'mm')
   )
+
+## ───────────────────────────────────────────────────────────────────────────
+## Panel C (canonical v57): per-patient FB subtype proportions across
+## NF/pRV/RVF as boxplots with per-patient dots. This panel was genuinely
+## missing from the script (the slot was wrongly occupied by the Phase-1
+## concordance heatmap, which is canonical D). Built here from M_fb.
+.fb_prop <- M_fb@meta.data %>%
+  dplyr::filter(!is.na(Subnames), !is.na(group), !is.na(patient)) %>%
+  dplyr::count(patient, group, Subnames, name = 'n') %>%
+  dplyr::group_by(patient) %>%
+  dplyr::mutate(prop = 100 * n / sum(n)) %>%
+  dplyr::ungroup()
+.fb_prop$group <- factor(as.character(.fb_prop$group),
+                         levels = c('NF', 'pRV', 'RVF'))
+.fb_prop <- .fb_prop[!is.na(.fb_prop$group), ]
+p_C_prop <- ggplot(.fb_prop, aes(x = group, y = prop, fill = group)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.55, linewidth = PS$geom_lw) +
+  geom_jitter(width = 0.12, size = 1.2, alpha = 0.85, colour = 'grey20') +
+  facet_wrap(~ Subnames, scales = 'free_y', nrow = 2) +
+  scale_fill_manual(values = c(NF = '#4DAF4A', pRV = '#377EB8',
+                               RVF = '#E41A1C')) +
+  ggpubr::stat_compare_means(method = 'kruskal.test',
+                             size = PS$text_mm, family = FONT_FAMILY) +
+  labs(x = NULL, y = '% of patient FB nuclei',
+       title = 'FB subtype proportions per patient') +
+  theme_v52(COMP_W) +
+  theme(legend.position = 'none',
+        strip.text = element_text(size = 7),
+        plot.title = element_text(face = 'bold'))
 
 ## ───────────────────────────────────────────────────────────────────────────
 ## Panel D: FB Phase 1 (NF→pRV) — sn vs Xenium 2-column concordance heatmap
@@ -1303,17 +1343,35 @@ p_E <- .make_chea_bar(fb_chea_tf, '#3e64b3', 'FB ChEA (Ph1 down)')
 ## visualization matches the original (the global snRV_ref UMAP coordinates
 ## leave the mural cells as small clusters in the global embedding).
 ## Result is cached so subsequent runs reuse it.
+## Prefer the COMMITTED canonical mural object (pc_sm_subclust.rds — 2,152
+## nuclei, carries the published 'umap' reduction). Re-subsetting snRV_ref
+## and recomputing UMAP is non-deterministic and produced a different
+## embedding than the published Panel N. Label Pc/Sm from the committed
+## mural_subclustering.csv barcode map. Recompute only as last resort.
+.mural_canon <- './dependencies/shared/pc_sm_subclust.rds'
 .mural_cache <- './output/Supplementary_Figure_3/mural_subclust_recomputed.rds'
-if (file.exists(.mural_cache)) {
+.mural_csv <- read.csv('./dependencies/shared/mural_subclustering.csv',
+                       stringsAsFactors = FALSE)
+.id_map <- setNames(.mural_csv$M1.active.ident, .mural_csv$colnames.M1.)
+if (file.exists(.mural_canon)) {
+  M_mural <- readRDS(.mural_canon)
+  .lab <- unname(.id_map[colnames(M_mural)])
+  if (sum(!is.na(.lab)) < 0.5 * ncol(M_mural)) {       # barcode-suffix mismatch
+    .map2 <- setNames(.mural_csv$M1.active.ident,
+                      sub('-.*$', '', .mural_csv$colnames.M1.))
+    .lab  <- unname(.map2[sub('-.*$', '', colnames(M_mural))])
+  }
+  M_mural$mural_subtype <- factor(.lab, levels = c('Pc','Sm'))
+  cat(sprintf('Loaded canonical mural pc_sm_subclust.rds: n=%d (Pc=%d, Sm=%d)\n',
+              ncol(M_mural), sum(M_mural$mural_subtype=='Pc', na.rm=TRUE),
+              sum(M_mural$mural_subtype=='Sm', na.rm=TRUE)))
+} else if (file.exists(.mural_cache)) {
   M_mural <- readRDS(.mural_cache)
   cat(sprintf('Loaded cached mural object: n = %d cells\n', ncol(M_mural)))
 } else {
-  .mural_csv <- read.csv('./dependencies/shared/mural_subclustering.csv',
-                         stringsAsFactors = FALSE)
   ref   <- readRDS('./dependencies/shared/snRV_ref.rds')
   .keep <- intersect(.mural_csv$colnames.M1., colnames(ref))
   M_mural <- subset(ref, cells = .keep)
-  .id_map <- setNames(.mural_csv$M1.active.ident, .mural_csv$colnames.M1.)
   M_mural$mural_subtype <- factor(unname(.id_map[colnames(M_mural)]),
                                   levels = c('Pc','Sm'))
   rm(ref); gc(verbose = FALSE)
@@ -1334,16 +1392,13 @@ cat(sprintf('\nMural UMAP cohort: n = %d nuclei (Pc=%d, Sm=%d)\n',
             sum(M_mural$mural_subtype=='Pc'),
             sum(M_mural$mural_subtype=='Sm')))
 
-p_F <- DimPlot(M_mural, group.by = mural_group_col, label = TRUE,
-               label.size = PS$base_pt / .pt, repel = TRUE,
-               pt.size = PS$umap_pt, raster = TRUE) +
-  NoLegend() +
-  labs(title = 'Mural subtypes') +
+p_F <- PlotEmbedding(M_mural, group.by = mural_group_col,
+                     point_size = PS$umap_pt, plot_under = TRUE,
+                     plot_theme = umap_theme() + NoLegend(),
+                     raster_dpi = 400, raster_scale = 0.5) +
+  ggtitle('Mural subtypes') +
   theme_v52(COMP_W) +
-  theme(plot.title = element_text(face = 'bold'),
-        axis.text  = element_blank(),
-        axis.ticks = element_blank(),
-        axis.line  = element_blank())
+  theme(plot.title = element_text(face = 'bold'))
 
 ## ───────────────────────────────────────────────────────────────────────────
 ## Panel O: Mural Phase 1 (pRV vs NF) snRNA sublineage heatmap
@@ -1908,24 +1963,66 @@ save_figure(p_fibrosis,
 
 panel_h <- COMP_H / 5   # 5-row composite
 
+## Panel letters remapped to the canonical v57 header (top of file).
+## User-confirmed: current C content == header D; current D == F;
+## current F == G; current I == N; old "H" (FB ChEA) is NOT a header panel.
+## Content-matched to header: p_C=FB Ph1 concordance heatmap (D);
+## p_D=FB Ph2 concordance scatter (E); p_module_identity=erosion-of-FB (F);
+## p_module_matrifib=matrifibrocyte (G); p_D2=Xenium FB subtype (H);
+## p_F=mural UMAP (N); p_G=mural Ph1 heatmap (O); p_H=mural Ph2 heatmap (Q);
+## p_fibrosis (built earlier) = adult RV fibrosis boxplot (M).
+## NOTE: canonical Panel C (per-patient FB subtype proportion box/whisker)
+## is NOT built in this script — flagged separately. p_E / p_J (FB & mural
+## ChEA bars) and p_I (bi-trajectory) are NOT v57 lettered panels: kept as
+## preview PDFs only, excluded from the lettered export.
 panel_specs <- list(
   list(plot = p_A,                tag = 'A', w = COMP_W * 1.0 / 2.6,        h = panel_h),
   list(plot = p_B,                tag = 'B', w = COMP_W * 1.6 / 2.6 * 1.5,  h = panel_h * 0.67 * 1.15 * 1.10),
-  list(plot = p_C,                tag = 'C', w = COMP_W * 1.0 / 3.1,        h = panel_h),
-  list(plot = p_module_identity,  tag = 'D', w = COMP_W * 0.9 / 3.1,        h = panel_h),
+  list(plot = p_C_prop,           tag = 'C', w = COMP_W * 1.4 / 2.6,        h = panel_h),
+  list(plot = p_C,                tag = 'D', w = COMP_W * 1.0 / 3.1,        h = panel_h),
   list(plot = p_D,                tag = 'E', w = COMP_W * 1.2 / 3.1,        h = panel_h),
-  list(plot = p_module_matrifib,  tag = 'F', w = COMP_W * 0.9 / 3.3,        h = panel_h),
-  list(plot = p_D2,               tag = 'G', w = COMP_W * 1.4 / 3.3,        h = panel_h),
-  list(plot = p_E,                tag = 'H', w = COMP_W * 1.0 / 3.3,        h = panel_h),
-  list(plot = p_F,                tag = 'I', w = COMP_W * 1.0 / 3.0,        h = panel_h),
-  list(plot = p_G,                tag = 'J', w = COMP_W * 1.0 / 3.0,        h = panel_h),
-  list(plot = p_H,                tag = 'K', w = COMP_W * 1.0 / 3.0,        h = panel_h),
-  list(plot = p_I,                tag = 'L', w = COMP_W * 1.6 / 2.6,        h = panel_h),
-  list(plot = p_J,                tag = 'M', w = COMP_W * 1.0 / 2.6,        h = panel_h)
+  list(plot = p_module_identity,  tag = 'F', w = COMP_W * 0.9 / 3.1,        h = panel_h),
+  list(plot = p_module_matrifib,  tag = 'G', w = COMP_W * 0.9 / 3.3,        h = panel_h),
+  list(plot = p_D2,               tag = 'H', w = COMP_W * 1.4 / 3.3,        h = panel_h),
+  list(plot = p_fibrosis,         tag = 'M', w = COMP_W * 1.0 / 2.6,        h = panel_h),
+  list(plot = p_F,                tag = 'N', w = COMP_W * 1.0 / 3.0,        h = panel_h),
+  list(plot = p_G,                tag = 'O', w = COMP_W * 1.0 / 3.0,        h = panel_h),
+  list(plot = p_H,                tag = 'Q', w = COMP_W * 1.0 / 3.0,        h = panel_h)
 )
 
 for (ps in panel_specs) {
   save_figure(ps$plot,
               sprintf('SupplementaryFigure_3_panel_%s.pdf', ps$tag),
               width = ps$w, height = ps$h)
+}
+
+###############################################################################
+## v57 standardized per-panel emission (A–T). The composite/panel_specs
+## above only covers ~12 tags and mis-maps H→p_D2; this block writes the
+## correct object for every v57 S3 panel to Figure_S3_panel_<L>.pdf
+## (standard prefix). exists()-guarded — some mural score objects are
+## built inside conditional blocks.
+###############################################################################
+.s3_v57 <- list(
+  A = quote(p_A),               B = quote(p_B),
+  C = quote(p_C_prop),          D = quote(p_C),
+  E = quote(p_D),               F = quote(p_module_identity),
+  G = quote(p_module_matrifib), H = quote(p_xen_fb_dot),
+  I = quote(p_xen_sn_sim),      J = quote(p_fb_myel_coloc),
+  K = quote(p_matrix_myel_cor),
+  Li = quote(p_vignette), Lii = quote(p_vignette_el),  # v57 L = 2 subpanels
+  M = quote(p_fibrosis),        N = quote(p_F),
+  O = quote(p_G),               P = quote(p_mural_vasc),
+  Q = quote(p_H),               R = quote(p_H_xen),
+  S = quote(p_mural_p2_scatter),T = quote(p_mural_ieg))
+for (.t in names(.s3_v57)) {
+  .nm <- deparse(.s3_v57[[.t]])
+  if (!exists(.nm)) { message('S3 panel ', .t, ' (', .nm,
+                              '): object not in scope — skipped'); next }
+  .obj <- get(.nm)
+  tryCatch(
+    save_figure(.obj, sprintf('Figure_S3_panel_%s.pdf', .t),
+                width = 6, height = 5),
+    error = function(e) message('S3 panel ', .t, ' save failed: ',
+                                conditionMessage(e)))
 }

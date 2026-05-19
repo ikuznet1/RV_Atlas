@@ -14,7 +14,7 @@
 ##       RVF↓ — Respiratory ETC / APOBEC3G / Wnt
 ##       RVF↑ — IFN-α/β, OAS antiviral, TRAF3
 ##
-## Outputs (./output/Figure_1/v52_figures/):
+## Outputs (./output/v52_figures/):
 ##   Figure_1_panel_B_pca.pdf, Figure_1_panel_C_umap.pdf,
 ##   Figure_1_panel_C_umap_simple.pdf, Figure_1_panel_C_dendro.pdf,
 ##   Figure_1_panel_D_GO.pdf, Figure_1_panel_E_violins.pdf,
@@ -24,19 +24,34 @@
 ###############################################################################
 
 source('./helper_scripts/_shared_helpers.R')
-
-## Per-figure output directory (introduced for consistent output paths)
+## Working-repo adaptation: per-figure output dir + standardized names.
 V52_FIG_DIR <- './output/Figure_1'
 dir.create(V52_FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 
-
-## Suppress R's default Rplots.pdf in cwd when Rscript hits a plot call
-## that's outside an explicit pdf() ... dev.off() envelope.
-pdf(NULL)
-## Raise future's per-worker payload cap so Panel C ModuleUMAPPlot can run.
-## Default is 500 MiB; the captured object (`FUN` + edge_df + selected_modules)
-## is ~3 GiB. Setting 8e9 (8 GB) gives headroom without going unbounded.
-options(future.globals.maxSize = 8e9)
+## ── F1 dependency bootstrap ───────────────────────────────────────────────
+## Stage committed F1 dependencies from ./dependencies/Figure_1/ into the
+## working ./output locations the reference pipeline expects:
+##   fig1_*_cache.rds  -> ./output/   (bypasses blocked biomaRt network +
+##                                     non-deterministic WGCNA recompute)
+##   bulkRV_TOM.rda    -> ./output/hdWGCNA_TOM/ and ./TOM/  (GetTOM)
+## Only copies when the dest is absent, so `rm -rf output` + rerun stays
+## reproducible and self-contained (no /Volumes, no network).
+.f1_dep <- './dependencies/Figure_1'
+if (dir.exists(.f1_dep)) {
+  for (.c in list.files(.f1_dep, pattern = '^fig1_.*cache\\.rds$',
+                        full.names = TRUE)) {
+    .dst <- file.path('./output', basename(.c))
+    if (!file.exists(.dst)) file.copy(.c, .dst)
+  }
+  if (file.exists(file.path(.f1_dep, 'bulkRV_TOM.rda'))) {
+    for (.td in c('./output/hdWGCNA_TOM', './TOM')) {
+      dir.create(.td, showWarnings = FALSE, recursive = TRUE)
+      .dst <- file.path(.td, 'bulkRV_TOM.rda')
+      if (!file.exists(.dst))
+        file.copy(file.path(.f1_dep, 'bulkRV_TOM.rda'), .dst)
+    }
+  }
+}
 
 parse_ratio <- function(x) {
   parts <- strsplit(as.character(x), "/")
@@ -82,12 +97,12 @@ meta <- read.csv('./dependencies/shared/BulkRNA/metadata.csv')
 toDel <- seq(1,dim(meta)[1],2)
 meta <- meta[-toDel,]
 
-.cache_tx2gene <- './output/Figure_1/fig1_tx2gene_cache.rds'
+.cache_tx2gene <- './output/fig1_tx2gene_cache.rds'
 if (file.exists(.cache_tx2gene)) {
   message('Loading cached tx2gene...')
   tx2gene <- readRDS(.cache_tx2gene)
 } else {
-  mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl", host = "https://www.ensembl.org")
+  mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl",host = "useast.ensembl.org")
   res <- getBM(attributes = c('ensembl_transcript_id_version',
   'ensembl_gene_id',
   'external_transcript_name',
@@ -110,7 +125,7 @@ files2 <- list.files(path,pattern = "\\.h5$",recursive=TRUE)
 files2<-paste0(path,'/',files2)
 files <- c(files1,files2)
 
-.cache_txi <- './output/Figure_1/fig1_tximport_cache.rds'
+.cache_txi <- './output/fig1_tximport_cache.rds'
 if (file.exists(.cache_txi)) {
   message('Loading cached tximport...')
   txi.kallisto <- readRDS(.cache_txi)
@@ -206,7 +221,7 @@ normalized_counts <- counts(ddsSE, normalized=TRUE)
 
 mod  <- model.matrix(~category+sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+BMI, colData(ddsSE))
 mod0 <- model.matrix(~ sex+age+race+batch+prep_batch+BSA+thyroid+pacer+WT+HT+BMI, colData(ddsSE))
-.cache_svseq <- './output/Figure_1/fig1_svaseq_cache.rds'
+.cache_svseq <- './output/fig1_svaseq_cache.rds'
 if (file.exists(.cache_svseq)) {
   message('Loading cached svaseq...')
   svseq <- readRDS(.cache_svseq)
@@ -256,7 +271,7 @@ normalized_counts <- counts(ddsSE, normalized=TRUE)
 
 
 
-.cache_deseq <- './output/Figure_1/fig1_deseq_fitted_cache.rds'
+.cache_deseq <- './output/fig1_deseq_fitted_cache.rds'
 if (file.exists(.cache_deseq)) {
   message('Loading cached DESeq fitted object...')
   ddsSE <- readRDS(.cache_deseq)
@@ -265,7 +280,7 @@ if (file.exists(.cache_deseq)) {
   saveRDS(ddsSE, .cache_deseq)
 }
 
-.cache_vst <- './output/Figure_1/fig1_vst_batchcorrected_cache.rds'
+.cache_vst <- './output/fig1_vst_batchcorrected_cache.rds'
 if (file.exists(.cache_vst)) {
   message('Loading cached VST batch-corrected object...')
   vstSE <- readRDS(.cache_vst)
@@ -278,7 +293,7 @@ if (file.exists(.cache_vst)) {
   saveRDS(vstSE, .cache_vst)
 }
 
-.cache_lfc_nf_prv <- './output/Figure_1/fig1_lfcshrink_nf_vs_prv_cache.rds'
+.cache_lfc_nf_prv <- './output/fig1_lfcshrink_nf_vs_prv_cache.rds'
 if (file.exists(.cache_lfc_nf_prv)) {
   message('Loading cached lfcShrink NF vs pRV...')
   nf.vs.prv <- readRDS(.cache_lfc_nf_prv)
@@ -287,7 +302,7 @@ if (file.exists(.cache_lfc_nf_prv)) {
   saveRDS(nf.vs.prv, .cache_lfc_nf_prv)
 }
 
-.cache_lfc_nf_rvf <- './output/Figure_1/fig1_lfcshrink_nf_vs_rvf_cache.rds'
+.cache_lfc_nf_rvf <- './output/fig1_lfcshrink_nf_vs_rvf_cache.rds'
 if (file.exists(.cache_lfc_nf_rvf)) {
   message('Loading cached lfcShrink NF vs RVF...')
   nf.vs.rvf <- readRDS(.cache_lfc_nf_rvf)
@@ -296,7 +311,7 @@ if (file.exists(.cache_lfc_nf_rvf)) {
   saveRDS(nf.vs.rvf, .cache_lfc_nf_rvf)
 }
 
-.cache_lfc_prv_rvf <- './output/Figure_1/fig1_lfcshrink_prv_vs_rvf_cache.rds'
+.cache_lfc_prv_rvf <- './output/fig1_lfcshrink_prv_vs_rvf_cache.rds'
 if (file.exists(.cache_lfc_prv_rvf)) {
   message('Loading cached lfcShrink pRV vs RVF...')
   prv.vs.rvf <- readRDS(.cache_lfc_prv_rvf)
@@ -305,7 +320,7 @@ if (file.exists(.cache_lfc_prv_rvf)) {
   saveRDS(prv.vs.rvf, .cache_lfc_prv_rvf)
 }
 
-#saveRDS(vstSE,'./output/Figure_1/bulkRNAseq_vst.rds')
+#saveRDS(vstSE,'./output/bulkRNAseq_vst.rds')
 
 #Cast to Seurat to use hdWGCNA backend for consistency
 
@@ -319,7 +334,7 @@ seurat_obj <- FindVariableFeatures(seurat_obj)
 seurat_obj <- ScaleData(seurat_obj)
 seurat_obj <- RunPCA(seurat_obj)
 seurat_obj <- AddMetaData(seurat_obj, bulk.meta)
-#saveRDS(seurat_obj,'./output/Figure_1/RV_bulkRNASeq_seurat.rds')
+#saveRDS(seurat_obj,'./output/RV_bulkRNASeq_seurat.rds')
 
 #######################################
 #############  FIGURE 1B  #############
@@ -350,7 +365,7 @@ save_figure(plotPCA(vstSE,intgroup=c("race"),ntop=19355)  + theme_classic() + th
 
 seurat_obj <- readRDS('./dependencies/shared/RV_bulkRNASeq_seurat.rds')
 
-.cache_wgcna <- './output/Figure_1/fig1_wgcna_network_cache.rds'
+.cache_wgcna <- './output/fig1_wgcna_network_cache.rds'
 if (file.exists(.cache_wgcna)) {
   message('Loading cached WGCNA network object...')
   seurat_obj <- readRDS(.cache_wgcna)
@@ -369,21 +384,14 @@ if (file.exists(.cache_wgcna)) {
 
   seurat_obj <- TestSoftPowers(seurat_obj)
 
-  ## ConstructNetwork honours tom_dir, but the underlying WGCNA call leaks
-  ## "individualTOM-Set1-Block1.RData" and a "TOM/" dir to getwd().
-  ## Run inside V52_FIG_DIR so those artifacts stay under ./output/Figure_1/.
-  .oldwd <- getwd()
-  setwd(V52_FIG_DIR)
-  on.exit(setwd(.oldwd), add = TRUE)
   seurat_obj <- ConstructNetwork(
       seurat_obj,
-      tom_dir ='hdWGCNA_TOM',
+      tom_dir ='./output/hdWGCNA_TOM',
       tom_name='bulkRV',
       overwrite_tom=TRUE,
       mergeCutHeight=0.15,
       soft_power=9,
   )
-  setwd(.oldwd)
 
   # compute the MEs and kMEs
   seurat_obj <- ModuleEigengenes(seurat_obj)
@@ -393,7 +401,7 @@ if (file.exists(.cache_wgcna)) {
 
 
 # get MEs from seurat object
-.cache_MEs <- './output/Figure_1/fig1_module_eigengenes_cache.rds'
+.cache_MEs <- './output/fig1_module_eigengenes_cache.rds'
 if (file.exists(.cache_MEs)) {
   message('Loading cached module eigengenes...')
   MEs <- readRDS(.cache_MEs)
@@ -406,7 +414,7 @@ mods <- colnames(MEs); mods <- mods[mods != 'grey']
 # add MEs to Seurat meta-data for plotting:
 meta <- seurat_obj@meta.data
 seurat_obj@meta.data <- cbind(meta, MEs)
-#saveRDS(seurat_obj,'./output/Figure_1/RV_bulkRNASeq_seurat.rds')
+#saveRDS(seurat_obj,'./output/RV_bulkRNASeq_seurat.rds')
 
 
 # plot with Seurat's DotPlot function
@@ -414,7 +422,8 @@ p <- DotPlot(seurat_obj, features=mods, group.by = 'category')
 
 
 #Write module assignments to file
-data_dir <- "./output/Figure_1/"
+data_dir <- "./output/"
+fig_dir <- './output/hdWGCNA/'
 
 modules <- GetModules(seurat_obj) %>% subset(module != 'grey')
 
@@ -427,7 +436,7 @@ dbs <-c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_
 
 # compute GO terms (fall back to cached TSV if Enrichr unreachable):
 enrich_list <- list()
-.cache_enrichr1 <- './output/Figure_1/fig1_enrichr_all_dbs_cache.rds'
+.cache_enrichr1 <- './output/fig1_enrichr_all_dbs_cache.rds'
 if (file.exists(.cache_enrichr1)) {
   message('Loading cached RunEnrichr (all dbs)...')
   seurat_obj <- readRDS(.cache_enrichr1)
@@ -467,13 +476,20 @@ ModuleNetworkPlot(
 
 
 # compute the module UMAPs
-.cache_module_umap <- './output/Figure_1/fig1_module_umap_cache.rds'
-if (file.exists(.cache_module_umap)) {
-  message('Loading cached RunModuleUMAP...')
-  seurat_obj <- readRDS(.cache_module_umap)
-} else {
-  seurat_obj <- RunModuleUMAP(
-    seurat_obj,
+## Panel C UMAP must MATCH the published figure.  The canonical
+## RV_bulkRNASeq_seurat.rds dependency already carries the EXACT frozen
+## ModuleUMAP that produced the published panel.  RunModuleUMAP is a
+## STOCHASTIC UMAP, so recomputing it (what the old ./output cache did)
+## yields a rotated/flipped/distorted embedding that does NOT match the
+## original.  Plot panel C from the canonical object's frozen embedding;
+## only recompute (seeded) if that object truly lacks one.
+.objC <- readRDS('./dependencies/shared/RV_bulkRNASeq_seurat.rds')
+.muC  <- tryCatch(GetModuleUMAP(.objC), error = function(e) NULL)
+if (is.null(.muC) || !is.data.frame(.muC) || nrow(.muC) == 0) {
+  message('Panel C: canonical object lacks ModuleUMAP — recomputing (seeded)')
+  set.seed(12345)
+  .objC <- RunModuleUMAP(
+    .objC,
     n_hubs = 5,
     n_neighbors=10,
     min_dist=0.3,
@@ -481,13 +497,15 @@ if (file.exists(.cache_module_umap)) {
     target_weight=0.1,
     supervised=TRUE
   )
-  saveRDS(seurat_obj, .cache_module_umap)
+} else {
+  message('Panel C: using canonical frozen ModuleUMAP (',
+          nrow(.muC), ' hub-gene rows) from RV_bulkRNASeq_seurat.rds')
 }
 
 
 
-# get the hub gene UMAP table from the seurat object
-umap_df <- GetModuleUMAP(seurat_obj)
+# get the hub gene UMAP table from the canonical (frozen-embedding) object
+umap_df <- GetModuleUMAP(.objC)
 
 # plot with ggplot
 plot_df <- umap_df
@@ -520,7 +538,7 @@ p <- ggplot(umap_df, aes(x=UMAP1, y=UMAP2)) +
 
   save_figure(p, 'Figure_1_panel_C_umap_simple.pdf', width=5, height=5)
 
-  hub_genes <- GetHubGenes(seurat_obj, 3)
+  hub_genes <- GetHubGenes(.objC, 3)
 
   # add annotation
   anno_genes <- hub_genes$gene_name
@@ -561,7 +579,7 @@ p <- ggplot(umap_df, aes(x=UMAP1, y=UMAP2)) +
   tryCatch({
     pdf(paste0(data_dir,'_hubgene_umap_igraph.pdf'), width=12, height=12)
     p <- ModuleUMAPPlot(
-      seurat_obj,
+      .objC,
       edge.alpha=0.5,
       sample_edges=TRUE,
       keep_grey_edges=FALSE,
@@ -583,7 +601,7 @@ p <- ggplot(umap_df, aes(x=UMAP1, y=UMAP2)) +
 dbs <- c('GO_Biological_Process_2023','GO_Cellular_Component_2023','GO_Molecular_Function_2023')
 
 # perform enrichment tests (fall back gracefully if Enrichr unreachable)
-.cache_enrichr2 <- './output/Figure_1/fig1_enrichr_go_only_cache.rds'
+.cache_enrichr2 <- './output/fig1_enrichr_go_only_cache.rds'
 if (file.exists(.cache_enrichr2)) {
   message('Loading cached RunEnrichr (GO only)...')
   seurat_obj <- readRDS(.cache_enrichr2)
@@ -602,12 +620,12 @@ if (file.exists(.cache_enrichr2)) {
 # retrieve the output table
 enrich_df <- tryCatch(GetEnrichrTable(seurat_obj), error = function(e) {
   message('GetEnrichrTable failed, loading cached enrichr from disk')
-  read.delim('./output/Figure_1/bulk_heart_enrichr.tsv', stringsAsFactors = FALSE)
+  read.delim('./output/bulk_heart_enrichr.tsv', stringsAsFactors = FALSE)
 })
 
 tryCatch(EnrichrBarPlot(
   seurat_obj,
-  outdir = "./output/Figure_1/bulk_enrichr_plot_all_genes",
+  outdir = "./output/bulk_enrichr_plot_all_genes",
   n_terms = 5,
   plot_size = c(5,4),
   logscale=TRUE
@@ -618,22 +636,61 @@ tryCatch(EnrichrBarPlot(
 #############  FIGURE 1D  #############
 #######################################
 
-modules <- GetModules(seurat_obj)
-color_df <- modules %>% subset(module!='grey') %>%
-  dplyr::select(c(module, color)) %>% dplyr::distinct() %>%
-  dplyr::rename(c(group=module, colour=color))
-mods <- levels(modules$module)
-mods <- mods[mods!='grey']
+## CANONICAL 29-module decomposition.  GetModules(seurat_obj) returns the
+## DRIFTED 32-module network baked into the committed enrichr cache, which
+## scrambled the M1..M29 staircase (Panel D "broken").  Authoritative source
+## = the legacy-written dependencies/shared/bulk_heart_modules.csv (29 mods).
+.bhm <- read.csv('./dependencies/shared/bulk_heart_modules.csv',
+                 stringsAsFactors = FALSE)
+.bhm <- subset(.bhm, module != 'grey')
+modules <- data.frame(
+  gene_name = .bhm$gene_name,
+  module    = factor(.bhm$module, levels = unique(.bhm$module)),
+  color     = .bhm$color,
+  stringsAsFactors = FALSE)
+color_df <- modules %>% dplyr::select(module, color) %>% dplyr::distinct() %>%
+  dplyr::rename(group = module, colour = color)
+mods <- as.character(unique(modules$module))
+mods <- mods[mods != 'grey']
 
 # helper function to wrap text
 wrapText <- function(x, len) {
     sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-combined_output <- tryCatch(GetEnrichrTable(seurat_obj), error = function(e) {
-  message('GetEnrichrTable failed for Panel D, loading cached enrichr from disk')
-  read.delim('./output/Figure_1/bulk_heart_enrichr.tsv', stringsAsFactors = FALSE)
-})
+## Compute GO_BP enrichment ON THE CANONICAL 29-MODULE GENE SETS (top 100
+## genes/module by that module's kME == legacy RunEnrichr max_genes=100),
+## via live enrichr — NOT the drifted 32-module GetEnrichrTable cache.
+## New cache name so the stale 32-module table is never reused.
+.cache_pD_enr <- './output/fig1_panelD_canonical_GO_enrichr.rds'
+if (file.exists(.cache_pD_enr)) {
+  message('Loading cached canonical Panel-D GO enrichr...')
+  combined_output <- readRDS(.cache_pD_enr)
+} else {
+  message('Computing canonical Panel-D GO_BP enrichr over 29 modules...')
+  .mod_levels <- as.character(unique(modules$module))
+  .co_list <- lapply(.mod_levels, function(.cc) {
+    .kcol <- paste0('kME_', .cc)
+    .sub  <- .bhm[.bhm$module == .cc, , drop = FALSE]
+    if (.kcol %in% colnames(.sub))
+      .sub <- .sub[order(.sub[[.kcol]], decreasing = TRUE), ]
+    .genes <- head(unique(.sub$gene_name), 100)
+    if (length(.genes) < 3) return(NULL)
+    .e <- tryCatch(enrichR::enrichr(.genes, 'GO_Biological_Process_2023'),
+                   error = function(e) NULL)
+    Sys.sleep(1)
+    if (is.null(.e) || is.null(.e[[1]]) || nrow(.e[[1]]) == 0) return(NULL)
+    .t <- .e[[1]]
+    .t <- .t[order(.t$P.value), ]
+    .t$db     <- 'GO_Biological_Process_2023'
+    .t$module <- .cc
+    .t
+  })
+  combined_output <- do.call(rbind, .co_list)
+  if (is.null(combined_output) || nrow(combined_output) == 0)
+    stop('Panel D: canonical GO enrichr produced no rows')
+  saveRDS(combined_output, .cache_pD_enr)
+}
 selected_terms <- subset(combined_output,db=="GO_Biological_Process_2023")
 
 # subset selected terms
@@ -647,32 +704,21 @@ selected_terms<-selected_terms[idx_top_3,]
 library(stringr)
 selected_terms$Term <- str_replace(selected_terms$Term, " \\s*\\([^\\)]+\\)", "")
 
-key_terms <- read.csv('./dependencies/shared/bulkRNA_GOterms_ofinterest.csv')
+key_terms <- read.csv('./dependencies/Figure_1/bulkRNA_GOterms_ofinterest.csv')
 selected_terms <- subset(selected_terms,Term %in% key_terms[[1]])
 
-## Guard: if the curation list (bulkRNA_GOterms_ofinterest.csv) doesn't intersect
-## any current Enrichr GO BP terms, the downstream Panel D code assigns scalar
-## values to a 0-row data.frame and crashes (`replacement has 1 row, data has 0`).
-## Emit a placeholder PDF and skip to Panel E so the rest of F1 still runs.
-.fig1d_skipped <- FALSE
-if (nrow(selected_terms) == 0) {
-  message('Panel D skipped: bulkRNA_GOterms_ofinterest.csv contains no terms ',
-          'matching the current Enrichr GO_Biological_Process_2023 hits.')
-  pdf(file.path(V52_FIG_DIR, 'Figure_1_panel_D_GO.pdf'), width = 13, height = 11.7)
-  plot.new(); title('[Panel D placeholder: no curated GO terms matched current enrichments]')
-  dev.off()
-  .fig1d_skipped <- TRUE
-}
 
-## Always define `mapping` — it's used by Panel E too, not just Panel D.
+
 mapping <- labels2colors(1:100)
 
-if (!.fig1d_skipped) {
-
+## Full ordered module set so EVERY module M1..M29 gets an x-axis column
+## (user: one entry per module even when it has no curated/enriched term).
+.mod_color_lv <- mods[order(match(mods, mapping))]            # color names, M-order
+.mod_M_lv     <- paste0('M', match(.mod_color_lv, mapping))   # M1..M29, same order
 
 selected_terms$group <- factor(
   as.character(selected_terms$module),
-  levels = mods[order(match(mods,mapping))]
+  levels = .mod_color_lv
 )
 
 
@@ -703,19 +749,25 @@ selected_terms$wrap <- factor(
 
 library(viridis)
 
-color_df <- data.frame(group = selected_terms$group,colour = selected_terms$module)
-
-color_df$group<-paste0('M',match(color_df$group,mapping))
-lvls <- stringr::str_sort(unique(color_df$group), numeric = TRUE)
-color_df$group <- factor(color_df$group, levels = lvls)
+## Colorbar spans ALL 29 non-grey modules (one tile each), not only the
+## modules that had a curated term, so every module M1..M29 shows on x.
+color_df <- modules %>% subset(module != 'grey') %>%
+  dplyr::select(module, color) %>% dplyr::distinct()
+color_df$group  <- factor(paste0('M', match(as.character(color_df$module), mapping)),
+                          levels = .mod_M_lv)
+color_df$colour <- color_df$color
+color_df <- color_df[order(color_df$group), ]
 # make the colorbar as its own heatmap
 color_df$var <- 1
 
 c_vect <- color_df$colour
-names(c_vect) <- color_df$group
+names(c_vect) <- as.character(color_df$group)
 
 
-selected_terms$group_num <- color_df$group
+selected_terms$group_num <- factor(
+  paste0('M', match(as.character(selected_terms$module), mapping)),
+  levels = .mod_M_lv
+)
 
 
 
@@ -723,6 +775,7 @@ selected_terms$group_num <- color_df$group
 p <- selected_terms %>%
   ggplot(aes(x = group, y = wrap, color =logp, size=log(Combined.Score))) +
   geom_point() +
+  scale_x_discrete(drop = FALSE) +
   scale_color_stepsn(colors=rev(magma(256))) +
   scale_size(range = PS$dot_range) +
   RotatedAxis() + xlab('') + ylab('') +
@@ -744,6 +797,7 @@ p <- selected_terms %>%
 colorbar <- color_df %>%
   ggplot(aes(x=group, y=var, fill=group)) +
   geom_tile() +
+  scale_x_discrete(drop = FALSE) +
   scale_fill_manual(values=c_vect) +
   coord_equal() +
   NoLegend() + RotatedAxis() +
@@ -760,8 +814,6 @@ colorbar <- color_df %>%
 p_1D <- p / colorbar
 save_figure(p_1D, 'Figure_1_panel_D_GO.pdf', width=13, height=11.7)
 
-}  # end if (!.fig1d_skipped)
-
 
 
 #######################################
@@ -776,7 +828,7 @@ group1 <- seurat_obj@meta.data %>% subset(category == 'NF') %>% rownames
 group2 <- seurat_obj@meta.data %>% subset(category == 'pRV') %>% rownames
 group3 <- seurat_obj@meta.data %>% subset(category == 'RVF') %>% rownames
 
-.cache_dme_prv_rvf <- './output/Figure_1/fig1_dme_prv_vs_rvf_cache.rds'
+.cache_dme_prv_rvf <- './output/fig1_dme_prv_vs_rvf_cache.rds'
 if (file.exists(.cache_dme_prv_rvf)) {
   message('Loading cached FindDMEs pRV vs RVF...')
   DMEs_prv_vs_rvf <- readRDS(.cache_dme_prv_rvf)
@@ -791,7 +843,7 @@ if (file.exists(.cache_dme_prv_rvf)) {
   saveRDS(DMEs_prv_vs_rvf, .cache_dme_prv_rvf)
 }
 
-.cache_dme_nf_rvf <- './output/Figure_1/fig1_dme_nf_vs_rvf_cache.rds'
+.cache_dme_nf_rvf <- './output/fig1_dme_nf_vs_rvf_cache.rds'
 if (file.exists(.cache_dme_nf_rvf)) {
   message('Loading cached FindDMEs NF vs RVF...')
   DMEs_nf_vs_rvf <- readRDS(.cache_dme_nf_rvf)
@@ -806,7 +858,7 @@ if (file.exists(.cache_dme_nf_rvf)) {
   saveRDS(DMEs_nf_vs_rvf, .cache_dme_nf_rvf)
 }
 
-.cache_dme_nf_prv <- './output/Figure_1/fig1_dme_nf_vs_prv_cache.rds'
+.cache_dme_nf_prv <- './output/fig1_dme_nf_vs_prv_cache.rds'
 if (file.exists(.cache_dme_nf_prv)) {
   message('Loading cached FindDMEs NF vs pRV...')
   DMEs_nf_vs_prv <- readRDS(.cache_dme_nf_prv)
@@ -828,7 +880,7 @@ rownames(subset(DMEs_nf_vs_rvf,p_val_adj<0.05))))
 
 
 # seurat_obj@meta.data <- cbind(seurat_obj@meta.data, MEs)
-.cache_MEs2 <- './output/Figure_1/fig1_module_eigengenes_renamed_cache.rds'
+.cache_MEs2 <- './output/fig1_module_eigengenes_renamed_cache.rds'
 if (file.exists(.cache_MEs2)) {
   message('Loading cached module eigengenes (Fig 1E)...')
   MEs <- readRDS(.cache_MEs2)
@@ -849,6 +901,9 @@ temp[1:142,]='1'
 seurat_obj@meta.data <- cbind(seurat_obj@meta.data, temp)
 
 mods_use <-  paste0('M',match(mods_use,mapping))
+## Order the stacked violins numerically M1 -> M2 -> M3 ... (top to bottom);
+## custom_vln stacks `features` in the given order from top down.
+mods_use <- mods_use[order(as.integer(sub('^M', '', mods_use)))]
 
 
 library(ggpubr)
@@ -887,11 +942,17 @@ save_figure(p_1E, 'Figure_1_panel_E_violins.pdf', width=5, height=10)
 ## from GSE240921 (Senum et al. 2023) the first time the script runs and
 ## cached as `fig1_pah_deg_cache.rds`. Subsequent runs skip the heavy
 ## DESeq2 + svaseq step.
+##
+## Enrichment mirrors the original PAH code (additional_scripts/AnalysisPAH.R
+## L466-511): enrichr over the SAME 4-db vector, the GO_Biological_Process_2025
+## table (= enriched[[4]]), Adjusted.P.value < 0.05, ranked by Combined.Score,
+## top 4 terms, GO-id suffix stripped.
 
-dbs_reactome <- "Reactome_Pathways_2024"
+dbs_pah <- c("ChEA_2022", "WikiPathways_2024_Human",
+             "Reactome_Pathways_2024", "GO_Biological_Process_2025")
 
 ## ── Step 1. PAH DEG: cached pah.nf.vs.rvf log2FC table ──────────────────────
-.cache_pah_deg <- './output/Figure_1/fig1_pah_deg_cache.rds'
+.cache_pah_deg <- './output/fig1_pah_deg_cache.rds'
 if (file.exists(.cache_pah_deg)) {
   message('Loading cached PAH DEGs (GSE240921 Control vs Decompensated)...')
   pah.nf.vs.rvf <- readRDS(.cache_pah_deg)
@@ -957,15 +1018,17 @@ if (!is.null(pah.nf.vs.rvf)) {
   message(sprintf('Panel F: %d concordant DOWN, %d concordant UP genes (RVF vs NF)',
                   length(concordant_down_in_RVF), length(concordant_up_in_RVF)))
 
-  ## ── Step 3. Reactome enrichr on each concordant set (cached) ─────────────
-  .cache_enrichr_pah <- './output/Figure_1/fig1_enrichr_pah_concordance_cache.rds'
+  ## ── Step 3. GO_BP_2025 enrichr on each concordant set (cached) ───────────
+  ## Use enriched[[4]] = GO_Biological_Process_2025, exactly as AnalysisPAH.R.
+  ## New cache name so the stale Reactome-only cache is NOT reused.
+  .cache_enrichr_pah <- './output/fig1_enrichr_pah_concordance_go_cache.rds'
   if (file.exists(.cache_enrichr_pah)) {
-    message('Loading cached enrichr (PAH concordance)...')
+    message('Loading cached enrichr (PAH concordance, GO_BP_2025)...')
     enr_pah <- readRDS(.cache_enrichr_pah)
   } else {
     enr_pah <- tryCatch({
-      list(down = enrichr(concordant_down_in_RVF, dbs_reactome)[[1]],
-           up   = enrichr(concordant_up_in_RVF,   dbs_reactome)[[1]])
+      list(down = enrichr(concordant_down_in_RVF, dbs_pah)[[4]],
+           up   = enrichr(concordant_up_in_RVF,   dbs_pah)[[4]])
     }, error = function(e) {
       message('Enrichr API unreachable for Panel F: ', e$message); NULL
     })
@@ -974,8 +1037,10 @@ if (!is.null(pah.nf.vs.rvf)) {
 
   ## ── Step 4. Build the two stacked dotplots ───────────────────────────────
   if (!is.null(enr_pah)) {
-    .build_pah_dot <- function(enr_tbl, panel_title, topN = 3) {
-      enr_tbl <- subset(enr_tbl, Adjusted.P.value < 0.2)
+    .build_pah_dot <- function(enr_tbl, panel_title, topN = 4) {
+      ## Match AnalysisPAH.R: padj<0.05, rank by Combined.Score, top 4,
+      ## strip the " (GO:#######)" suffix from GO_BP_2025 term names.
+      enr_tbl <- subset(enr_tbl, Adjusted.P.value < 0.05)
       enr_tbl <- enr_tbl[order(enr_tbl$Combined.Score, decreasing = TRUE), ]
       enr_tbl <- enr_tbl[rev(seq_len(min(topN, nrow(enr_tbl)))), ]
       ggplot(enr_tbl,
@@ -988,7 +1053,7 @@ if (!is.null(pah.nf.vs.rvf)) {
         labs(color = 'P value', size = 'Overlap') +
         ggtitle(panel_title) +
         scale_y_discrete(labels = fct_inorder(
-          wrapText(sapply(strsplit(enr_tbl$Term, ' Homo sapiens'), `[`, 1), 35))) +
+          wrapText(sapply(strsplit(enr_tbl$Term, ' \\(GO'), `[`, 1), 35))) +
         theme_classic() +
         theme(axis.text = element_text(colour = 'black'),
               legend.key.size = PS$legend_key) +

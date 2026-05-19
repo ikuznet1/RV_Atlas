@@ -1729,96 +1729,107 @@ message('Figure 5 Panel 5F complete (MitoCarta_All dotplot, Subnames_manual × g
 
 
 ###############################################################################
-## Panel F — CollecTRI / decoupleR transcription factor activity for
-##           mitochondrial regulators inferred from CM snRNA-seq
-## TFs of interest: ESRRA, ESRRG, PPARA, PPARGC1A, NRF1, NFE2L2, TFAM, YY1, MYC
-## Activity inferred per cell via univariate linear model (run_ulm) on the
-## CollecTRI prior network, then aggregated per (CM subcluster × disease group).
-## Cache-aware: uses ./output/Figure_5/fig5_panel_F_decoupler.rds when present.
+## Panel F — Subject-level pan-CM mitochondrial-TF activity heatmap.
+## Faithful reimplementation of additional_scripts/mito_TF.R "patient
+## breakdown": CollecTRI ULM activity (run_ulm) over ALL CM cells, z-scored
+## per TF (Seurat ScaleData equivalent), averaged PER PATIENT, shown for the
+## 7 mito regulators, patients ordered NF -> pRV -> RVF. The expensive
+## run_ulm is read from the committed cache dependencies/shared/TF_activity.rds
+## (the exact mito_TF.R output); cell -> patient/group comes from seurat_ref
+## (cm_subclust_new_new, already loaded; 100% barcode overlap).
 ###############################################################################
-.cache_panel_F <- './output/Figure_5/fig5_panel_F_decoupler.rds'
-.panel_F_mito_tfs <- c('ESRRA','ESRRG','PPARA','PPARGC1A',
-                        'NRF1','NFE2L2','TFAM','YY1','MYC')
+## Image row order (top -> bottom): NFE2L2, NRF1, PPARGC1A, PPARD, PPARA,
+## ESRRG, ESRRA. ggplot puts the first y factor level at the bottom, so list
+## bottom -> top.
+.panel_F_mito_tfs <- c('NFE2L2','NRF1','PPARGC1A','PPARD','PPARA','ESRRG','ESRRA')
+.panel_F_tf_levels <- rev(.panel_F_mito_tfs)        # ESRRA ... NFE2L2 (bottom->top)
+.tf_activity_rds <- './dependencies/shared/TF_activity.rds'
 
-.compute_panel_F <- function(seurat_obj, mito_tfs) {
-  ## Requires `decoupler` (Bioconductor: decoupleR) and `OmnipathR`.
-  ## Returns long data.frame: tf, cell_subtype, group, mean_activity.
-  if (!requireNamespace('decoupleR', quietly = TRUE)) {
-    message('decoupleR not installed — skipping Panel F computation.')
-    return(NULL)
-  }
-  net <- decoupleR::get_collectri(organism = 'human', split_complexes = FALSE)
-  net <- subset(net, source %in% mito_tfs)
-  if (nrow(net) == 0) {
-    message('No CollecTRI edges found for requested mito TFs; skipping.')
-    return(NULL)
-  }
-  mat <- as.matrix(Seurat::GetAssayData(seurat_obj, assay = 'RNA', layer = 'data'))
-  acts <- decoupleR::run_ulm(mat = mat, net = net, .source = 'source',
-                              .target = 'target', .mor = 'mor', minsize = 5)
-  acts <- subset(acts, statistic == 'ulm')
-  md   <- seurat_obj@meta.data
-  md$.cell <- rownames(md)
-  acts <- merge(acts, md[, c('.cell','Subnames_manual','group')],
-                by.x = 'condition', by.y = '.cell')
-  out <- aggregate(score ~ source + Subnames_manual + group,
-                   data = acts, FUN = mean)
-  names(out) <- c('tf', 'cell_subtype', 'group', 'mean_activity')
-  out
-}
-
-if (file.exists(.cache_panel_F)) {
-  message('Loading cached Panel F (CollecTRI/decoupleR TF activity)...')
-  panel_F_df <- readRDS(.cache_panel_F)
-} else if (exists('seurat_ref')) {
-  message('Computing Panel F TF activity (this can take several minutes)...')
-  panel_F_df <- tryCatch(
-    .compute_panel_F(seurat_ref, .panel_F_mito_tfs),
-    error = function(e) {
-      message('Panel F CollecTRI/decoupleR compute failed (', conditionMessage(e),
-              '); will skip Panel F so downstream G/H/I/J still run.')
-      NULL
-    }
-  )
-  if (!is.null(panel_F_df)) {
-    dir.create(dirname(.cache_panel_F), showWarnings = FALSE, recursive = TRUE)
-    saveRDS(panel_F_df, .cache_panel_F)
-  }
+panel_F_df <- NULL
+if (!file.exists(.tf_activity_rds)) {
+  message('Panel F: ', .tf_activity_rds, ' missing — skipping.')
+} else if (!exists('seurat_ref')) {
+  message('Panel F: seurat_ref not loaded — skipping.')
 } else {
-  message('seurat_ref not loaded; skipping Panel F.')
-  panel_F_df <- NULL
+  message('Panel F: building subject-level pan-CM mito-TF heatmap from ',
+          .tf_activity_rds, ' ...')
+  panel_F_df <- tryCatch({
+    acts <- readRDS(.tf_activity_rds)
+    acts <- acts[acts$statistic == 'ulm' &
+                   acts$source %in% .panel_F_mito_tfs, , drop = FALSE]
+    md <- seurat_ref@meta.data
+    md$.cell <- rownames(md)
+    .pg <- unique(data.frame(.cell   = md$.cell,
+                             patient = as.character(md$patient),
+                             group   = as.character(md$group),
+                             stringsAsFactors = FALSE))
+    acts <- acts[acts$condition %in% .pg$.cell, , drop = FALSE]
+    ## TF x cell score matrix (base R; small after the TF filter).
+    .cells <- unique(acts$condition)
+    M <- matrix(NA_real_, length(.panel_F_mito_tfs), length(.cells),
+                dimnames = list(.panel_F_mito_tfs, .cells))
+    M[cbind(match(acts$source, .panel_F_mito_tfs),
+            match(acts$condition, .cells))] <- acts$score
+    ## Per-TF z-score across cells (Seurat ScaleData equivalent).
+    Mz <- t(scale(t(M)))
+    Mz[!is.finite(Mz)] <- 0
+    ## Per-patient mean of the scaled activity.
+    .cellpat <- setNames(.pg$patient, .pg$.cell)[.cells]
+    agg <- vapply(split(seq_along(.cells), .cellpat),
+                  function(ix) rowMeans(Mz[, ix, drop = FALSE], na.rm = TRUE),
+                  numeric(length(.panel_F_mito_tfs)))
+    rownames(agg) <- .panel_F_mito_tfs
+    ## Long frame + patient ordering NF -> pRV -> RVF (sorted within group).
+    .p2g <- setNames(.pg$group, .pg$patient)
+    long <- data.frame(
+      tf      = rep(rownames(agg), times = ncol(agg)),
+      patient = rep(colnames(agg), each  = nrow(agg)),
+      value   = as.vector(agg), stringsAsFactors = FALSE)
+    long$group <- factor(.p2g[long$patient], levels = c('NF','pRV','RVF'))
+    .porder <- unlist(lapply(c('NF','pRV','RVF'),
+                             function(g) sort(unique(long$patient[long$group == g]))))
+    long$patient <- factor(long$patient, levels = .porder)
+    long$tf      <- factor(long$tf,      levels = .panel_F_tf_levels)
+    long[!is.na(long$patient) & !is.na(long$group), ]
+  }, error = function(e) {
+    message('Panel F build failed (', conditionMessage(e),
+            '); skipping so downstream G/H/I/J still run.')
+    NULL
+  })
 }
 
 if (!is.null(panel_F_df) && nrow(panel_F_df) > 0) {
   p_5F <- ggplot(panel_F_df,
-                 aes(x = factor(group, levels = c('NF','pRV','RVF')),
-                     y = factor(tf, levels = rev(.panel_F_mito_tfs)),
-                     fill = mean_activity)) +
+                 aes(x = patient, y = tf, fill = value)) +
           geom_tile(colour = 'white', linewidth = 0.3) +
           scale_fill_gradient2(low = '#2166ac', mid = 'white',
                                 high = '#b2182b', midpoint = 0,
-                                name = 'Mean ULM activity') +
-          facet_wrap(~ cell_subtype, nrow = 1) +
+                                limits = c(-2, 2),
+                                oob = scales::squish,
+                                name = expression(-Log[10]*P)) +
+          facet_grid(~ group, scales = 'free_x', space = 'free_x') +
           labs(x = NULL, y = NULL,
-               title = 'CollecTRI/decoupleR TF activity (mito regulators)') +
+               title = 'Subject-level pan-CM mito-TF activity') +
           theme_v52(COMP_W) +
-          theme(axis.text.x = element_text(angle = 45, hjust = 1))
+          theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+                panel.spacing.x = unit(0.15, 'lines'))
   save_figure(p_5F, 'Figure_5_panel_F_collectri_TF_activity.pdf',
-              width = COMP_W, height = 3.5)
-  message('Figure 5 Panel F complete (CollecTRI TF activity heatmap).')
+              width = 7, height = 3)
+  message('Figure 5 Panel F complete (subject-level pan-CM mito-TF heatmap, ',
+          nlevels(panel_F_df$patient), ' patients).')
 } else {
   message('Panel F: no data — emitted no PDF.')
 }
 
 
 ###############################################################################
-## Panel G — Pseudo-bulk violin plots of ESRRA, ESRRG, PPARA, PPARGC1A
-##           expression in cardiomyocytes across NF / pRV / RVF.
+## Panel G — Pseudo-bulk violin plots of ESRRA, ESRRG, PPARA, PPARGC1A,
+##           NRF1, NFE2L2 expression in cardiomyocytes across NF / pRV / RVF.
 ## Per-patient DESeq2-VST aggregation (one point = one donor); pairwise Wilcoxon.
 ## Cache-aware: uses ./output/Figure_5/fig5_panel_G_pseudobulk.rds when present.
 ###############################################################################
 .cache_panel_G <- './output/Figure_5/fig5_panel_G_pseudobulk.rds'
-.panel_G_genes <- c('ESRRA','ESRRG','PPARA','PPARGC1A')
+.panel_G_genes <- c('ESRRA','ESRRG','PPARA','PPARD','PPARGC1A','NRF1','NFE2L2')
 
 if (file.exists(.cache_panel_G)) {
   message('Loading cached Panel G pseudobulk VST...')
@@ -2028,7 +2039,7 @@ p_5G <- ggplot(adult_corr,
   xlab(NULL) +
   .respiro_theme()
 save_figure(p_5G, 'Figure_5_panel_H_adult_respirometry.pdf',
-            width = 7.5, height = 3.0)
+            width = 18, height = 7)
 message('  wrote Figure_5_panel_H_adult_respirometry.pdf')
 
 
@@ -2078,7 +2089,7 @@ p_5H_2mo  <- .pab_panel('PAB_8_Week_Data', '2 months post-PAB')
 p_5H_full <- p_5H_2wk / p_5H_2mo
 
 save_figure(p_5H_full, 'Figure_5_panel_I_PAB_respirometry.pdf',
-            width = 6.5, height = 8.25)
+            width = 15, height = 17)
 message('  wrote Figure_5_panel_I_PAB_respirometry.pdf')
 
 
@@ -2121,7 +2132,7 @@ p_5I <- ggplot(peds_corr, aes(x = group, y = value_corr, fill = group)) +
   .respiro_theme() +
   theme(axis.text.x = element_text(angle = 25, hjust = 1, size = 31))
 save_figure(p_5I, 'Figure_5_panel_H_pediatric_respirometry.pdf',
-            width = 7.5, height = 3.0)
+            width = 18, height = 7)
 message('  wrote Figure_5_panel_H_pediatric_respirometry.pdf')
 
 
@@ -2255,7 +2266,7 @@ p_5J <- ggplot(cross_df, aes(x = display, y = pct, fill = display)) +
   .respiro_theme() +
   theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 31))
 save_figure(p_5J, 'Figure_5_panel_J_cross_cohort_summary.pdf',
-            width = 9.5, height = 4.5)
+            width = 20, height = 9)
 message('  wrote Figure_5_panel_J_cross_cohort_summary.pdf')
 
 
@@ -2279,7 +2290,7 @@ p_5_combined <- p_5G / p_5I / p_5H_2wk / p_5H_2mo / p_5J +
   ) &
   theme(plot.tag = element_text(face = 'bold', size = 13))
 save_figure(p_5_combined, 'Figure_5_panels_GHIJ_combined.pdf',
-            width = 14, height = 32.5)
+            width = 20, height = 46)
 message('  wrote Figure_5_panels_GHIJ_combined.pdf  (composite I, G, H_2wk, H_2mo, J — equal rows)')
 
 message('Figure 5 respirometry panels (G–J + combined) complete.')

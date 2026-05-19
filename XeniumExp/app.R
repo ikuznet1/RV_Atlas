@@ -36,11 +36,16 @@ coords_list <- lapply(fov_images, function(img) {
 coords_df <- do.call(rbind, Filter(Negate(is.null), coords_list))
 rownames(coords_df) <- coords_df$cell_id
 
-keep_meta <- c("patient", "group", "names", "subnames", "markernames",
-               "niche_manual", "niches.01", "niches.05", "niches",
-               "niche_snn_res.0.1", "broad_niches.01",
+# Columns from the canonical Xenium_metadata.csv schema (625k-cell export).
+# intersect() keeps this resilient if the schema drifts again.
+keep_meta <- c("patient", "group", "orig.ident", "roi_Sample",
+               "names", "subnames",
+               "cell_types_cm_collapsed", "cell_type_rctd_doublet",
+               "cell_type_seurat", "cell_types_subclustering", "cell_types_manual",
+               "niche_manual",
+               "seurat_clusters", "Xenium_snn_res.1",
+               "cluster_kmeans_10", "cluster_split_10",
                "nCount_Xenium", "nFeature_Xenium",
-               "SCT_snn_res.0.3", "SCT_snn_res.0.5", "SCT_snn_res.1",
                new_cols[grepl("^kmeans_", new_cols)])
 keep_meta <- intersect(keep_meta, colnames(obj@meta.data))
 
@@ -60,11 +65,14 @@ scale_mat <- GetAssayData(obj, assay = "SCT", layer = "scale.data")
 gene_list  <- sort(rownames(scale_mat))
 
 meta_display_cols <- c(
-  "names", "subnames", "markernames", "group", "patient",
-  "niche_manual", "niches.01", "niches.05", "niches",
-  "niche_snn_res.0.1", "broad_niches.01",
+  "names", "subnames",
+  "cell_types_cm_collapsed", "cell_type_rctd_doublet",
+  "cell_type_seurat", "cell_types_subclustering", "cell_types_manual",
+  "niche_manual",
+  "group", "patient", "orig.ident", "roi_Sample",
+  "seurat_clusters", "Xenium_snn_res.1",
+  "cluster_kmeans_10", "cluster_split_10",
   "nCount_Xenium", "nFeature_Xenium",
-  "SCT_snn_res.0.3", "SCT_snn_res.0.5", "SCT_snn_res.1",
   new_cols[grepl("^kmeans_", new_cols)]
 )
 meta_display_cols <- intersect(meta_display_cols, colnames(coords_df))

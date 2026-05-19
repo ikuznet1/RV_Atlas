@@ -71,7 +71,15 @@ meta <- read.csv('./dependencies/shared/BulkRNA/metadata.csv')
 toDel <- seq(1,dim(meta)[1],2)
 meta <- meta[-toDel,]
 
-mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
+## tx2gene = the SAME transcript->gene map F1 caches. Use the committed
+## cache (deps rule) so a clean run never hits live biomaRt (the BioMart
+## server now rejects the connection). Live fetch only as a fallback.
+.s1_tx2gene_cache <- './dependencies/Figure_1/fig1_tx2gene_cache.rds'
+if (file.exists(.s1_tx2gene_cache)) {
+  message('Loading committed tx2gene cache (dependencies/Figure_1) — skips live biomaRt')
+  tx2gene <- readRDS(.s1_tx2gene_cache)
+} else {
+mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl", host = "useast.ensembl.org")
 
 res <- getBM(attributes = c('ensembl_transcript_id_version','ensembl_gene_id',                              
 'external_transcript_name',                           
@@ -81,6 +89,7 @@ values = bulk[,1],
 mart = mart)
 tx2gene <- res[,c(1,4)]
 tx2gene <- tx2gene[tx2gene$external_gene_name != '',]
+}
 
 
 path = './dependencies/shared/BulkRNA/30-238740824'
@@ -240,12 +249,59 @@ EnhancedVolcano(prv.vs.rvf,lab = rownames(prv.vs.rvf),x = 'log2FoldChange',y = '
 dev.off()
 
 pdf('./output/Supplementary_Figure_1/bulk_NF_vs_RVF_volcano.pdf',width=8,height=10)
-EnhancedVolcano(nf.vs.rvf,lab = rownames(nf.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black', labFace = "italic") +  ggplot2::coord_cartesian(xlim=c(-6, 6))
+.s1h_R <- EnhancedVolcano(nf.vs.rvf,lab = rownames(nf.vs.rvf),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "NF vs RVF", borderColour = 'black', labFace = "italic") +  ggplot2::coord_cartesian(xlim=c(-6, 6))
+print(.s1h_R)            # print(): bare expr does not auto-print under Rscript
 dev.off()
 
 pdf('./output/Supplementary_Figure_1/bulk_NF_vs_pRV_volcano.pdf',width=8,height=10)
-EnhancedVolcano(nf.vs.prv,lab = rownames(nf.vs.prv),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "", borderColour = 'black', labFace = "italic") +  ggplot2::coord_cartesian(xlim=c(-6, 6))
+.s1h_L <- EnhancedVolcano(nf.vs.prv,lab = rownames(nf.vs.prv),x = 'log2FoldChange',y = 'padj',pCutoff=0.1,FCcutoff=0.25,title = "NF vs pRV", borderColour = 'black', labFace = "italic") +  ggplot2::coord_cartesian(xlim=c(-6, 6))
+print(.s1h_L)
 dev.off()
+
+
+###############################################################################
+## Figure S1I — PAH cross-cohort comparison (ported from
+## additional_scripts/AnalysisPAH.R). Gene-level scatter of RV (NF vs RVF)
+## vs PAH (NF vs RVF) log2FC; divergent CD163 + mitochondrial-translation
+## genes (mito-ribosomal proteins + GADD45GIP1) highlighted and labelled.
+## Inputs: in-memory nf.vs.rvf + committed dependencies/shared/pah.nf.vs.rvf.csv.
+###############################################################################
+.s1i_ok <- tryCatch({
+  .pah <- read.csv('./dependencies/shared/pah.nf.vs.rvf.csv', row.names = 1)
+  .rv  <- as.data.frame(nf.vs.rvf)
+  .sh  <- intersect(rownames(.rv), rownames(.pah))
+  .idf <- data.frame(gene = .sh,
+                      RV   = .rv[.sh, 'log2FoldChange'],
+                      PAH  = .pah[.sh, 'log2FoldChange'])
+  .idf <- .idf[is.finite(.idf$RV) & is.finite(.idf$PAH), ]
+  .mito_tx <- grep('^MRPL|^MRPS', .idf$gene, value = TRUE)
+  .hl  <- unique(c('CD163', 'GADD45GIP1', .mito_tx))
+  .idf$cls <- ifelse(.idf$gene == 'CD163', 'CD163',
+               ifelse(.idf$gene %in% .hl, 'Mito-translation', 'Other'))
+  .idf$lab <- ifelse(.idf$gene %in% .hl, .idf$gene, '')
+  .r2  <- summary(lm(PAH ~ RV, .idf))$r.squared
+  .pI  <- ggplot(.idf, aes(RV, PAH)) +
+    geom_point(data = subset(.idf, cls == 'Other'),
+               colour = 'grey80', size = PS$scatter_pt, alpha = 0.4) +
+    geom_point(data = subset(.idf, cls != 'Other'),
+               aes(colour = cls), size = PS$scatter_pt * 1.6) +
+    scale_colour_manual(values = c('CD163' = '#c8553d',
+                                   'Mito-translation' = '#3e64b3'),
+                        name = NULL) +
+    ggrepel::geom_text_repel(aes(label = lab), max.overlaps = Inf,
+        size = PS$text_mm, family = FONT_FAMILY, fontface = 'italic') +
+    geom_hline(yintercept = 0, linewidth = 0.2) +
+    geom_vline(xintercept = 0, linewidth = 0.2) +
+    annotate('text', x = Inf, y = -Inf, hjust = 1.1, vjust = -0.6,
+             label = sprintf('r^2 == %.3f', .r2), parse = TRUE,
+             size = PS$text_mm, family = FONT_FAMILY) +
+    labs(x = 'RV (NF vs RVF) log2FC', y = 'PAH (NF vs RVF) log2FC') +
+    theme_v52(COMP_W)
+  save_figure(.pI, 'Figure_S1_panel_I.pdf', width = 5, height = 5)
+  message('S1 panel I (PAH CD163/mito-translation) written')
+  TRUE
+}, error = function(e) {
+  message('S1 panel I (PAH) build failed: ', conditionMessage(e)); FALSE })
 
 
 #######################################
@@ -753,3 +809,54 @@ p_bulk_gene_program <- ggplot(percent_df, aes(fill=color, y=Freq, x=type,label=l
 	scale_y_touch()
 
 save_figure(p_bulk_gene_program, 'Supplementary_Figure_1.pdf', width=COMP_W, height=COMP_H)
+
+###############################################################################
+## v57 standardized panel names — copy each panel's legacy PDF to
+## Figure_S1_panel_<L>.pdf. S1's own header marks it SKELETON; panels with
+## no legacy PDF are flagged as porting TODOs (not just a naming gap).
+###############################################################################
+.s1_dir <- './output/Supplementary_Figure_1/'
+## Mapping reconciled to v57 legend (.figure_run_logs/v57_figure_legends.md):
+## A=RVF-vs-NF volcano, B=FC scatter, C=GO pRV-up, D=GO RVF-up,
+## E=increasing heatmap, F=decreasing heatmap, G=GO stepwise-down,
+## H=down volcanoes (NF-vs-pRV/NF-vs-RVF), I=PAH comparison.
+.s1_map <- c(
+  A = 'bulk_NF_vs_RVF_volcano.pdf',
+  B = 'pRV_vs_RVF_logFC_dot.pdf',
+  C = 'bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Up.pdf',
+  D = 'bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Down.pdf',
+  E = 'bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_up.pdf',
+  F = 'bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_down.pdf',
+  G = 'Bulk_down_down_enrichr.pdf')
+for (.L in names(.s1_map)) {
+  .src <- file.path(.s1_dir, .s1_map[[.L]])
+  if (file.exists(.src)) {
+    file.copy(.src, file.path(.s1_dir, sprintf('Figure_S1_panel_%s.pdf', .L)),
+              overwrite = TRUE)
+  } else message('S1 panel ', .L, ': legacy PDF missing (',
+                 .s1_map[[.L]], ') — SKELETON porting TODO')
+}
+
+## Panel H (v57): volcano plots of progressively downregulated DEGs —
+## NF vs pRV (left) and NF vs RVF (right), highlighting mito-ribosome
+## genes (GADD45GIP1, MRPL11, MRPS14). Assembled via patchwork from the
+## EnhancedVolcano objects captured above — no magick/pdftools PDF concat
+## (that needed an uninstalled system lib and built the wrong plots).
+if (exists('.s1h_L') && exists('.s1h_R')) {
+  .pH <- patchwork::wrap_plots(list(.s1h_L, .s1h_R), ncol = 2)
+  save_figure(.pH, 'Figure_S1_panel_H.pdf', width = 14, height = 8)
+  message('S1 panel H: NF-vs-pRV | NF-vs-RVF volcanos -> Figure_S1_panel_H.pdf')
+} else {
+  message('S1 panel H: volcano objects (.s1h_L/.s1h_R) missing — not built')
+}
+
+## Panel I = PAH cross-cohort comparison (divergent CD163 + mitochondrial
+## translation genes) — now PORTED from AnalysisPAH.R and written earlier
+## in the script (Figure_S1_panel_I.pdf). Just verify it exists.
+.iI <- file.path(.s1_dir, 'Figure_S1_panel_I.pdf')
+if (file.exists(.iI)) {
+  message('S1 panel I (PAH CD163/mito-translation): present')
+} else {
+  message('S1 panel I: Figure_S1_panel_I.pdf MISSING — PAH port did not ',
+          'run (check earlier .s1i_ok block / pah.nf.vs.rvf.csv dep).')
+}
