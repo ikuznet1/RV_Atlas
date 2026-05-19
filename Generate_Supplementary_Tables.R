@@ -46,8 +46,8 @@ dir.create(.outdir, showWarnings = FALSE, recursive = TRUE)
 # murine PAB tables S4 & S5). Keys cover both the snRNA-cache column names
 # and the wk2_/wk8_-stripped PAB+respir column names.
 .ECHO_ABBR <- c(
-  Body_Weight_g              = 'Body Weight (g)',
-  Surgical_Body_Weight_g_    = 'Body Weight (g)',
+  Body_Weight_g              = 'BW (g)',
+  Surgical_Body_Weight_g_    = 'BW (g)',
   RV_Area_Diastole_mm2       = 'RVAD (mm²)',
   RV_Area_Diastole_mm_2_     = 'RVAD (mm²)',
   RV_Area_Systole_mm2        = 'RVAS (mm²)',
@@ -75,6 +75,11 @@ dir.create(.outdir, showWarnings = FALSE, recursive = TRUE)
 # name; value = list(leaf = <display leaf labels>, group = <top-row span
 # label per column, '' = no group). Read by the xlsx writer and .render_pdf.
 .header2 <- list()
+# Registry of sheets rendered as several vertically-stacked sub-tables in
+# one sheet/section. Keyed by sheet name; value = list of parts, each
+# list(title=, cols=<original col names>, labels=<display headers>). The
+# parent sheet's data.frame (post .round_sf3) is the data source.
+.stacked <- list()
 
 # Canonical snRNA-seq cohort: 11 patient IDs (from snRV_ref.rds$patient unique).
 SN_PATIENT_IDS <- c('1343','1392','1467','1561','1567','1618',
@@ -272,6 +277,7 @@ if (file.exists(sn_cache)) {
   s4 <- s4[order(factor(s4$group, c('Sham','Moderate','Severe')), s4$ID), ,
            drop = FALSE]
   s4$HR <- NULL                                    # drop HR per spec
+  .g4 <- table(s4$group)                           # tally before rename
   ## Final abbreviated headers (units; ² superscript, mm/s parenthesised).
   s4_lab <- c(ID = 'ID', group = 'Group', n_nuclei = 'Nuclei', .ECHO_ABBR)
   names(s4) <- ifelse(names(s4) %in% names(s4_lab),
@@ -280,8 +286,7 @@ if (file.exists(sn_cache)) {
   all_sheets[['Table_S4']] <- s4
   message('  Table S4 (snRNA cohort): ', nrow(s4), ' mice | cols: ',
           ncol(s4), ' | ',
-          paste(names(table(s4$group)), table(s4$group),
-                sep = '=', collapse = ', '))
+          paste(names(.g4), .g4, sep = '=', collapse = ', '))
 } else {
   message('  PAB_snRNA_cohort_summary.csv not found; skipping Table S4')
 }
@@ -316,39 +321,79 @@ if (file.exists(pab_resp_xlsx)) {
     apply(dat[, grp_cands, drop = FALSE], 1,
           function(v){ v <- v[!is.na(v) & v != '']; if (length(v)) v[1] else NA })
     else NA
+  exp_set <- as.character(dat[[exp_col]])           # sort key only (dropped)
   s5 <- data.frame(
-    Exp_set     = as.character(dat[[exp_col]]),
     ID          = as.integer(dat[[id_col]]),
     PAB_vs_Sham = pab_vs,
     dat[, setdiff(colnames(dat), c(exp_col, id_col)), drop = FALSE],
     check.names = FALSE, stringsAsFactors = FALSE)
-  ## Drop per spec: HR, detailed respirometry flux cols, admin date/weight
-  ## cols, and pure-duplicate key cols (ID / group are already up front).
+  ## Drop per spec: Exp Set (sort-only), HR, detailed respirometry flux
+  ## cols, admin date/weight cols, pure-duplicate key cols.
   drop5 <- c('wk2_HR', 'wk8_HR',
+             'wk2_TV_E_wave_mm_s_', 'wk8_TV_E_wave_mm_s_',
+             'wk2_TDI_e_mm_s_', 'wk8_TDI_e_mm_s_',
+             'wk2_PA_VTI', 'wk8_PA_VTI',
              'Echo_Date', 'Echo_Weight_g_', 'Sx_Date',
              'resp_Batch_ID', 'resp_PM', 'resp_ADP', 'resp_Cyt_C',
              'resp_OC', 'resp_Succ', 'resp_Cyt_C_', 'resp_RCR',
              'resp_PAB_vs_SHAM', 'wk8_ID', 'wk8_PAB_vs_SHAM')
   s5 <- s5[, setdiff(colnames(s5), drop5), drop = FALSE]
-  s5 <- s5[order(s5$PAB_vs_Sham, s5$Exp_set, s5$ID), , drop = FALSE]
+  ord <- order(s5$PAB_vs_Sham, exp_set, s5$ID)     # exp_set: sort key only
+  s5 <- s5[ord, , drop = FALSE]
   rownames(s5) <- NULL
-  ## Two-row header: lead cols ungrouped; every wk2_/wk8_ column becomes a
-  ## 'Week 2'/'Week 8' spanning group with the prefix stripped and the
-  ## abbreviated leaf label (RVAD (mm²), Pk Vel (mm/s), TR, ...).
-  s5_leaf <- character(ncol(s5)); s5_grp <- character(ncol(s5))
-  for (i in seq_along(s5)) {
-    cn <- colnames(s5)[i]
-    if (grepl('^wk2_', cn))      { base <- sub('^wk2_', '', cn); s5_grp[i] <- 'Week 2' }
-    else if (grepl('^wk8_', cn)) { base <- sub('^wk8_', '', cn); s5_grp[i] <- 'Week 8' }
-    else                         { base <- cn;                   s5_grp[i] <- '' }
-    s5_leaf[i] <-
-      if (cn == 'Exp_set')                  'Exp Set'
-      else if (cn == 'ID')                  'ID'
-      else if (cn == 'PAB_vs_Sham')         'Category'
-      else if (base %in% names(.ECHO_ABBR)) .ECHO_ABBR[[base]]
-      else gsub('_', ' ', base)
+  ## "Dead 12/4/25" (and any "Dead <date>") -> "Died".
+  for (cn in names(s5)) if (is.character(s5[[cn]]))
+    s5[[cn]] <- sub('^\\s*Dead\\b.*$', 'Died', s5[[cn]], ignore.case = TRUE)
+  ## readxl returns the metric columns as character (header sat in row 2);
+  ## coerce numeric-looking cols to numeric so .round_sf3 caps echo
+  ## parameters (RVAD/RVAS/FAC/RVFW/TAPSE/...) at 3 significant figures.
+  for (cn in names(s5)) {
+    x <- s5[[cn]]
+    if (!is.character(x)) next
+    real <- !is.na(x) & nzchar(trimws(x)) &
+            !(tolower(trimws(x)) %in% c('na', 'n/a'))
+    v <- suppressWarnings(as.numeric(x))
+    if (any(real) && all(!is.na(v[real]))) s5[[cn]] <- v
   }
-  .header2[['Table_S5']] <- list(leaf = s5_leaf, group = s5_grp)
+  ## Split into two vertically-stacked sub-tables (one Table S5 heading):
+  ## Week 2 then Week 8. Each repeats ID / Category / BW (g) and that
+  ## week's echo params; the Week 8 BW is the wk8 surgical body weight.
+  echo_base <- c('RV_Area_Diastole_mm_2_', 'RV_Area_Systole_mm_2_', 'FAC',
+                 'RV_Free_Wall_Thickness_mm_', 'TAPSE_mm_',
+                 'TDI_S_Wave_mm_s_', 'Pk_Gradient_mmHg',
+                 'Pk_Velocity_mm_sec', 'Tricuspid_Regurgitation')
+  echo_lab <- unname(.ECHO_ABBR[echo_base])
+  lead_lab <- c('ID', 'Category', 'BW (g)')
+  ## Force the known NUMERIC echo metrics to numeric and cap at 3 sig
+  ## figs here: the generic all-or-nothing coercion above leaves a column
+  ## as character if ANY cell is non-numeric (e.g. a stray '-'/'ND'),
+  ## which then bypasses .round_sf3 and prints full precision. TR is
+  ## text (grades) so it is excluded.
+  num_base <- setdiff(echo_base, 'Tricuspid_Regurgitation')
+  num_cols <- c('Surgical_Body_Weight_g_', 'wk8_Surgical_Body_Weight_g_',
+                paste0('wk2_', num_base), paste0('wk8_', num_base))
+  for (cn in intersect(num_cols, names(s5))) {
+    s5[[cn]] <- signif(suppressWarnings(as.numeric(
+      gsub('[^0-9.eE+-]', '', trimws(as.character(s5[[cn]]))))), 3)
+  }
+  ## Cohort group: a mouse is "Week 8" if it has any 8-week echo datum,
+  ## else "Week 2 only" (respirometry-only mice with no 8-week echo).
+  .wk8_metric <- intersect(paste0('wk8_', num_base), names(s5))
+  s5$wk_group <- ifelse(
+    rowSums(!is.na(s5[, .wk8_metric, drop = FALSE])) > 0,
+    'Week 8', 'Week 2 only')
+  ## nlead = leading non-echo cols; rows whose echo columns are ALL NA
+  ## (respirometry-only mice with no 8-week echo) are dropped per part.
+  ## Week 2 carries the Group column + ID; Week 8 drops ID.
+  .stacked[['Table_S5']] <- list(
+    list(title = 'Week 2', nlead = 4L,
+         cols = c('ID', 'PAB_vs_Sham', 'wk_group',
+                  'Surgical_Body_Weight_g_', paste0('wk2_', echo_base)),
+         labels = c('ID', 'Category', 'Group', 'BW (g)', echo_lab)),
+    list(title = 'Week 8', nlead = 3L,
+         cols = c('ID', 'PAB_vs_Sham', 'wk8_Surgical_Body_Weight_g_',
+                  paste0('wk8_', echo_base)),
+         labels = c('ID', 'Category', 'BW (g)', echo_lab)))
   all_sheets[['Table_S5']] <- s5
   message('  Table S5 (echo/respir cohort): ', nrow(s5), ' mice | cols: ',
           ncol(s5), ' | ',
@@ -450,7 +495,57 @@ all_sheets <- c(list(INDEX = index_df), all_sheets)
 all_sheets <- lapply(all_sheets, .round_sf3)
 
 out_path <- file.path(.outdir, 'Supplementary_Tables.xlsx')
-openxlsx::write.xlsx(all_sheets, file = out_path, overwrite = TRUE)
+{
+  wb  <- openxlsx::createWorkbook()
+  hs1 <- openxlsx::createStyle(textDecoration = 'bold', halign = 'center',
+                               valign = 'center', border = 'bottom')
+  for (nm in names(all_sheets)) {
+    df <- all_sheets[[nm]]
+    openxlsx::addWorksheet(wb, nm)
+    h2 <- .header2[[nm]]
+    st <- .stacked[[nm]]
+    if (!is.null(st)) {
+      ## Vertically-stacked sub-tables: bold title row, header row, data,
+      ## blank-row separator; repeat for each part.
+      cur <- 1L
+      for (p in st) {
+        sub <- df[, p$cols, drop = FALSE]; names(sub) <- p$labels
+        ec <- seq_len(ncol(sub))[-seq_len(p$nlead)]   # echo columns
+        sub <- sub[rowSums(!is.na(sub[, ec, drop = FALSE])) > 0, ,
+                   drop = FALSE]
+        openxlsx::writeData(wb, nm, p$title, startRow = cur, startCol = 1)
+        openxlsx::addStyle(wb, nm,
+          openxlsx::createStyle(textDecoration = 'bold'),
+          rows = cur, cols = 1)
+        openxlsx::writeData(wb, nm, sub, startRow = cur + 1L,
+                            colNames = TRUE)
+        openxlsx::addStyle(wb, nm, hs1, rows = cur + 1L,
+                           cols = seq_along(p$cols), gridExpand = TRUE)
+        cur <- cur + 1L + 1L + nrow(sub) + 2L
+      }
+    } else if (!is.null(h2) && length(h2$leaf) == ncol(df)) {
+      ## Row 1 = merged group spans; row 2 = leaf headers; data from row 3.
+      dd <- df; names(dd) <- h2$leaf
+      openxlsx::writeData(wb, nm, dd, startRow = 2, colNames = TRUE)
+      g <- h2$group; r <- rle(g); end <- cumsum(r$lengths)
+      start <- end - r$lengths + 1
+      for (k in seq_along(r$values)) {
+        if (nzchar(r$values[k])) {
+          openxlsx::mergeCells(wb, nm, cols = start[k]:end[k], rows = 1)
+          openxlsx::writeData(wb, nm, r$values[k], startRow = 1,
+                              startCol = start[k])
+        }
+      }
+      openxlsx::addStyle(wb, nm, hs1, rows = 1,
+                         cols = seq_len(ncol(df)), gridExpand = TRUE)
+      openxlsx::freezePane(wb, nm, firstActiveRow = 3)
+    } else {
+      openxlsx::writeData(wb, nm, df, colNames = TRUE)
+      openxlsx::freezePane(wb, nm, firstActiveRow = 2)
+    }
+  }
+  openxlsx::saveWorkbook(wb, out_path, overwrite = TRUE)
+}
 message('\nWROTE ', out_path, '  (', length(all_sheets), ' sheet(s))')
 
 # ===========================================================================
@@ -540,7 +635,7 @@ message('\nWROTE ', out_path, '  (', length(all_sheets), ' sheet(s))')
   }
   pretty_sheets <- lapply(sheets, .pretty_cols)
   rds_path <- file.path(tempdir(), 'supp_tables_sheets.rds')
-  saveRDS(pretty_sheets, rds_path)
+  saveRDS(list(pretty = pretty_sheets, raw = sheets), rds_path)
 
   rmd_lines <- c(
     '---',
@@ -561,7 +656,8 @@ message('\nWROTE ', out_path, '  (', length(all_sheets), ' sheet(s))')
     '',
     paste0('```{r setup, include=FALSE}'),
     'library(knitr); library(kableExtra)',
-    paste0('sheets <- readRDS("', rds_path, '")'),
+    paste0('.obj <- readRDS("', rds_path,
+           '"); sheets <- .obj$pretty; raw <- .obj$raw'),
     'knitr::opts_chunk$set(echo = FALSE, results = "asis",',
     '                      warning = FALSE, message = FALSE)',
     '```',
@@ -572,25 +668,67 @@ message('\nWROTE ', out_path, '  (', length(all_sheets), ' sheet(s))')
     Table_S1 = 'Table S1. Patient demographics for the adult RV cohort (n=142), including disease state classification (NF, pRV, RVF), etiology (DCM/ICM/NF), age, sex, ethnicity, anthropometrics, pacemaker status, RNA integrity (RIN), and platform allocation flags (in_snRNA_cohort, in_Xenium_cohort).',
     Table_S2 = 'Table S2. Hemodynamic parameters for the adult RV cohort (n=142) used for disease-state stratification: right atrial pressure (RAP), pulmonary capillary wedge pressure (PCWP), RA:PCWP ratio (primary stratification variable), pulmonary arterial pressures, cardiac index, and pulmonary vascular resistance index (PVRI).',
     Table_S3 = 'Table S3. snRNA-seq cohort (n=11): per-patient demographics joined from Table S1, plus per-nucleus quality control metrics — nuclei recovered, median UMI count and feature count, mean mitochondrial percent, mean transcriptional entropy, and mean intronic read percent.',
-    Table_S4 = 'Table S4. Murine PAB snRNA-seq cohort (n=10: 3 Sham, 3 Moderate-RVF, 4 Severe-RVF), with nuclei recovered and per-mouse echocardiographic parameters — body weight, heart rate (HR), RV areas at diastole (RVAD) and systole (RVAS), fractional area change (FAC), RV free wall thickness (RVFWT), tricuspid annular plane systolic excursion (TAPSE), tissue Doppler S′ (TDI S′), peak gradient and peak velocity across the PA band, and tricuspid regurgitation. These are DISTINCT animals from the echo/respirometry cohort (Table S5) despite shared ID integers.',
-    Table_S5 = 'Table S5. Murine PAB 2-week + 2-month (8-week) echocardiography / respirometry cohort — the full echo-phenotyped animal set (distinct mice from the snRNA-seq cohort in Table S4), spanning two experimental sets, sorted by PAB vs Sham. Includes 2-week and 2-month echo parameters; detailed respirometry mitochondrial-flux measurements and administrative date/weight columns are omitted for concision.',
+    Table_S4 = 'Table S4. Murine PAB snRNA-seq cohort (n=10: 3 Sham, 3 Moderate-RVF, 4 Severe-RVF), with nuclei recovered and per-mouse echocardiographic parameters. Column abbreviations: BW, body weight (g); RVAD, RV area at diastole (mm²); RVAS, RV area at systole (mm²); FAC, fractional area change (%); RVFW, RV free-wall thickness (mm); TAPSE, tricuspid annular plane systolic excursion (mm); TDI S′, tissue-Doppler systolic wave; Pk Grad, peak gradient (mmHg); Pk Vel, peak velocity (mm/s); TR, tricuspid regurgitation. These are DISTINCT animals from the echo/respirometry cohort (Table S5) despite shared ID integers.',
+    Table_S5 = 'Table S5. Murine PAB 2-week + 2-month (8-week) echocardiography / respirometry cohort — the full echo-phenotyped animal set (distinct mice from the snRNA-seq cohort in Table S4), categorised as PAB vs Sham (Category) and sorted by Category. Presented as two vertically-stacked sub-tables: Week 2 and Week 8. ID, Category and BW (g) are repeated in each; the Week 8 BW (g) is the 8-week surgical body weight. The Week 2 Group column flags whether a mouse is "Week 2 only" (respirometry-only, no 8-week echo) or "Week 8" (also echoed at 8 weeks); the Week 8 sub-table lists exactly the latter. Echo abbreviations match Table S4 (BW, body weight (g); RVAD, RV area at diastole (mm²); RVAS, RV area at systole (mm²); FAC, fractional area change (%); RVFW, RV free-wall thickness (mm); TAPSE, tricuspid annular plane systolic excursion (mm); TDI S′; Pk Grad, peak gradient (mmHg); Pk Vel, peak velocity (mm/s); TR, tricuspid regurgitation); echo values are shown to 3 significant figures. Week 8 mouse ID 17 died during the echocardiogram, so only the parameters acquired before death are reported (subsequent metrics — TAPSE, TDI S′, Pk Grad, Pk Vel, TR — are shown as NA).',
     Table_S6 = 'Table S6. Patient demographics for the Xenium spatial transcriptomics cohort (n=9), with tissue section details and per-section quality control metrics (cells captured, median UMI/features per cell, median cell area, section area, cell density).'
   )
 
   for (nm in names(pretty_sheets)) {
     display_nm <- gsub('_', ' ', nm)
     fs <- if (nm == 'INDEX') 11 else 6
-    rmd_lines <- c(rmd_lines,
-      paste0('## ', display_nm), '',
-      '```{r}',
-      paste0('df <- sheets[["', nm, '"]]'),
-      'kbl(df, format = "latex", booktabs = TRUE, longtable = TRUE,',
-      '    na.string = "NA", linesep = "") %>%',
-      paste0('  kable_styling(latex_options = c("repeat_header","HOLD_position"),'),
-      paste0('                font_size = ', fs, ')'),
-      '```',
-      ''
-    )
+    h2 <- .header2[[nm]]
+    st <- .stacked[[nm]]
+    if (!is.null(st)) {
+      body <- character(0)
+      for (p in st) {
+        cols_lit <- paste0('c(', paste(sprintf('"%s"', p$cols),
+                                       collapse = ', '), ')')
+        lab_lit  <- paste0('c(', paste(sprintf('"%s"', p$labels),
+                                       collapse = ', '), ')')
+        body <- c(body,
+          paste0('\\textbf{', p$title, '}'), '',
+          '```{r}',
+          paste0('p <- raw[["', nm, '"]][, ', cols_lit, ', drop = FALSE]'),
+          paste0('colnames(p) <- ', lab_lit),
+          paste0('p <- p[rowSums(!is.na(p[, -(1:', p$nlead,
+                 '), drop = FALSE])) > 0, , drop = FALSE]'),
+          'rownames(p) <- NULL',
+          'kbl(p, format = "latex", booktabs = TRUE, longtable = TRUE,',
+          '    row.names = FALSE, na.string = "NA", linesep = "") %>%',
+          '  kable_styling(latex_options = c("repeat_header","HOLD_position"),',
+          paste0('                font_size = ', fs, ')'),
+          '```', '')
+      }
+      rmd_lines <- c(rmd_lines, paste0('## ', display_nm), '', body)
+    } else {
+      if (!is.null(h2) && length(h2$leaf) == ncol(pretty_sheets[[nm]])) {
+        leaf_lit <- paste0('c(', paste(sprintf('"%s"', h2$leaf),
+                                       collapse = ', '), ')')
+        r <- rle(h2$group)
+        span_lit <- paste0('c(', paste(sprintf('"%s" = %d',
+                              ifelse(nzchar(r$values), r$values, ' '),
+                              r$lengths), collapse = ', '), ')')
+        kbl_block <- c(
+          paste0('df <- sheets[["', nm, '"]]'),
+          paste0('colnames(df) <- ', leaf_lit),
+          'kbl(df, format = "latex", booktabs = TRUE, longtable = TRUE,',
+          '    na.string = "NA", linesep = "") %>%',
+          paste0('  add_header_above(', span_lit, ') %>%'),
+          '  kable_styling(latex_options = c("repeat_header","HOLD_position"),',
+          paste0('                font_size = ', fs, ')'))
+      } else {
+        kbl_block <- c(
+          paste0('df <- sheets[["', nm, '"]]'),
+          'kbl(df, format = "latex", booktabs = TRUE, longtable = TRUE,',
+          '    na.string = "NA", linesep = "") %>%',
+          '  kable_styling(latex_options = c("repeat_header","HOLD_position"),',
+          paste0('                font_size = ', fs, ')'))
+      }
+      rmd_lines <- c(rmd_lines,
+        paste0('## ', display_nm), '',
+        '```{r}', kbl_block, '```', ''
+      )
+    }
     if (!is.null(v57_captions[[nm]])) {
       rmd_lines <- c(rmd_lines,
         paste0('\\small\\textbf{', strsplit(v57_captions[[nm]], '\\. ')[[1]][1],
