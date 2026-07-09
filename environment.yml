@@ -14,6 +14,7 @@
 ##   Rscript -e 'remotes::install_github("satijalab/seurat-wrappers")'
 ##   Rscript -e 'remotes::install_github("bnprks/BPCells",          subdir = "r")'
 ##   Rscript -e 'remotes::install_github("samuel-marsh/scCustomize")'  # also on CRAN
+##   Rscript -e 'remotes::install_github("jinworks/CellChat")'         # spatial niche communication (Supp Data S14; Figure_4.R E/F from-raw path)
 ##
 ## Original conda explicit-spec snapshot preserved as requirements.txt.osx_arm64_lock.
 
@@ -91,11 +92,12 @@ dependencies:
   - r-ggplotify
   - r-patchwork
   - r-cowplot
-  - r-circlize
+  - r-circlize   # Figure_4.R E/F CellChat chord + spatial niche communication (S14)
   - r-scales
   - r-viridis
   - r-rcolorbrewer
   - r-gplots
+  - r-pheatmap   # spatial CellChat replicability script (Supp Data S14)
   - r-gtools
   - r-magick
   ## r-colormap installed via CRAN post-conda (not on conda channels).

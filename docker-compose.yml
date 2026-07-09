@@ -8,12 +8,23 @@ services:
     environment:
       - PASSWORD=rvAtlas          # change this
       - ROOT=TRUE
+
+    # Large shared-memory segment for BPCells matrix materialisation and the
+    # per-patient x niche CellChat run (Supplementary Data S14 / Figure_4.R E/F
+    # from-raw path, RUN_CELLCHAT_FROM_RAW=TRUE). Harmless for the default figure
+    # runs. Raise your Docker Desktop VM memory to >= 32 GB before the from-raw run.
+    shm_size: '16gb'
+
     volumes:
       # Project data (RDS objects, metadata CSVs) — read-only inside container.
       # Relative paths are resolved from this file's location (project root).
+      # NOTE: the CellChat-from-raw path also reads the 9 GB BPCells backing dir
+      # dependencies/shared/Xenium/bpcells_imputed/ (must sit beside the
+      # Xenium_resegmented_imputed_final.rds pointer) — it travels inside this mount.
       - ./dependencies:/home/rstudio/RV_Atlas/dependencies:ro
 
-      # Output: PDF figures written to ./output in scripts.
+      # Output: PDF figures written to ./output in scripts. The CellChat-from-raw
+      # path also writes intermediates to ./output/spatial_cellchat/.
       # Bind-mount ./output/ so files appear on the host after a run.
       - ./output:/home/rstudio/output
 

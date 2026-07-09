@@ -129,13 +129,17 @@ RUN Rscript -e "pak::pak(c( \
         'WGCNA', 'ClusterR' \
     ), ask = FALSE)"
 
-# Layer D — GitHub packages (seurat-wrappers, hdWGCNA, monocle3, BPCells, spacexr)
+# Layer D — GitHub packages (seurat-wrappers, hdWGCNA, monocle3, BPCells, spacexr, CellChat)
+# CellChat drives the spatial niche-communication analysis (Supplementary Data S14)
+# and the Figure_4.R E/F from-raw regeneration path (RUN_CELLCHAT_FROM_RAW=TRUE).
+# pheatmap + circlize (its plotting deps) are already installed in Layer C.
 RUN Rscript -e "pak::pak(c( \
         'satijalab/seurat-wrappers', \
         'smorabit/hdWGCNA@dev', \
         'cole-trapnell-lab/monocle3', \
         'bnprks/BPCells/r', \
-        'dmcable/spacexr' \
+        'dmcable/spacexr', \
+        'jinworks/CellChat' \
     ), ask = FALSE)"
 
 # ── 4. Directory structure ────────────────────────────────────────────────────

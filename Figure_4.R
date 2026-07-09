@@ -12,8 +12,10 @@
 ##   (C) Bulk WGCNA module × phase × platform × lineage Z-heatmap
 ##       (AddModuleScore), facetted by Pan / CM / Myeloid / EC / FB / Mural
 ##   (D) Phase 1 vs Phase 2 DEG-count bar chart by platform (Bulk, sn, Xenium)
-##   (E) CellChat top-15 signaling pathways, Myocardium niche (external asset)
-##   (F) CellChat normalized cell-type communication chord, Myocardium (external asset)
+##   (E) CellChat top-15 signaling pathways, Myocardium niche (generated below
+##       from the Supplementary Data S14 table)
+##   (F) CellChat normalized cell-type communication chord, Myocardium (generated
+##       below from the S14 table + cached Myocardium cell-type proportions)
 ##
 ## Outputs (./output/Figure_4/v52_figures/):
 ##   Figure_4_panel_B.pdf, Figure_4_panel_C.pdf, Figure_4_panel_D.pdf,
@@ -1249,16 +1251,164 @@ p_4F <- p_4K  # renumbered Panel F = old Panel K (chord diagrams)
 save_figure(p_4F, 'Figure_4_panel_F.pdf', width = 14, height = 5)
 }  ## <<< retired CellNEST E/F — end
 
-## Placeholders so the composite still assembles. The real 4E/4F are the CellChat
-## panels (fig1_top15_pathways_myocardium / fig2_chord_myocardium_normalized),
-## rendered by additional_scripts/spatial_cellchat_niche_communication.R and
-## dropped in via Illustrator. Replace with the CellChat panels when wired in.
+###############################################################################
+## Panels E & F — CellChat spatial niche communication (Myocardium niche)
+##
+## Full generating pipeline (per-patient x per-niche CellChat over the resegmented
+## Xenium object): additional_scripts/spatial_cellchat_niche_communication.R. That
+## pipeline is HEAVY — per-patient x niche CellChat on the 9GB BPCells object;
+## needs CellChat (GitHub jinworks/CellChat) + BPCells; ~hours — and writes the
+## aggregated table shipped as Supplementary Data S14:
+##   dependencies/shared/Xenium/xenium_cellchat_niche_communication.csv
+##
+## Panels E and F are rebuilt natively below from that shipped table, so Figure 4
+## renders WITHOUT CellChat/BPCells at figure time:
+##   E (fig1) = top-15 signaling pathways in Myocardium, normalized to sum=1 per
+##       group. Reconstructed EXACTLY: the pipeline's per-patient pooled probability
+##       equals mean_prob x n_patients per L-R (mean over present patients x n =
+##       the summed per-patient probability), so summing that per pathway reproduces
+##       make_top_pathway_bar()'s pooled_prob.
+##   F (fig2) = cell-type communication chord in Myocardium, normalized by
+##       sender x receiver cell-type proportion. The source->target weight matrix is
+##       the per-L-R probability summed per cell-type pair (= CellChat net$weight);
+##       proportions come from the cached metadata file
+##       dependencies/shared/Xenium/xenium_myocardium_celltype_proportions.csv
+##       (cell_type_grouped counts within Myocardium per group — the same idents
+##       CellChat used; built by helper_scripts/make_myocardium_proportions.R).
+##       Link colours use a fixed palette (the pipeline's CellChat::scPalette is
+##       unavailable here) — cosmetic only.
+##
+## Set RUN_CELLCHAT_FROM_RAW <- TRUE to regenerate the underlying table (and the
+## pipeline's own object-exact PDF panels) from raw before building E/F.
+###############################################################################
+RUN_CELLCHAT_FROM_RAW <- FALSE
+
+.cc_group_order  <- c('NF', 'pRV', 'RVF')
+.cc_group_colors <- c(NF = '#4393C3', pRV = '#F4A582', RVF = '#D6604D')
+.cc_target_niche <- 'Myocardium'
+.cc_s14_csv  <- './dependencies/shared/Xenium/xenium_cellchat_niche_communication.csv'
+.cc_prop_csv <- './dependencies/shared/Xenium/xenium_myocardium_celltype_proportions.csv'
+
+if (RUN_CELLCHAT_FROM_RAW) {
+  message('RUN_CELLCHAT_FROM_RAW=TRUE — regenerating S14 table from raw ',
+          '(heavy: per-patient x niche CellChat; needs CellChat + BPCells)...')
+  source('./additional_scripts/spatial_cellchat_niche_communication.R')
+  ## The pipeline writes output/spatial_cellchat/.../supplementary_table_niche_communication.csv;
+  ## point .cc_s14_csv there to build E/F from the freshly regenerated table.
+}
+
+## Fallback so the composite still assembles if inputs/packages are unavailable.
 .panel_placeholder <- function(txt)
   ggplot2::ggplot() +
   ggplot2::annotate('text', x = 0.5, y = 0.5, label = txt, size = 4) +
   ggplot2::theme_void()
-p_4E <- .panel_placeholder('Panel 4E — CellChat top-15 pathways (Myocardium); assembled in Illustrator')
-p_4F <- .panel_placeholder('Panel 4F — CellChat myocardium chord (normalized); assembled in Illustrator')
+
+## ---- Panel E: top-15 pathways, Myocardium (native, exact) ----
+p_4E <- tryCatch({
+  stopifnot(file.exists(.cc_s14_csv))
+  cc  <- utils::read.csv(.cc_s14_csv, stringsAsFactors = FALSE)
+  myo <- cc[cc$niche == .cc_target_niche, ]
+  ## per-patient pooled probability per L-R = mean_prob x n_patients (exact)
+  long <- do.call(rbind, lapply(.cc_group_order, function(g)
+    data.frame(group   = g,
+               pathway = myo$pathway_name,
+               pooled  = myo[[paste0('mean_prob_', g)]] * myo[[paste0('n_patients_', g)]],
+               stringsAsFactors = FALSE)))
+  ## recode SEMA3*/SEMA6* -> SEMA (matches pipeline recode_sema_lr)
+  long$pathway <- ifelse(grepl('^SEMA3|^SEMA6', long$pathway), 'SEMA', long$pathway)
+  long <- long[!is.na(long$pathway) & long$pathway != '', ]
+  summ <- aggregate(pooled ~ group + pathway, long, sum)
+  summ$pooled <- ave(summ$pooled, summ$group, FUN = function(v) v / sum(v))
+  x_max <- max(summ$pooled) * 1.08
+  plots <- lapply(.cc_group_order, function(g) {
+    sg  <- summ[summ$group == g, ]
+    sub <- utils::head(sg[order(-sg$pooled), ], 15)
+    sub$pathway <- factor(sub$pathway, levels = rev(unique(sub$pathway)))
+    ycol <- ifelse(levels(sub$pathway) == 'SEMA', '#D6604D', 'black')
+    yfc  <- ifelse(levels(sub$pathway) == 'SEMA', 'bold', 'plain')
+    ggplot(sub, aes(pathway, pooled, fill = pooled)) +
+      geom_col(width = 0.75, alpha = 0.9) +
+      coord_flip() +
+      scale_fill_gradient(low  = grDevices::adjustcolor(.cc_group_colors[g], 0.3),
+                          high = .cc_group_colors[g], guide = 'none') +
+      scale_y_continuous(limits = c(0, x_max), expand = expansion(mult = c(0, 0))) +
+      labs(title = g, x = NULL, y = 'Proportion of total communication probability') +
+      theme_bw(base_size = 11) +
+      theme(plot.title  = element_text(face = 'bold', size = 13, color = .cc_group_colors[g]),
+            axis.text.y = element_text(size = 8, color = ycol, face = yfc))
+  })
+  pE <- patchwork::wrap_plots(plots, nrow = 1)
+  save_figure(pE, 'Figure_4_panel_E.pdf', width = 18, height = 6)
+  pE
+}, error = function(e) {
+  message('Panel 4E fell back to placeholder: ', conditionMessage(e))
+  .panel_placeholder('Panel 4E — CellChat top-15 pathways (Myocardium)')
+})
+
+## ---- Panel F: Myocardium chord, proportion-normalized (native) ----
+p_4F <- tryCatch({
+  stopifnot(file.exists(.cc_s14_csv), file.exists(.cc_prop_csv),
+            requireNamespace('circlize',  quietly = TRUE),
+            requireNamespace('ggplotify', quietly = TRUE))
+  cc    <- utils::read.csv(.cc_s14_csv, stringsAsFactors = FALSE)
+  myo   <- cc[cc$niche == .cc_target_niche, ]
+  props <- utils::read.csv(.cc_prop_csv, stringsAsFactors = FALSE)
+  cts   <- sort(unique(c(myo$source, myo$target)))
+  ct_colors <- setNames(scales::hue_pal()(length(cts)), cts)  # scPalette unavailable
+
+  build_norm_mat <- function(g) {
+    Pg <- max(myo[[paste0('n_patients_', g)]], na.rm = TRUE)
+    if (!is.finite(Pg) || Pg == 0) Pg <- 1
+    ## avg net$weight over patients = sum over L-R of (mean_prob x n_patients) / Pg
+    w   <- myo[[paste0('mean_prob_', g)]] * myo[[paste0('n_patients_', g)]] / Pg
+    agg <- aggregate(w, list(source = myo$source, target = myo$target), sum)
+    M   <- matrix(0, length(cts), length(cts), dimnames = list(cts, cts))
+    for (k in seq_len(nrow(agg))) M[agg$source[k], agg$target[k]] <- agg$x[k]
+    ## proportion normalization: divide each edge by prop_sender x prop_receiver
+    pr <- setNames(props$prop[props$group == g], props$cell_type_grouped[props$group == g])
+    p  <- pr[cts]; p[is.na(p)] <- 1e-6
+    for (i in seq_along(cts)) for (j in seq_along(cts))
+      M[i, j] <- M[i, j] / max(p[i] * p[j], 1e-10)
+    M
+  }
+  mats <- setNames(lapply(.cc_group_order, build_norm_mat), .cc_group_order)
+
+  draw_one <- function(M, g, min_frac = 0.02) {
+    keep <- rownames(M)[rowSums(M) > 0 | colSums(M) > 0]
+    if (length(keep) < 2) {
+      plot.new(); title(main = sprintf('%s\n(no signal)', g), col.main = .cc_group_colors[g])
+      return(invisible())
+    }
+    Ms <- M[keep, keep, drop = FALSE]
+    Ms[Ms < max(Ms) * min_frac] <- 0
+    if (sum(Ms) == 0) {
+      plot.new(); title(main = sprintf('%s\n(below threshold)', g), col.main = .cc_group_colors[g])
+      return(invisible())
+    }
+    gcol <- ct_colors[keep]
+    colm <- matrix(NA_character_, length(keep), length(keep), dimnames = list(keep, keep))
+    for (i in keep) colm[i, ] <- grDevices::adjustcolor(gcol[i], 0.6)  # colour links by sender
+    circlize::circos.clear()
+    circlize::chordDiagram(Ms, grid.col = gcol, col = colm, transparency = 0.3,
+                           annotationTrack = c('grid', 'name'),
+                           preAllocateTracks = list(track.height = 0.08),
+                           directional = 1, direction.type = 'arrows',
+                           link.arr.type = 'big.arrow', self.link = 1, scale = FALSE)
+    circlize::circos.clear()
+    title(main = g, col.main = .cc_group_colors[g], cex.main = 1.2, line = -1)
+  }
+
+  draw_all <- function() {
+    op <- graphics::par(mfrow = c(1, 3), mar = c(2, 2, 3, 2)); on.exit(graphics::par(op))
+    for (g in .cc_group_order) draw_one(mats[[g]], g)
+  }
+  pF <- ggplotify::as.ggplot(draw_all)
+  save_figure(pF, 'Figure_4_panel_F.pdf', width = 18, height = 6)
+  pF
+}, error = function(e) {
+  message('Panel 4F fell back to placeholder: ', conditionMessage(e))
+  .panel_placeholder('Panel 4F — CellChat myocardium chord (normalized)')
+})
 
 ###############################################################################
 ## Assemble Figure 4 (patchwork, 6 panels A-F after renumbering)
@@ -1266,14 +1416,14 @@ p_4F <- .panel_placeholder('Panel 4F — CellChat myocardium chord (normalized);
 ## B = Phase1/Phase2 key-gene heatmaps (both stacked)  (was B + C)
 ## C = WGCNA modules × platform × phase                (was G)
 ## D = DEG burden (phase × platform)                   (was D)
-## E = CellChat top-15 pathways, Myocardium           (external; was CellNEST H-J)
-## F = CellChat myocardium chord (normalized)         (external; was CellNEST K)
+## E = CellChat top-15 pathways, Myocardium           (native; was CellNEST H-J)
+## F = CellChat myocardium chord (normalized)         (native; was CellNEST K)
 ###############################################################################
 row_A_B   <- p_4A | p_4BC       # Panel A + combined Panel B heatmaps
 row_C     <- p_4C               # WGCNA modules
 row_D     <- p_4D               # DEG burden
-row_E     <- p_4E               # CellChat top-15 pathways (placeholder; external asset)
-row_F     <- p_4F               # CellChat chord (placeholder; external asset)
+row_E     <- p_4E               # CellChat top-15 pathways (native, from S14 table)
+row_F     <- p_4F               # CellChat chord (native, from S14 table + proportions)
 
 fig4 <- row_A_B /
         row_C /
