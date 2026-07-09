@@ -169,7 +169,7 @@ shiny::runApp("XeniumExp")
 
 ---
 
-### FIGURES (v57 manuscript) ###
+### FIGURES ###
 
 #### Main Figures
 
@@ -188,10 +188,10 @@ Two-phase model of NF→pRV (Phase 1) and pRV→RVF (Phase 2) transitions integr
 **Figure 5 — RV cardiomyocyte transcriptional and metabolic remodeling** (`Figure_5.R`)
 CM-enriched WGCNA module dotplot by subcluster × disease state, GO enrichments on intersected module + DEG gene lists, M2 module volcano (pRV vs NF), mitochondrial-module volcanoes (M10, M25, M26, M28), CollecTRI/decoupleR TF activity for mitochondrial regulators, snRNA-seq pseudobulk violins of *ESRRA*/*ESRRG*/*PPARA*/*PPARGC1A*, Oroboros 2k high-resolution respirometry on isolated RV mitochondria (adult NF/pRV/RVF and pediatric NF/HLHS-palliated; PAB mouse 2-week + 2-month), and a cross-cohort OXPHOS summary panel showing reduced maximal coupled respiration in adult RVF and murine PAB but preserved in pediatric HLHS-palliated.
 
-**Figure 6 — Myeloid subclustering and disease-associated programs** (`Figure_6.R`)
+**Figure 6 — Subclustering and analysis of myeloid populations in RV failure** (`Figure_6.R`)
 Six myeloid subtypes: *CCR2*⁻ resident macrophage (rMac), inflammatory macrophages (iMac), Mono / Mono-derived, *TREM2*⁺ macrophages, dendritic cells, and proliferating myeloid. Marker dotplot, disease-state frequencies, four myeloid-relevant bulk WGCNA module scores (M1, M3, M4, M8), ChEA TF enrichments for up/down DEGs, and pseudobulk violins for the four transcriptional programs (GR-homeostatic and HIF/vascular drift in *CCR2*⁻ rMac; NF-κB MHCII/inflammasome in iMac; IFNγ antigen presentation pooled). Spatial localization of myeloid subtypes in the full Xenium dataset.
 
-**Figure 7 — Endothelial subclustering and disease-associated programs** (`Figure_7.R`)
+**Figure 7 — Subclustering and analysis of endothelial populations in RV failure** (`Figure_7.R`)
 Five EC subtypes (Arterial, Capillary, Venous, Lymph, Endocardial); per-subtype frequency boxplots; hdWGCNA on EC snRNA-seq with seven modules; GO enrichments for capillary-core (ecM1), arterial (ecM4) and venous/inflamed (ecM7) modules; EC module-score dotplot and FeaturePlots; Xenium pan-EC pseudobulk volcano (RVF vs pRV) with Phase-2 candidate annotation; cross-platform concordance scatter for Phase-2 candidates; per-subtype expression of *NRG1* (endocardial) and *MECOM* (arterial).
 
 **Figure 8 — Cross-species, cross-age, and cross-etiology comparisons** (`Figure_8.R`)
