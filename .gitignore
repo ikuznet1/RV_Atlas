@@ -65,11 +65,18 @@ shinyXenium/
 *.osx_arm64_lock
 *.linux_64_lock
 
+# Internal install/setup notes — superseded by the Setup section in README.md
+ENVIRONMENTS_INSTALLATIONS.md
+
 # ───────────────────────────────────────────────────────────────────────────
 # Large data staging / manual uploads (distributed via Zenodo, never via git)
+# Upload/sync helper scripts are local ops tooling, not part of figure repro.
 # ───────────────────────────────────────────────────────────────────────────
 zenodo_manual_upload/
 dependencies_zenodo_staging/
+zenodo_sync.py
+zenodo_upload.py
+zenodo_progress.sh
 
 # ───────────────────────────────────────────────────────────────────────────
 # Local backups (renumber / figure-run snapshots)
