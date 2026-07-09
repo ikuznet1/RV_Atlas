@@ -695,6 +695,11 @@ save_figure(p_8E, 'Figure_8_panel_E.pdf', width = 5, height = 5.5)
 #############  FIGURE 8F  #############
 #######################################
 
+## ===== OLD F8F (per-cell FindMarkers + enrichR GO on mito modules) DISABLED (v67). =====
+## Superseded by the pseudobulk MitoCarta volcanoes built after this block: the per-cell
+## Wilcoxon pseudoreplicates ~30k CM cells and the enrichR step is a circular GO of a
+## mito-module gene input, so it cannot establish mitochondrial induction.
+if (FALSE) {
 
 M1 <- SetIdent(M1, value = "condition")
 Idents(M1) <- factor(x = Idents(M1), levels = c('Donor','NF','SystolicHF'))
@@ -1572,7 +1577,80 @@ p_8F_top <- .mk_8F(.cache_enrichr_SvN_mito_up,
 p_8F_bot <- .mk_8F(.cache_enrichr_NvD_mito_up,
                    'ped-HLHS vs ped-NF: pooled M10/M25/M26/M28 up (GO-BP)')
 p_8F <- p_8F_top / p_8F_bot
-save_figure(p_8F, 'Figure_8_panel_F.pdf', width = 6, height = 8)
+}   # ===== end disabled OLD enrichR F8F =====
+
+
+###############################################################################
+##  FIGURE 8F (v67): pediatric CM MitoCarta volcanoes — rotated, stacked.
+##  Per-patient pseudobulk from M1 (CM object) -> DESeq2 -> apeglm shrink (padj
+##  from unshrunken Wald). MitoCarta3.0 genes coloured by top-level category.
+##  Top = ped-HLHS (condition NF) vs Donor; bottom = ped-RVF (SystolicHF) vs Donor.
+###############################################################################
+suppressMessages({library(DESeq2); library(apeglm); library(readxl); library(stringr)
+  library(ggrepel); library(patchwork); library(fgsea)})
+
+M1$.pat   <- as.character(M1$sample)
+.f8f_pb   <- tryCatch(AggregateExpression(M1, group.by='.pat', assays='RNA', slot='counts', return.seurat=FALSE),
+                      error=function(e) AggregateExpression(M1, group.by='.pat', assays='RNA', return.seurat=FALSE))
+.f8f_mat  <- round(as.matrix(.f8f_pb$RNA)); colnames(.f8f_mat) <- sub('^g','',colnames(.f8f_mat))
+.f8f_meta <- unique(data.frame(patient=as.character(M1$sample), condition=as.character(M1$condition)))
+.f8f_meta <- .f8f_meta[match(colnames(.f8f_mat), .f8f_meta$patient), ]; rownames(.f8f_meta) <- .f8f_meta$patient
+.f8f_meta$condition <- factor(.f8f_meta$condition, levels=c('Donor','NF','SystolicHF'))
+.f8f_dds  <- DESeq(DESeqDataSetFromMatrix(.f8f_mat, .f8f_meta, ~condition))
+
+.f8f_Hmito <- read_excel('./dependencies/shared/Human.MitoCarta3.0.xls', sheet='A Human MitoCarta3.0')
+.f8f_a <- trimws(unlist(lapply(lapply(lapply(.f8f_Hmito$MitoCarta3.0_MitoPathways, str_split, '>'), '[[', 1), '[[', 1)))
+.f8f_a[.f8f_a=='Small molecule transport | Signaling'] <- 'Small molecule transport'
+.f8f_remap <- function(x){x<-as.character(x);o<-character(length(x))
+  o[is.na(x)|x=='']<-'No annotation';o[x=='Metabolism']<-'Metabolism';o[x=='OXPHOS']<-'Oxidative phos'
+  o[x=='Protein homeostasis']<-'Protein import/sorting';o[x=='Mitochondrial central dogma']<-'Mito central dogma'
+  o[x=='Mitochondrial dynamics and surveillance']<-'Mito dynamics';o[x=='Signaling']<-'Signaling'
+  o[x=='Small molecule transport']<-'Transport';o[o=='']<-'No annotation';o}
+.f8f_anno <- setNames(.f8f_remap(.f8f_a), .f8f_Hmito$Symbol)
+.f8f_cols <- c('Oxidative phos'='#1B9E77','Metabolism'='#D95F02','No annotation'='#7570B3',
+  'Mito central dogma'='#E7298A','Transport'='#66A61E','Signaling'='#E6AB02',
+  'Mito dynamics'='#A6761D','Protein import/sorting'='#666666')
+.f8f_hsym <- unique(.f8f_Hmito$Symbol); .f8f_nuc <- .f8f_hsym[!grepl('^MT-', .f8f_hsym, ignore.case=TRUE)]
+
+.f8f_df <- function(coef, num){
+  raw <- as.data.frame(results(.f8f_dds, contrast=c('condition', num, 'Donor')))
+  shr <- as.data.frame(lfcShrink(.f8f_dds, coef=coef, type='apeglm')); shr$padj <- raw[rownames(shr),'padj']
+  rk <- raw$stat; names(rk) <- rownames(raw); rk <- rk[!is.na(rk)]; rk <- rk[!duplicated(names(rk))]
+  set.seed(1); nes <- fgsea::fgsea(list(M=intersect(.f8f_nuc, names(rk))), rk, nPermSimple=10000)$NES
+  g <- intersect(.f8f_hsym, rownames(shr))
+  d <- data.frame(gene=g, log2fc=shr[g,'log2FoldChange'], padj=shr[g,'padj'], category=.f8f_anno[g])
+  d <- d[complete.cases(d[,c('log2fc','padj')]),]; d$neglogp <- pmin(-log10(d$padj), 6); list(d=d, nes=nes)
+}
+.f8f_H <- .f8f_df('condition_NF_vs_Donor', 'NF')
+.f8f_R <- .f8f_df('condition_SystolicHF_vs_Donor', 'SystolicHF')
+.f8f_yl <- max(4, ceiling(max(abs(c(.f8f_H$d$log2fc, .f8f_R$d$log2fc)))))
+.f8f_FS <- 11.25
+.f8f_volc <- function(x, title, nes, is_bottom){
+  lab <- head(x[x$padj<0.05, ][order(x[x$padj<0.05,'padj']), ], 7)
+  g <- ggplot(x, aes(neglogp, log2fc, color=category)) +
+    geom_hline(yintercept=0, color='grey80') +
+    geom_hline(yintercept=c(-0.5,0.5), linetype='dashed', color='grey60') +
+    geom_vline(xintercept=-log10(0.05), linetype='dashed', color='grey60') +
+    geom_point(size=1.6, alpha=0.85) +
+    geom_text_repel(data=lab, aes(label=gene), size=.f8f_FS/.pt, fontface='italic', max.overlaps=20, show.legend=FALSE) +
+    scale_color_manual(values=.f8f_cols, drop=FALSE, name=NULL) +
+    scale_x_continuous(limits=c(0,6.3), expand=expansion(mult=c(0,0.02))) +
+    scale_y_continuous(limits=c(-.f8f_yl, .f8f_yl)) +
+    labs(title=sprintf('%s  (NES %.2f, n.s.)', title, nes),
+         x=if(is_bottom) expression(-log[10]~adj.~P) else NULL, y=expression(log[2]~fold~change)) +
+    theme_bw(base_size=.f8f_FS) +
+    theme(text=element_text(size=.f8f_FS), plot.title=element_text(size=.f8f_FS),
+          axis.title=element_text(size=.f8f_FS), axis.text=element_text(size=.f8f_FS),
+          legend.text=element_text(size=.f8f_FS), panel.grid.minor=element_blank(),
+          plot.margin=if(is_bottom) margin(0,3,3,3) else margin(3,3,0,3))
+  if(!is_bottom) g <- g + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())
+  g
+}
+p_8F <- (.f8f_volc(.f8f_H$d, 'HLHS vs Donor', .f8f_H$nes, FALSE) /
+         .f8f_volc(.f8f_R$d, 'RVF vs Donor',  .f8f_R$nes, TRUE)) +
+        plot_layout(guides='collect') &
+        theme(legend.position='right') & guides(color=guide_legend(ncol=1, override.aes=list(size=3)))
+save_figure(p_8F, 'Figure_8_panel_F.pdf', width = 6.5, height = 4.3)
 
 
 

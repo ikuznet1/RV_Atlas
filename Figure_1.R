@@ -8,8 +8,9 @@
 ##   (C) snRNA-seq UMAP with cluster annotations + per-cluster GO/Reactome terms
 ##   (D) Per-module pathway dotplot — rows = GO/Reactome terms,
 ##       columns = WGCNA modules (M1..MN); colour = -log10 score, size = padj
-##   (E) WGCNA module-score violins by NF/pRV/RVF for key modules
-##       (M1, M3, M4, M5, M6, M8, M9, M12, M14, M20, M22, M28)
+##   (E) WGCNA module-score violins by NF/pRV/RVF for modules with a significant
+##       eigengene shift (either direction) in NF->pRV or pRV->RVF (computed below
+##       in mods_use; not hardcoded)
 ##   (F) Cross-cohort concordance dotplots (RV vs PAH/Senum):
 ##       RVF↓ — Respiratory ETC / APOBEC3G / Wnt
 ##       RVF↑ — IFN-α/β, OAS antiviral, TRAF3
@@ -873,10 +874,13 @@ if (file.exists(.cache_dme_nf_prv)) {
   saveRDS(DMEs_nf_vs_prv, .cache_dme_nf_prv)
 }
 
-mods_use <- unique(c(rownames(
-  subset(DMEs_prv_vs_rvf,p_val_adj<0.05)),
-rownames(subset(DMEs_nf_vs_rvf,p_val_adj<0.05)),
-rownames(subset(DMEs_nf_vs_rvf,p_val_adj<0.05))))
+## v59 panel-E selection: keep modules with a significant module-eigengene shift
+## (either direction; FindDMEs Wilcoxon, Bonferroni p_val_adj < 0.05) in at least
+## one ADJACENT transition -- NF->pRV or pRV->RVF.  (Previously unioned pRV-vs-RVF
+## with NF-vs-RVF listed twice, which omitted the NF->pRV transition.)
+mods_use <- unique(c(
+  rownames(subset(DMEs_nf_vs_prv,  p_val_adj < 0.05)),
+  rownames(subset(DMEs_prv_vs_rvf, p_val_adj < 0.05))))
 
 
 # seurat_obj@meta.data <- cbind(seurat_obj@meta.data, MEs)

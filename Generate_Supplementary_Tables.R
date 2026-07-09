@@ -1,15 +1,18 @@
 ##############################################################################
 # Generate_Supplementary_Tables.R
 #
-# Builds Tables S1-S5 (clinical / experimental metadata) per v57 dictionary,
+# Builds Tables S1-S8 (clinical / experimental metadata) per v57 dictionary,
 # emitted as a SINGLE workbook (per Nature CVR convention: one combined
 # Supplementary_Tables.xlsx with one sheet per Table + a leading README).
 #
-#   S1  Adult RV cohort demographics + hemodynamics + platform allocation
-#   S2  Hemodynamic / echo parameters used for disease-state stratification
-#   S3  snRNA-seq cohort demographics (n=11, balanced)
-#   S4  Murine PAB snRNA-seq cohort echo + group (n=10)
-#   S5  Per-group n for adult / PAB / peds respirometry
+#   S1  Adult RV cohort demographics + platform allocation (n=142)
+#   S2  Adult RV cohort hemodynamics (n=142)
+#   S3  Adult RV cohort clinical comparison, pRV vs RVF (imported, n=78/35)
+#   S4  snRNA-seq cohort demographics + QC (n=11, balanced)
+#   S5  snRNA-seq cohort clinical comparison, pRV vs RVF (imported, n=4/3)
+#   S6  Xenium spatial transcriptomics cohort demographics + QC (n=9)
+#   S7  Murine PAB snRNA-seq cohort echo + group (n=10)
+#   S8  Murine PAB 2-wk + 2-mo echo / respirometry cohort
 #
 # Sources
 #   dependencies/shared/BulkRNA/metadata.csv     (adult bulk: var_disease, HHT_*,
@@ -21,6 +24,10 @@
 #   dependencies/shared/PAB_data_clean.rds       (PAB snRNA mouse IDs + group)
 #   dependencies/shared/snPAB_Echo.xlsx          (PAB echo measurements)
 #   dependencies/shared/mito_data.xlsx           (respirometry; per-group n)
+#   dependencies/shared/SupplementalTables_v1.docx (static pRV-vs-RVF clinical
+#                                                  comparison tables -> S3, S5;
+#                                                  imported verbatim, parsed
+#                                                  with officer::docx_summary)
 #
 # Output
 #   output/Supp_Tables/Supplementary_Tables.xlsx
@@ -43,7 +50,7 @@ dir.create(.outdir, showWarnings = FALSE, recursive = TRUE)
 .section <- function(n, title) message(sprintf('\n============ Table S%d - %s ============', n, title))
 
 # Curated echo / metric leaf labels (abbreviations + units; shared by the
-# murine PAB tables S4 & S5). Keys cover both the snRNA-cache column names
+# murine PAB tables S5 & S6). Keys cover both the snRNA-cache column names
 # and the wk2_/wk8_-stripped PAB+respir column names.
 .ECHO_ABBR <- c(
   Body_Weight_g              = 'BW (g)',
@@ -91,6 +98,60 @@ XENIUM_PATIENT_IDS <- c('1343','1467','1561','1567','1618',
 
 # Collect all tables in a single named list; we'll write one xlsx at the end.
 all_sheets <- list()
+
+# ===========================================================================
+# Static pairwise (pRV vs RVF) comparison tables, imported VERBATIM from
+# SupplementalTables_v1.docx. These summarise clinical / echocardiographic /
+# laboratory / medication variables that are NOT all present in the per-patient
+# sequencing metadata (e.g. TAPSE, tricuspid regurgitation, LVEF, heart weight,
+# GFR, most medications), so they cannot be recomputed and are reproduced as-is.
+#   source Table II  (adult cohort, n=78/35)  -> Table S3
+#   source Table IV  (snRNA-seq cohort, n=4/3) -> Table S5
+# Each docx table has a merged title row, a "Variables | pRV | RVF | P" header,
+# and an "n = .." sub-header; we strip those and keep the data rows.
+# ===========================================================================
+.SUPPTAB_DOCX <- file.path(.shared, 'SupplementalTables_v1.docx')
+
+.parse_pairwise_docx <- function(path, which_table) {
+  if (!requireNamespace('officer', quietly = TRUE) || !file.exists(path))
+    return(NULL)
+  s  <- officer::docx_summary(officer::read_docx(path))
+  tc <- s[s$content_type == 'table cell', ]
+  ## officer >=0.5 exposes a dedicated `table_index` (one id per table); older
+  ## builds only had `doc_index` (which, since officer ~0.7, increments per row
+  ## and no longer groups a table — that regression made `unique(doc_index)`
+  ## return one entry per cell and picked a 1-column stray, crashing on M[,2]).
+  grp  <- if ('table_index' %in% names(tc)) tc$table_index else tc$doc_index
+  tabs <- sort(unique(grp))                          # tables in document order
+  if (which_table > length(tabs)) return(NULL)
+  t  <- tc[grp == tabs[which_table], ]
+  rows <- sort(unique(t$row_id)); nc <- max(t$cell_id)
+  ## Defensive: the pairwise clinical tables are 4-col (Variables|pRV|RVF|P).
+  ## If the parse yields fewer, degrade gracefully rather than crash on M[,2:4].
+  if (nc < 4 || length(rows) < 2) return(NULL)
+  M <- matrix('', nrow = length(rows), ncol = nc)
+  for (i in seq_along(rows)) {
+    rr <- t[t$row_id == rows[i], ]
+    for (j in seq_len(nc)) {
+      cell <- rr$text[rr$cell_id == j]; cell <- cell[!is.na(cell)]
+      v <- if (length(cell)) trimws(paste(cell, collapse = ' ')) else ''
+      ## officer drops the space before '(' in "55.5 (49, 62)"; restore it.
+      M[i, j] <- gsub('\\s+', ' ', gsub('([0-9])\\(', '\\1 (', v))
+    }
+  }
+  empty <- function(x) !nzchar(x)
+  title_idx  <- which(empty(M[, 2]) & empty(M[, 3]) & empty(M[, 4]))  # merged title
+  header_idx <- which(M[, 1] == 'Variables')                          # pRV/RVF/P
+  n_idx      <- which(grepl('^n ?=', M[, 2]))                         # n = .. row
+  n_pRV <- if (length(n_idx)) M[n_idx[1], 2] else 'n'
+  n_RVF <- if (length(n_idx)) M[n_idx[1], 3] else 'n'
+  data_idx <- setdiff(seq_len(nrow(M)), c(title_idx, header_idx, n_idx))
+  df <- data.frame(M[data_idx, 1], M[data_idx, 2], M[data_idx, 3], M[data_idx, 4],
+                   check.names = FALSE, stringsAsFactors = FALSE)
+  names(df) <- c('Variables', paste0('pRV (', n_pRV, ')'),
+                 paste0('RVF (', n_RVF, ')'), 'P value')
+  df
+}
 
 # ===========================================================================
 # Adult bulk metadata loader + tidy
@@ -194,18 +255,32 @@ s2 <- s1_full[, c('patient_id', 'group',
 all_sheets[['Table_S2']] <- s2
 
 # ===========================================================================
-# Table S3 — snRNA-seq cohort (n=11) demographics + QC
+# Table S3 — Adult RV cohort clinical comparison (pRV vs RVF), imported
+# verbatim from SupplementalTables_v1.docx (source Table II; n=78/35).
+# ===========================================================================
+.section(3, 'Adult RV cohort clinical comparison, pRV vs RVF (imported)')
+s3_cmp <- .parse_pairwise_docx(.SUPPTAB_DOCX, which_table = 2)
+if (!is.null(s3_cmp)) {
+  all_sheets[['Table_S3']] <- s3_cmp
+  message('  Table S3 (adult pRV vs RVF): ', nrow(s3_cmp), ' variables | cols: ',
+          paste(names(s3_cmp), collapse = ', '))
+} else {
+  message('  SupplementalTables_v1.docx not found/parseable; skipping Table S3')
+}
+
+# ===========================================================================
+# Table S4 — snRNA-seq cohort (n=11) demographics + QC
 # Demographics joined from S1; QC summarized per-patient from snRV_ref.rds
 # (mean % mito, mean entropy, mean % intronic, median nCount / nFeature).
 # ===========================================================================
-.section(3, 'snRNA-seq cohort (n=11) demographics + QC')
+.section(4, 'snRNA-seq cohort (n=11) demographics + QC')
 sn_rds <- file.path(.shared, 'snRV_ref.rds')
 if (file.exists(sn_rds)) {
   sn <- readRDS(sn_rds)
   sm <- sn@meta.data
   rm(sn); invisible(gc(verbose = FALSE))
   if (!'patient' %in% names(sm)) {
-    message('  snRV_ref.rds metadata lacks patient column; skipping Table S3')
+    message('  snRV_ref.rds metadata lacks patient column; skipping Table S4')
   } else {
     sm$patient <- as.character(sm$patient)
     # Normalise percentage columns to 0-100 scale before aggregating; many
@@ -249,23 +324,37 @@ if (file.exists(sn_rds)) {
     s3 <- merge(demo, qc, by = 'patient_id', all = TRUE)
     s3 <- s3[order(s3$group, s3$patient_id), , drop = FALSE]
     rownames(s3) <- NULL
-    all_sheets[['Table_S3']] <- s3
+    all_sheets[['Table_S4']] <- s3
     message('  snRNA cohort rows: ', nrow(s3),
             if (nrow(s3) != 11) '  (NOTE: v57 expects n=11)' else '')
   }
   rm(sm); invisible(gc(verbose = FALSE))
 } else {
-  message('  snRV_ref.rds not found; skipping Table S3')
+  message('  snRV_ref.rds not found; skipping Table S4')
 }
 
 # ===========================================================================
-# Table S4 — Murine PAB snRNA-seq cohort
+# Table S5 — snRNA-seq cohort clinical comparison (pRV vs RVF), imported
+# verbatim from SupplementalTables_v1.docx (source Table IV; n=4/3).
 # ===========================================================================
-.section(4, 'Murine PAB snRNA-seq cohort (n=10)')
+.section(5, 'snRNA-seq cohort clinical comparison, pRV vs RVF (imported)')
+s5_cmp <- .parse_pairwise_docx(.SUPPTAB_DOCX, which_table = 4)
+if (!is.null(s5_cmp)) {
+  all_sheets[['Table_S5']] <- s5_cmp
+  message('  Table S5 (snRNA pRV vs RVF): ', nrow(s5_cmp), ' variables | cols: ',
+          paste(names(s5_cmp), collapse = ', '))
+} else {
+  message('  SupplementalTables_v1.docx not found/parseable; skipping Table S5')
+}
+
+# ===========================================================================
+# Table S7 — Murine PAB snRNA-seq cohort
+# ===========================================================================
+.section(7, 'Murine PAB snRNA-seq cohort (n=10)')
 ## NOTE: the snRNA-seq mice and the echo/respirometry mice are DISTINCT
 ## animals that merely reuse ID integers (per the wet-lab). They are kept
-## as two SEPARATE tables: Table S4 = the n=10 sequenced cohort (this
-## block); Table S5 = the 2-wk + 2-mo echo / respirometry cohort (below).
+## as two SEPARATE tables: Table S7 = the n=10 sequenced cohort (this
+## block); Table S8 = the 2-wk + 2-mo echo / respirometry cohort (below).
 ## Reads the small precomputed cohort summary (deps-compliant; avoids
 ## loading the 55k-cell PAB_data_clean.rds Seurat object at table-gen
 ## time — that readRDS peaks memory and OOMs on constrained machines).
@@ -283,22 +372,22 @@ if (file.exists(sn_cache)) {
   names(s4) <- ifelse(names(s4) %in% names(s4_lab),
                       s4_lab[names(s4)], names(s4))
   rownames(s4) <- NULL
-  all_sheets[['Table_S4']] <- s4
-  message('  Table S4 (snRNA cohort): ', nrow(s4), ' mice | cols: ',
+  all_sheets[['Table_S7']] <- s4
+  message('  Table S7 (snRNA cohort): ', nrow(s4), ' mice | cols: ',
           ncol(s4), ' | ',
           paste(names(.g4), .g4, sep = '=', collapse = ', '))
 } else {
-  message('  PAB_snRNA_cohort_summary.csv not found; skipping Table S4')
+  message('  PAB_snRNA_cohort_summary.csv not found; skipping Table S7')
 }
 
 # ===========================================================================
-# Table S5 — Murine PAB 2-wk + 2-mo echo / respirometry cohort:
-#   the full echo/respirometry animal set (DISTINCT mice from Table S4),
+# Table S8 — Murine PAB 2-wk + 2-mo echo / respirometry cohort:
+#   the full echo/respirometry animal set (DISTINCT mice from Table S7),
 #   2-week + 8-week (2-month) echocardiography. Detailed respirometry flux
 #   columns and admin date/weight columns are dropped per spec; sorted by
 #   PAB_vs_Sham.
 # ===========================================================================
-.section(5, 'Murine PAB 2-wk + 2-mo echo / respirometry cohort')
+.section(8, 'Murine PAB 2-wk + 2-mo echo / respirometry cohort')
 pab_resp_xlsx <- file.path(.shared, 'PAB + respirometry data.xlsx')
 if (file.exists(pab_resp_xlsx)) {
   raw <- as.data.frame(suppressMessages(readxl::read_excel(
@@ -355,7 +444,7 @@ if (file.exists(pab_resp_xlsx)) {
     v <- suppressWarnings(as.numeric(x))
     if (any(real) && all(!is.na(v[real]))) s5[[cn]] <- v
   }
-  ## Split into two vertically-stacked sub-tables (one Table S5 heading):
+  ## Split into two vertically-stacked sub-tables (one Table S6 heading):
   ## Week 2 then Week 8. Each repeats ID / Category / BW (g) and that
   ## week's echo params; the Week 8 BW is the wk8 surgical body weight.
   echo_base <- c('RV_Area_Diastole_mm_2_', 'RV_Area_Systole_mm_2_', 'FAC',
@@ -385,7 +474,7 @@ if (file.exists(pab_resp_xlsx)) {
   ## nlead = leading non-echo cols; rows whose echo columns are ALL NA
   ## (respirometry-only mice with no 8-week echo) are dropped per part.
   ## Week 2 carries the Group column + ID; Week 8 drops ID.
-  .stacked[['Table_S5']] <- list(
+  .stacked[['Table_S8']] <- list(
     list(title = 'Week 2', nlead = 4L,
          cols = c('ID', 'PAB_vs_Sham', 'wk_group',
                   'Surgical_Body_Weight_g_', paste0('wk2_', echo_base)),
@@ -394,13 +483,13 @@ if (file.exists(pab_resp_xlsx)) {
          cols = c('ID', 'PAB_vs_Sham', 'wk8_Surgical_Body_Weight_g_',
                   paste0('wk8_', echo_base)),
          labels = c('ID', 'Category', 'BW (g)', echo_lab)))
-  all_sheets[['Table_S5']] <- s5
-  message('  Table S5 (echo/respir cohort): ', nrow(s5), ' mice | cols: ',
+  all_sheets[['Table_S8']] <- s5
+  message('  Table S8 (echo/respir cohort): ', nrow(s5), ' mice | cols: ',
           ncol(s5), ' | ',
           paste(names(table(s5$PAB_vs_Sham)), table(s5$PAB_vs_Sham),
                 sep = '=', collapse = ', '))
 } else {
-  message('  PAB + respirometry data.xlsx not found; skipping Table S5')
+  message('  PAB + respirometry data.xlsx not found; skipping Table S8')
 }
 
 # ===========================================================================
@@ -457,17 +546,23 @@ if (file.exists(xen_meta_path)) {
 # ===========================================================================
 index_df <- data.frame(
   `Table #` = c('Table S1', 'Table S2', 'Table S3', 'Table S4',
-                'Table S5', 'Table S6'),
+                'Table S5', 'Table S6', 'Table S7', 'Table S8'),
   Title = c(
     'Adult RV cohort: demographics & platform allocation (n=142).',
     'Adult RV cohort: hemodynamics (n=142).',
+    'Adult RV cohort: clinical comparison, pRV vs RVF (n=78/35).',
     'snRNA-seq cohort: demographics & QC (n=11).',
+    'snRNA-seq cohort: clinical comparison, pRV vs RVF (n=4/3).',
+    'Xenium spatial cohort: demographics & QC (n=9).',
     'Murine PAB snRNA-seq cohort: echo (n=10).',
-    'Murine PAB 2-wk + 2-mo echo / respirometry cohort.',
-    'Xenium spatial cohort: demographics & QC (n=9).'
+    'Murine PAB 2-wk + 2-mo echo / respirometry cohort.'
   ),
   check.names = FALSE
 )
+## Canonical sheet order S1..S8 — block execution order differs from output
+## order (e.g. the Xenium block runs last but is now Table S6); this line
+## re-sorts the sheets into S1..S8 regardless of when each was assigned.
+all_sheets <- all_sheets[intersect(paste0('Table_S', 1:8), names(all_sheets))]
 all_sheets <- c(list(INDEX = index_df), all_sheets)
 
 # Columns that should be rendered as whole integers (no sig-fig cap)
@@ -667,10 +762,12 @@ message('\nWROTE ', out_path, '  (', length(all_sheets), ' sheet(s))')
   v57_captions <- list(
     Table_S1 = 'Table S1. Patient demographics for the adult RV cohort (n=142), including disease state classification (NF, pRV, RVF), etiology (DCM/ICM/NF), age, sex, ethnicity, anthropometrics, pacemaker status, RNA integrity (RIN), and platform allocation flags (in_snRNA_cohort, in_Xenium_cohort).',
     Table_S2 = 'Table S2. Hemodynamic parameters for the adult RV cohort (n=142) used for disease-state stratification: right atrial pressure (RAP), pulmonary capillary wedge pressure (PCWP), RA:PCWP ratio (primary stratification variable), pulmonary arterial pressures, cardiac index, and pulmonary vascular resistance index (PVRI).',
-    Table_S3 = 'Table S3. snRNA-seq cohort (n=11): per-patient demographics joined from Table S1, plus per-nucleus quality control metrics — nuclei recovered, median UMI count and feature count, mean mitochondrial percent, mean transcriptional entropy, and mean intronic read percent.',
-    Table_S4 = 'Table S4. Murine PAB snRNA-seq cohort (n=10: 3 Sham, 3 Moderate-RVF, 4 Severe-RVF), with nuclei recovered and per-mouse echocardiographic parameters. Column abbreviations: BW, body weight (g); RVAD, RV area at diastole (mm²); RVAS, RV area at systole (mm²); FAC, fractional area change (%); RVFW, RV free-wall thickness (mm); TAPSE, tricuspid annular plane systolic excursion (mm); TDI S′, tissue-Doppler systolic wave; Pk Grad, peak gradient (mmHg); Pk Vel, peak velocity (mm/s); TR, tricuspid regurgitation. These are DISTINCT animals from the echo/respirometry cohort (Table S5) despite shared ID integers.',
-    Table_S5 = 'Table S5. Murine PAB 2-week + 2-month (8-week) echocardiography / respirometry cohort — the full echo-phenotyped animal set (distinct mice from the snRNA-seq cohort in Table S4), categorised as PAB vs Sham (Category) and sorted by Category. Presented as two vertically-stacked sub-tables: Week 2 and Week 8. ID, Category and BW (g) are repeated in each; the Week 8 BW (g) is the 8-week surgical body weight. The Week 2 Group column flags whether a mouse is "Week 2 only" (respirometry-only, no 8-week echo) or "Week 8" (also echoed at 8 weeks); the Week 8 sub-table lists exactly the latter. Echo abbreviations match Table S4 (BW, body weight (g); RVAD, RV area at diastole (mm²); RVAS, RV area at systole (mm²); FAC, fractional area change (%); RVFW, RV free-wall thickness (mm); TAPSE, tricuspid annular plane systolic excursion (mm); TDI S′; Pk Grad, peak gradient (mmHg); Pk Vel, peak velocity (mm/s); TR, tricuspid regurgitation); echo values are shown to 3 significant figures. Week 8 mouse ID 17 died during the echocardiogram, so only the parameters acquired before death are reported (subsequent metrics — TAPSE, TDI S′, Pk Grad, Pk Vel, TR — are shown as NA).',
-    Table_S6 = 'Table S6. Patient demographics for the Xenium spatial transcriptomics cohort (n=9), with tissue section details and per-section quality control metrics (cells captured, median UMI/features per cell, median cell area, section area, cell density).'
+    Table_S3 = 'Table S3. Clinical and demographic characteristics of the adult RV cohort compared between compensated (pRV, n=78) and decompensated (RVF, n=35) disease states. Continuous variables are presented as median (interquartile range) or mean ± standard deviation, and categorical variables as percentages; nominal P values were calculated by Mann–Whitney U or unpaired t-test (continuous) and Fisher exact test (categorical). Hemodynamic (RA, RA:PCWP, PCWP, PA systolic pressure), echocardiographic (TAPSE, tricuspid regurgitation, LV ejection fraction), anthropometric (heart weight, body weight, BSA), renal (GFR), comorbidity, and medication variables are reproduced verbatim from the source clinical dataset, as several are not captured in the per-patient sequencing metadata. RA, right atrial pressure; PCWP, pulmonary capillary wedge pressure; TAPSE, tricuspid annular plane systolic excursion; GFR, glomerular filtration rate; DCM, dilated cardiomyopathy.',
+    Table_S4 = 'Table S4. snRNA-seq cohort (n=11): per-patient demographics joined from Table S1, plus per-nucleus quality control metrics — nuclei recovered, median UMI count and feature count, mean mitochondrial percent, mean transcriptional entropy, and mean intronic read percent.',
+    Table_S5 = 'Table S5. Clinical and demographic characteristics of the snRNA-seq cohort compared between compensated (pRV, n=4) and decompensated (RVF, n=3) disease states, matching the variable set of Table S3. Continuous variables are presented as mean ± standard deviation or median (interquartile range), and categorical variables as percentages; nominal P values were calculated by unpaired t-test or Mann–Whitney U (continuous) and Fisher exact test (categorical). Owing to the small per-group sample size these comparisons are descriptive. Values are reproduced verbatim from the source clinical dataset; abbreviations as in Table S3.',
+    Table_S6 = 'Table S6. Patient demographics for the Xenium spatial transcriptomics cohort (n=9), with tissue section details and per-section quality control metrics (cells captured, median UMI/features per cell, median cell area, section area, cell density).',
+    Table_S7 = 'Table S7. Murine PAB snRNA-seq cohort (n=10: 3 Sham, 3 Moderate-RVF, 4 Severe-RVF), with nuclei recovered and per-mouse echocardiographic parameters. Column abbreviations: BW, body weight (g); RVAD, RV area at diastole (mm²); RVAS, RV area at systole (mm²); FAC, fractional area change (%); RVFW, RV free-wall thickness (mm); TAPSE, tricuspid annular plane systolic excursion (mm); TDI S′, tissue-Doppler systolic wave; Pk Grad, peak gradient (mmHg); Pk Vel, peak velocity (mm/s); TR, tricuspid regurgitation. These are DISTINCT animals from the echo/respirometry cohort (Table S8) despite shared ID integers.',
+    Table_S8 = 'Table S8. Murine PAB 2-week + 2-month (8-week) echocardiography / respirometry cohort — the full echo-phenotyped animal set (distinct mice from the snRNA-seq cohort in Table S7), categorised as PAB vs Sham (Category) and sorted by Category. Presented as two vertically-stacked sub-tables: Week 2 and Week 8. ID, Category and BW (g) are repeated in each; the Week 8 BW (g) is the 8-week surgical body weight. The Week 2 Group column flags whether a mouse is "Week 2 only" (respirometry-only, no 8-week echo) or "Week 8" (also echoed at 8 weeks); the Week 8 sub-table lists exactly the latter. Echo abbreviations match Table S7 (BW, body weight (g); RVAD, RV area at diastole (mm²); RVAS, RV area at systole (mm²); FAC, fractional area change (%); RVFW, RV free-wall thickness (mm); TAPSE, tricuspid annular plane systolic excursion (mm); TDI S′; Pk Grad, peak gradient (mmHg); Pk Vel, peak velocity (mm/s); TR, tricuspid regurgitation); echo values are shown to 3 significant figures. Week 8 mouse ID 17 died during the echocardiogram, so only the parameters acquired before death are reported (subsequent metrics — TAPSE, TDI S′, Pk Grad, Pk Vel, TR — are shown as NA).'
   )
 
   for (nm in names(pretty_sheets)) {

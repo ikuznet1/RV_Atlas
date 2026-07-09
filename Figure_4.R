@@ -12,8 +12,8 @@
 ##   (C) Bulk WGCNA module × phase × platform × lineage Z-heatmap
 ##       (AddModuleScore), facetted by Pan / CM / Myeloid / EC / FB / Mural
 ##   (D) Phase 1 vs Phase 2 DEG-count bar chart by platform (Bulk, sn, Xenium)
-##   (E) CellNEST top LR-pair bar charts (NF, pRV, RVF — pooled edge counts)
-##   (F) Cell-cell communication chord diagrams (NF, pRV, RVF — log₂(O/E))
+##   (E) CellChat top-15 signaling pathways, Myocardium niche (external asset)
+##   (F) CellChat normalized cell-type communication chord, Myocardium (external asset)
 ##
 ## Outputs (./output/Figure_4/v52_figures/):
 ##   Figure_4_panel_B.pdf, Figure_4_panel_C.pdf, Figure_4_panel_D.pdf,
@@ -329,10 +329,126 @@ p_4A <- if (file.exists(file.path(ASSET_DIR, 'Figure_4_panel_A_twophase.png'))) 
 ## Rows grouped by category (Pan / CM / Myeloid / EC / FB / Mural / NKT)
 ## Cols: Bulk / snRNA / Xenium × Phase 1 (pRV vs NF) / Phase 2 (RVF vs pRV)
 ###############################################################################
-unified_df <- .build_unified(fig4_gene_groups)
-p_4BC <- .make_unified_heatmap(unified_df, fig4_gene_groups)
-save_figure(p_4BC, 'Figure_4_panel_B.pdf', width = 7, height = 9)
-p_4B <- p_4BC  # Panel B = combined Phase1/Phase2 key-gene heatmaps (was B + C)
+## Panel B — validated combined two-phase cross-platform heatmap.
+## Rows = genes by lineage (Pan/CM/Myeloid/EC/FB/Mural); cols = Bulk/snRNA/Xenium
+## × Phase 1 (NF→pRV) | Phase 2 (pRV→RVF). log2FC fill, FDR star (∗), off-panel
+## Xenium = grey, low-count (baseMean<20) = blank grey. Bulk files NF_vs_pRV &
+## pRV_vs_RVF are inverted (×−1) so + = up in the later stage; sn/Xenium use
+## contrasts pRV_vs_NF / RVF_vs_pRV. Pan row sn/Xen = mean across 5 non-CM
+## lineages. Mirrors Figure_4_panel_B_crossplatform.R (edit there + here in sync).
+## Wrapped in local() with its own +20% font scale (PS_B) so it does not touch
+## the global COMP_W/PS used by panels C–F. Reads ONLY ./dependencies/shared.
+p_4BC <- local({
+  PS_B  <- pub_scales(16.8)                          # 14 × 1.2 → fonts +20%
+  DEP   <- './dependencies/shared'; SIG <- 0.05; MINBM <- 20
+  NONCM <- c('Myeloid','EC','FB','PC','SM')
+
+  gene_groups <- list(
+    Pan     = c('GPX3','TXNRD1','GCLM','GSR','FKBP5','KLF9'),
+    CM      = c('MYH6','MLIP','NPPA','NPPB','ACTA1',  'BMPR2','BMPR1A','BAMBI','FSTL3'),
+    Myeloid = c('CD163','VSIG4','MERTK','CD1C','FCER1A','CD83'),
+    EC      = c('IL1RL1','ACE2','TIMP3','TIMP4','CXCL9','IFI44L','RSAD2','MX1',  'ANGPT2','SNAI1','ADAMTS1'),
+    FB      = c('SFRP4','TGFBR3','THBS4','ACTA2',  'TNC','ELN'),
+    PC      = c('IL1RL1','ELN','DES','TIMP3','TIMP4','ACE2','SMAD3','ADH1B')   # facet 'Mural'
+  )
+  cat_lineage  <- c(CM='CM', Myeloid='Myeloid', EC='EC', FB='FB', PC='PC')
+  union_genes  <- unique(unlist(gene_groups, use.names = FALSE))
+
+  bd <- function(file) {                              # bulk: invert -> later-stage orientation
+    d <- read.csv(file.path(DEP, file)); names(d)[1] <- 'gene'
+    d <- d[d$gene %in% union_genes, ]
+    setNames(Map(function(l,p,m) c(lfc=-l, padj=p, bm=m), d$log2FoldChange, d$padj, d$baseMean), d$gene)
+  }
+  bd1 <- bd('NF_vs_pRV_deseq.csv'); bd2 <- bd('pRV_vs_RVF_deseq.csv')
+  loadc <- function(file, con) {
+    d <- read.csv(file.path(DEP, file))
+    d[d$contrast == con & d$gene %in% union_genes, c('gene','subtype','log2FoldChange','padj','baseMean')]
+  }
+  sn1 <- loadc('sn_pseudobulk_lineage_deseq2.csv','pRV_vs_NF')
+  sn2 <- loadc('sn_pseudobulk_lineage_deseq2.csv','RVF_vs_pRV')
+  xe1 <- loadc('xenium_pseudobulk_lineage_deseq2.csv','pRV_vs_NF')
+  xe2 <- loadc('xenium_pseudobulk_lineage_deseq2.csv','RVF_vs_pRV')
+  panel_genes <- read.csv(file.path(DEP,'panel_genes.csv'))[, 2]
+
+  lk_lin <- function(d, g, lin) { r <- d[d$gene==g & d$subtype==lin, ]
+    if (!nrow(r)) c(lfc=NA, padj=NA, bm=NA) else c(lfc=r$log2FoldChange[1], padj=r$padj[1], bm=r$baseMean[1]) }
+  lk_pan <- function(d, g) { r <- d[d$gene==g & d$subtype %in% NONCM, ]
+    if (!nrow(r)) c(lfc=NA, sig=0, bm=NA) else
+      c(lfc=mean(r$log2FoldChange, na.rm=TRUE), sig=as.numeric(sum(!is.na(r$padj) & r$padj<SIG)>=2),
+        bm=mean(r$baseMean, na.rm=TRUE)) }
+
+  phases <- list(
+    list(lab='Phase 1\n(NF→pRV)',  bd=bd1, sn=sn1, xe=xe1),
+    list(lab='Phase 2\n(pRV→RVF)', bd=bd2, sn=sn2, xe=xe2)
+  )
+
+  rows <- list()
+  add  <- function(g,cat,ph,plat,lfc,sig,bm,off=FALSE)
+    rows[[length(rows)+1]] <<- data.frame(gene=g, category=cat, phase=ph,
+      platform=plat, lfc=unname(lfc), sig=sig, bm=unname(bm), off_panel=off,
+      stringsAsFactors=FALSE)
+
+  for (cat in names(gene_groups)) for (g in gene_groups[[cat]]) for (P in phases) {
+    b <- P$bd[[g]]; if (is.null(b)) b <- c(lfc=NA, padj=NA, bm=NA)
+    add(g, cat, P$lab, 'Bulk', b['lfc'], !is.na(b['padj']) && b['padj']<SIG, b['bm'])
+    off <- !(g %in% panel_genes)
+    if (cat == 'Pan') {
+      s <- lk_pan(P$sn, g); add(g, cat, P$lab, 'snRNA', s['lfc'], s['sig']==1, s['bm'])
+      x <- lk_pan(P$xe, g); add(g, cat, P$lab, 'Xenium', if (off) NA else x['lfc'], (!off) && x['sig']==1,
+                                if (off) NA else x['bm'], off)
+    } else {
+      lin <- cat_lineage[[cat]]
+      s <- lk_lin(P$sn, g, lin); add(g, cat, P$lab, 'snRNA', s['lfc'], !is.na(s['padj']) && s['padj']<SIG, s['bm'])
+      x <- lk_lin(P$xe, g, lin); add(g, cat, P$lab, 'Xenium', if (off) NA else x['lfc'],
+          (!off) && !is.na(x['padj']) && x['padj']<SIG, if (off) NA else x['bm'], off)
+    }
+  }
+  df <- do.call(rbind, rows)
+
+  df <- df %>% dplyr::mutate(                          # baseMean<20 -> blank grey
+    low         = !off_panel & (is.na(bm) | bm < MINBM),
+    sig         = sig & !low,
+    l2fc_capped = ifelse(low, NA_real_, pmin(pmax(lfc, -4), 4)),
+    label       = ifelse(off_panel, '', ifelse(sig, '∗', ''))
+  )
+
+  key_levels  <- unlist(lapply(names(gene_groups), function(c) paste(c, gene_groups[[c]], sep='|')), use.names=FALSE)
+  df$rowkey   <- factor(paste(df$category, df$gene, sep='|'), levels = rev(key_levels))  # per-facet order
+  df$category <- factor(df$category, levels = names(gene_groups))
+  df$platform <- factor(df$platform, levels = c('Bulk','snRNA','Xenium'))
+  df$phase    <- factor(df$phase, levels = c('Phase 1\n(NF→pRV)','Phase 2\n(pRV→RVF)'))
+
+  ggplot(df, aes(platform, rowkey)) +
+    geom_tile(aes(fill = l2fc_capped), colour='grey70', linewidth=PS_B$geom_lw) +
+    geom_tile(data = df[df$off_panel, ], fill='grey80', colour='grey70', linewidth=PS_B$geom_lw) +
+    geom_text(aes(label = label), size=PS_B$text_mm, colour='black', family=FONT_FAMILY,
+              hjust=0.5, vjust=0.5) +
+    scale_fill_gradientn(colours=c('#2166AC','white','#B2182B'), limits=c(-4,4),
+      na.value='grey90', name='log₂FC',
+      guide=guide_colorbar(direction='horizontal', barwidth=unit(2.4*PS_B$font_scale,'cm'),
+        barheight=unit(0.3*PS_B$font_scale,'cm'), title.position='top', ticks.colour='black')) +
+    scale_x_discrete(expand=c(0,0), position='top') +
+    scale_y_discrete(expand=c(0,0), labels=function(x) sub('.*\\|','',x)) +
+    facet_grid(category ~ phase, scales='free_y', space='free_y', switch='y',
+      labeller=labeller(category=c(Pan='Pan',CM='CM',Myeloid='Myeloid',EC='EC',FB='FB',PC='Mural'))) +
+    labs(x=NULL, y=NULL) +
+    theme_v52(16.8) +
+    theme(
+      axis.text.x        = element_text(angle=0, hjust=0.5, size=PS_B$base_pt),
+      axis.text.y        = element_text(size=PS_B$base_pt),
+      strip.text.y.left  = element_text(angle=0, size=PS_B$base_pt, face='bold'),
+      strip.text.x       = element_text(size=PS_B$base_pt, face='bold'),
+      strip.placement    = 'outside',
+      strip.background    = element_rect(fill='grey95', colour=NA),
+      legend.position     = 'bottom',
+      panel.border        = element_rect(colour='black', fill=NA, linewidth=PS_B$geom_lw),
+      panel.spacing.x     = unit(0.4,'lines'),
+      panel.spacing.y     = unit(0.15,'lines'),
+      axis.ticks          = element_blank()
+    )
+})
+save_figure(p_4BC, 'Figure_4_panel_B.pdf', width = 7.2, height = 11.8)
+p_4B <- p_4BC  # Panel B = validated combined Phase 1 | Phase 2 cross-platform heatmap
 ## p_4C is assigned later from the WGCNA panel (was Panel G → now Panel C).
 
 ###############################################################################
@@ -804,9 +920,17 @@ p_4C <- ggplot(mod_long, aes(x = module_num, y = platform_phase,
 save_figure(p_4C, 'Figure_4_panel_C.pdf', width = 14, height = 3.5)
 
 ###############################################################################
+## Panels E & F — CellNEST analysis RETIRED (2026-07): CellNEST is no longer
+## used. Fig 4E is now the CellChat top-15 pathways (Myocardium niche) and 4F
+## the CellChat normalized myocardium chord, produced by additional_scripts/
+## spatial_cellchat_niche_communication.R (fig1 / fig2) and assembled in
+## Illustrator. The original CellNEST code is disabled with `if (FALSE)`; the
+## p_4E / p_4F placeholders below keep the composite buildable.
+###############################################################################
 ## Panel E — CellNEST top LR pairs per disease state (was Panels H-J)
 ## Panel F — Chord diagrams: cell type communication by disease state (was Panel K)
 ###############################################################################
+if (FALSE) {  ## <<< retired CellNEST E/F — begin (disabled, kept for reference)
 if (!exists('xen_meta')) {
   xen_meta      <- read.csv('./dependencies/shared/Xenium/Xenium_metadata.csv', row.names = 1)
   patient_group <- xen_meta %>%
@@ -1123,6 +1247,18 @@ p_4K     <- p_4K_nf | p_4K_prv | p_4K_rvf
 
 p_4F <- p_4K  # renumbered Panel F = old Panel K (chord diagrams)
 save_figure(p_4F, 'Figure_4_panel_F.pdf', width = 14, height = 5)
+}  ## <<< retired CellNEST E/F — end
+
+## Placeholders so the composite still assembles. The real 4E/4F are the CellChat
+## panels (fig1_top15_pathways_myocardium / fig2_chord_myocardium_normalized),
+## rendered by additional_scripts/spatial_cellchat_niche_communication.R and
+## dropped in via Illustrator. Replace with the CellChat panels when wired in.
+.panel_placeholder <- function(txt)
+  ggplot2::ggplot() +
+  ggplot2::annotate('text', x = 0.5, y = 0.5, label = txt, size = 4) +
+  ggplot2::theme_void()
+p_4E <- .panel_placeholder('Panel 4E — CellChat top-15 pathways (Myocardium); assembled in Illustrator')
+p_4F <- .panel_placeholder('Panel 4F — CellChat myocardium chord (normalized); assembled in Illustrator')
 
 ###############################################################################
 ## Assemble Figure 4 (patchwork, 6 panels A-F after renumbering)
@@ -1130,14 +1266,14 @@ save_figure(p_4F, 'Figure_4_panel_F.pdf', width = 14, height = 5)
 ## B = Phase1/Phase2 key-gene heatmaps (both stacked)  (was B + C)
 ## C = WGCNA modules × platform × phase                (was G)
 ## D = DEG burden (phase × platform)                   (was D)
-## E = CellNEST LR bars (NF / pRV / RVF)               (was H-J)
-## F = Chord diagrams (NF / pRV / RVF)                 (was K)
+## E = CellChat top-15 pathways, Myocardium           (external; was CellNEST H-J)
+## F = CellChat myocardium chord (normalized)         (external; was CellNEST K)
 ###############################################################################
 row_A_B   <- p_4A | p_4BC       # Panel A + combined Panel B heatmaps
 row_C     <- p_4C               # WGCNA modules
 row_D     <- p_4D               # DEG burden
-row_E     <- p_4E               # CellNEST LR bars
-row_F     <- p_4F               # Chord
+row_E     <- p_4E               # CellChat top-15 pathways (placeholder; external asset)
+row_F     <- p_4F               # CellChat chord (placeholder; external asset)
 
 fig4 <- row_A_B /
         row_C /

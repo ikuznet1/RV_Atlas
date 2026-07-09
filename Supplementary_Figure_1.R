@@ -1,15 +1,17 @@
 ###############################################################################
-## Supplementary Figure 1 (v52 draft) — Bulk RNA-seq supplemental analyses
+## Supplementary Figure 1 (v59) — Bulk RNA-seq supplemental analyses
 ##
-## Panels (from RV_snRNASeq_v52_draft.md figure legends):
-##   (A) DEGs between NF, pRV, RVF
-##   (B) Correlation of FC for NF vs pRV and NF vs RVF
-##   (C) GO enrichment for pRV-upregulated genes (OxPhos, Aerobic ETC)
-##   (D) Additional WGCNA module details
-##   (E) 115 genes with stepwise increasing trend NF->pRV->RVF
-##   (F) 165 genes with decreasing trend NF->pRV->RVF
-##   (G-H) Pathway enrichment for decreasing genes (mito ribosomal)
-##   (I) M4 module genes decrease-then-increase expression pattern
+## Panels (RV_snRNASeq_v59 figure legend):
+##   (A) Volcano — DEGs RVF vs NF (bulk)
+##   (B) Scatter — log2FC NF vs pRV vs RVF; well correlated, outliers labeled
+##   (C) Heatmap — genes increasing NF->pRV->RVF
+##   (D) Heatmap — genes decreasing NF->pRV->RVF
+##   (E) GO BP enrichment — stepwise-decreasing genes (M1/M25/M26, mito translation)
+##   (F) Volcano — progressively downregulated DEGs (NF-vs-pRV | NF-vs-RVF; GADD45GIP1/MRPL11/MRPS14)
+##   (G) GO BP enrichment — pRV-upregulated genes (pRV vs RVF)
+##   (H) GO BP enrichment — RVF-upregulated genes (pRV vs RVF)
+##   (I) PAH vs RV cross-cohort gene-set scatter (ETC / IFN / cardiac-stress / complement)
+##   (J) [DEPRECATED, commented out] PAH gene-level scatter — divergent CD163 + mito translation
 ##
 ## Source: copied from v51 Supplementary_Figure_1.R on 2026-04-10
 ## Status: SKELETON — v52 porting pending
@@ -260,48 +262,66 @@ dev.off()
 
 
 ###############################################################################
-## Figure S1I — PAH cross-cohort comparison (ported from
-## additional_scripts/AnalysisPAH.R). Gene-level scatter of RV (NF vs RVF)
-## vs PAH (NF vs RVF) log2FC; divergent CD163 + mitochondrial-translation
-## genes (mito-ribosomal proteins + GADD45GIP1) highlighted and labelled.
-## Inputs: in-memory nf.vs.rvf + committed dependencies/shared/pah.nf.vs.rvf.csv.
+## Figure S1I (v59) — PAH vs RV cross-cohort gene-set scatter.
+## Per-gene un-shrunk (MLE) log2FC(RVF vs NF): RV cohort (x) vs PAH/GSE240921 (y),
+## dots coloured by program (ETC/OXPHOS, interferon, cardiac stress, complement)
+## to show convergent vs divergent cross-etiology responses. Built by the
+## standalone script and copied to the canonical panel name.
 ###############################################################################
 .s1i_ok <- tryCatch({
-  .pah <- read.csv('./dependencies/shared/pah.nf.vs.rvf.csv', row.names = 1)
-  .rv  <- as.data.frame(nf.vs.rvf)
-  .sh  <- intersect(rownames(.rv), rownames(.pah))
-  .idf <- data.frame(gene = .sh,
-                      RV   = .rv[.sh, 'log2FoldChange'],
-                      PAH  = .pah[.sh, 'log2FoldChange'])
-  .idf <- .idf[is.finite(.idf$RV) & is.finite(.idf$PAH), ]
-  .mito_tx <- grep('^MRPL|^MRPS', .idf$gene, value = TRUE)
-  .hl  <- unique(c('CD163', 'GADD45GIP1', .mito_tx))
-  .idf$cls <- ifelse(.idf$gene == 'CD163', 'CD163',
-               ifelse(.idf$gene %in% .hl, 'Mito-translation', 'Other'))
-  .idf$lab <- ifelse(.idf$gene %in% .hl, .idf$gene, '')
-  .r2  <- summary(lm(PAH ~ RV, .idf))$r.squared
-  .pI  <- ggplot(.idf, aes(RV, PAH)) +
-    geom_point(data = subset(.idf, cls == 'Other'),
-               colour = 'grey80', size = PS$scatter_pt, alpha = 0.4) +
-    geom_point(data = subset(.idf, cls != 'Other'),
-               aes(colour = cls), size = PS$scatter_pt * 1.6) +
-    scale_colour_manual(values = c('CD163' = '#c8553d',
-                                   'Mito-translation' = '#3e64b3'),
-                        name = NULL) +
-    ggrepel::geom_text_repel(aes(label = lab), max.overlaps = Inf,
-        size = PS$text_mm, family = FONT_FAMILY, fontface = 'italic') +
-    geom_hline(yintercept = 0, linewidth = 0.2) +
-    geom_vline(xintercept = 0, linewidth = 0.2) +
-    annotate('text', x = Inf, y = -Inf, hjust = 1.1, vjust = -0.6,
-             label = sprintf('r^2 == %.3f', .r2), parse = TRUE,
-             size = PS$text_mm, family = FONT_FAMILY) +
-    labs(x = 'RV (NF vs RVF) log2FC', y = 'PAH (NF vs RVF) log2FC') +
-    theme_v52(COMP_W)
-  save_figure(.pI, 'Figure_S1_panel_I.pdf', width = 5, height = 5)
-  message('S1 panel I (PAH CD163/mito-translation) written')
+  source('./dependencies/Supplementary_Figure_1_PAH_vs_RV_genesets.R', local = new.env())
+  file.copy(file.path('./output/Supplementary_Figure_1', 'PAH_vs_RV_genesets.pdf'),
+            file.path('./output/Supplementary_Figure_1', 'Figure_S1_panel_I.pdf'),
+            overwrite = TRUE)
+  message('S1 panel I (PAH vs RV gene-set scatter) written')
   TRUE
 }, error = function(e) {
-  message('S1 panel I (PAH) build failed: ', conditionMessage(e)); FALSE })
+  message('S1 panel I (gene-set scatter) build failed: ', conditionMessage(e)); FALSE })
+
+
+###############################################################################
+## Figure S1J (DEPRECATED — commented out) — superseded by the S1I gene-set
+## scatter above. Old PAH panel: gene-level scatter of RV vs PAH log2FC
+## highlighting divergent CD163 + mitochondrial-translation genes. Dropped
+## because the divergence was driven by a few genes (CD163, GADD45GIP1, MRPL11),
+## not a coordinated program. Retained, commented, for reference.
+###############################################################################
+## .s1j_ok <- tryCatch({
+##   .pah <- read.csv('./dependencies/shared/pah.nf.vs.rvf.csv', row.names = 1)
+##   .rv  <- as.data.frame(nf.vs.rvf)
+##   .sh  <- intersect(rownames(.rv), rownames(.pah))
+##   .idf <- data.frame(gene = .sh,
+##                       RV   = .rv[.sh, 'log2FoldChange'],
+##                       PAH  = .pah[.sh, 'log2FoldChange'])
+##   .idf <- .idf[is.finite(.idf$RV) & is.finite(.idf$PAH), ]
+##   .mito_tx <- grep('^MRPL|^MRPS', .idf$gene, value = TRUE)
+##   .hl  <- unique(c('CD163', 'GADD45GIP1', .mito_tx))
+##   .idf$cls <- ifelse(.idf$gene == 'CD163', 'CD163',
+##                ifelse(.idf$gene %in% .hl, 'Mito-translation', 'Other'))
+##   .idf$lab <- ifelse(.idf$gene %in% .hl, .idf$gene, '')
+##   .r2  <- summary(lm(PAH ~ RV, .idf))$r.squared
+##   .pJ  <- ggplot(.idf, aes(RV, PAH)) +
+##     geom_point(data = subset(.idf, cls == 'Other'),
+##                colour = 'grey80', size = PS$scatter_pt, alpha = 0.4) +
+##     geom_point(data = subset(.idf, cls != 'Other'),
+##                aes(colour = cls), size = PS$scatter_pt * 1.6) +
+##     scale_colour_manual(values = c('CD163' = '#c8553d',
+##                                    'Mito-translation' = '#3e64b3'),
+##                         name = NULL) +
+##     ggrepel::geom_text_repel(aes(label = lab), max.overlaps = Inf,
+##         size = PS$text_mm, family = FONT_FAMILY, fontface = 'italic') +
+##     geom_hline(yintercept = 0, linewidth = 0.2) +
+##     geom_vline(xintercept = 0, linewidth = 0.2) +
+##     annotate('text', x = Inf, y = -Inf, hjust = 1.1, vjust = -0.6,
+##              label = sprintf('r^2 == %.3f', .r2), parse = TRUE,
+##              size = PS$text_mm, family = FONT_FAMILY) +
+##     labs(x = 'RV (NF vs RVF) log2FC', y = 'PAH (NF vs RVF) log2FC') +
+##     theme_v52(COMP_W)
+##   save_figure(.pJ, 'Figure_S1_panel_J.pdf', width = 5, height = 5)
+##   message('S1 panel J (PAH CD163/mito-translation) written')
+##   TRUE
+## }, error = function(e) {
+##   message('S1 panel J (PAH) build failed: ', conditionMessage(e)); FALSE })
 
 
 #######################################
@@ -335,7 +355,7 @@ write.csv(temp,'./output/Supplementary_Figure_1/pRV_vs_RVF_deseq_sig.csv')
 
 
 ########################################
-############  FIGURE S1C/D  ############
+############  FIGURE S1G/H  ############
 ########################################
 library(DOSE)
 library(enrichR)
@@ -385,7 +405,7 @@ dev.off()
 
 
 ######################################
-#############  FIGURE S1E ############
+#############  FIGURE S1C ############
 ######################################
 
 ##########Heatmaps
@@ -532,7 +552,7 @@ heatmap.2(as.matrix(assay(vstSE)[i,a]), scale="row",
 dev.off()
 
 ######################################
-############  FIGURE S1F  ############
+############  FIGURE S1D  ############
 ####### Heatmap of monotonically  ####
 ####### DECREASING genes NF→pRV→RVF ##
 ######################################
@@ -637,9 +657,9 @@ dev.off()
 
 
 #######################################
-############  FIGURE S1G  #############
+############  FIGURE S1E  #############
 #######################################
-## Load bulk WGCNA module assignments before first use (re-used by S1H/I below)
+## Load bulk WGCNA module assignments before first use (re-used by S1F/I below)
 if (!exists('bulk_modules')) {
   bulk_modules <- read.csv("./dependencies/shared/bulk_heart_modules.csv")
   mapping <- c('turquoise','blue','brown','yellow','green','red','black','pink',
@@ -681,7 +701,7 @@ p1<- ggplot(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev
   (aes(x=Combined.Score, y=fct_inorder(Term), color = as.numeric(Adjusted.P.value),
   size=parse_ratio(Overlap)))) + geom_point() + xlab('Combined Score') +
   ylab('Term') + labs(color="P value",size="Overlap") + theme_v52(COMP_W) +
-  ggtitle('GO Biological Process Up') +
+  ggtitle('GO Biological Process (Stepwise-Decreasing)') +
   scale_y_discrete(labels= fct_inorder(
     wrapText(sapply(
       strsplit(enriched[[4]][order(enriched[[4]]$Combined.Score,decreasing=T),][rev(1:5),]$Term," \\(GO"),
@@ -693,7 +713,7 @@ dev.off()
 
 
 #######################################
-############  FIGURE S1H  #############
+############  FIGURE S1F  #############
 #######################################
 a<-nf.vs.prv[genes_int,]
 translation <- strsplit(enriched[[4]]$Genes[1],";")[[1]]
@@ -725,7 +745,8 @@ dev.off()
 
 
 #######################################
-############  FIGURE S1I  #############
+####  GENE-PROGRAM MODULE COMPOSITE  ##
+####  (-> Supplementary_Figure_1.pdf) #
 #######################################
 source('./helper_scripts/spatial_functions.R')
 library(hdWGCNA)
@@ -816,18 +837,19 @@ save_figure(p_bulk_gene_program, 'Supplementary_Figure_1.pdf', width=COMP_W, hei
 ## no legacy PDF are flagged as porting TODOs (not just a naming gap).
 ###############################################################################
 .s1_dir <- './output/Supplementary_Figure_1/'
-## Mapping reconciled to v57 legend (.figure_run_logs/v57_figure_legends.md):
-## A=RVF-vs-NF volcano, B=FC scatter, C=GO pRV-up, D=GO RVF-up,
-## E=increasing heatmap, F=decreasing heatmap, G=GO stepwise-down,
-## H=down volcanoes (NF-vs-pRV/NF-vs-RVF), I=PAH comparison.
+## Mapping reconciled to v59 legend:
+## A=RVF-vs-NF volcano, B=FC scatter, C=increasing heatmap, D=decreasing heatmap,
+## E=GO stepwise-down, F=down volcanoes (NF-vs-pRV/NF-vs-RVF),
+## G=GO pRV-up, H=GO RVF-up, I=PAH-vs-RV gene-set scatter (J=old PAH scatter, commented out).
+## (F handled by the patchwork block below; I written earlier in-script.)
 .s1_map <- c(
   A = 'bulk_NF_vs_RVF_volcano.pdf',
   B = 'pRV_vs_RVF_logFC_dot.pdf',
-  C = 'bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Up.pdf',
-  D = 'bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Down.pdf',
-  E = 'bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_up.pdf',
-  F = 'bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_down.pdf',
-  G = 'Bulk_down_down_enrichr.pdf')
+  C = 'bulk_pRVvsRVF_heatmap_module_NF_2_pRV_up_2_RVF_up.pdf',
+  D = 'bulk_pRVvsRVF_heatmap_module_NF_2_pRV_down_2_RVF_down.pdf',
+  E = 'Bulk_down_down_enrichr.pdf',
+  G = 'bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Up.pdf',
+  H = 'bulkRNAseq_DEG_GO_BP_pRV_vs_RVF_Down.pdf')
 for (.L in names(.s1_map)) {
   .src <- file.path(.s1_dir, .s1_map[[.L]])
   if (file.exists(.src)) {
@@ -837,26 +859,26 @@ for (.L in names(.s1_map)) {
                  .s1_map[[.L]], ') — SKELETON porting TODO')
 }
 
-## Panel H (v57): volcano plots of progressively downregulated DEGs —
+## Panel F (v59): volcano plots of progressively downregulated DEGs —
 ## NF vs pRV (left) and NF vs RVF (right), highlighting mito-ribosome
 ## genes (GADD45GIP1, MRPL11, MRPS14). Assembled via patchwork from the
 ## EnhancedVolcano objects captured above — no magick/pdftools PDF concat
 ## (that needed an uninstalled system lib and built the wrong plots).
 if (exists('.s1h_L') && exists('.s1h_R')) {
   .pH <- patchwork::wrap_plots(list(.s1h_L, .s1h_R), ncol = 2)
-  save_figure(.pH, 'Figure_S1_panel_H.pdf', width = 14, height = 8)
-  message('S1 panel H: NF-vs-pRV | NF-vs-RVF volcanos -> Figure_S1_panel_H.pdf')
+  save_figure(.pH, 'Figure_S1_panel_F.pdf', width = 14, height = 8)
+  message('S1 panel F: NF-vs-pRV | NF-vs-RVF volcanos -> Figure_S1_panel_F.pdf')
 } else {
-  message('S1 panel H: volcano objects (.s1h_L/.s1h_R) missing — not built')
+  message('S1 panel F: volcano objects (.s1h_L/.s1h_R) missing — not built')
 }
 
-## Panel I = PAH cross-cohort comparison (divergent CD163 + mitochondrial
-## translation genes) — now PORTED from AnalysisPAH.R and written earlier
-## in the script (Figure_S1_panel_I.pdf). Just verify it exists.
+## Panel I = PAH vs RV gene-set scatter (built earlier via the genesets script
+## -> Figure_S1_panel_I.pdf). Panel J (old PAH CD163/mito scatter) is deprecated
+## and commented out above. Just verify panel I exists.
 .iI <- file.path(.s1_dir, 'Figure_S1_panel_I.pdf')
 if (file.exists(.iI)) {
-  message('S1 panel I (PAH CD163/mito-translation): present')
+  message('S1 panel I (PAH vs RV gene-set scatter): present')
 } else {
-  message('S1 panel I: Figure_S1_panel_I.pdf MISSING — PAH port did not ',
-          'run (check earlier .s1i_ok block / pah.nf.vs.rvf.csv dep).')
+  message('S1 panel I: Figure_S1_panel_I.pdf MISSING — genesets build did not ',
+          'run (check earlier .s1i_ok block / dependencies/Supplementary_Figure_1_PAH_vs_RV_genesets.R).')
 }

@@ -1218,6 +1218,8 @@ if (file.exists(.wga_path)) {
               aes(x = (x1 + x2) / 2, y = y + 0.04 * .y_range,
                   label = label),
               inherit.aes = FALSE, size = 6.4) +
+    scale_y_continuous(limits = c(0, NA),
+                       expand = expansion(mult = c(0, 0.08))) +   # value axis starts at 0
     labs(x = NULL,
          y = expression('CM min Feret diameter ('*mu*'m)'),
          title = 'WGA CM cross-sectional area') +

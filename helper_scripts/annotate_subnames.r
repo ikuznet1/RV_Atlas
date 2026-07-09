@@ -47,7 +47,9 @@ write.csv(df,'./dependencies/shared/cm_subclustering.csv')
 
 M1 <- readRDS(file = "./dependencies/shared/fb_subclust.rds")
 
-new.cluster.ids <- c("Fb1","Fb2","Fb3","Fb4","Fb5","Fb6","Fb7")
+new.cluster.ids <- c("Fb_Resident","Fb_Adventitial","Fb_Elastogenic",
+                     "Fb_Interstitial","Fb_Stressed","Fb_Pro-fibrotic",
+                     "Fb_Anti-fibrotic")
 names(new.cluster.ids) <- levels(M1)
 M1 <- RenameIdents(M1, new.cluster.ids)
 

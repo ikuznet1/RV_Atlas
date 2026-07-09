@@ -91,7 +91,7 @@ M1 <- readRDS(file = "./dependencies/shared/myeloid_subclust.rds")
 
 # Re-run SCTransform on RNA assay (original had multi-model SCT)
 DefaultAssay(M1) <- "RNA"
-.cache_sct_clustered <- './output/fig5_sct_clustered_cache.rds'
+.cache_sct_clustered <- './output/fig6_sct_clustered_cache.rds'
 if (file.exists(.cache_sct_clustered)) {
   message('Loading cached SCTransform/Harmony/UMAP/clustering...')
   M1 <- readRDS(.cache_sct_clustered)
@@ -111,7 +111,7 @@ cat("Cluster counts:\n")
 print(table(Idents(M1)))
 
 # FindAllMarkers
-.cache_fresh_markers <- './output/fig5_fresh_markers_cache.rds'
+.cache_fresh_markers <- './output/fig6_fresh_markers_cache.rds'
 if (file.exists(.cache_fresh_markers)) {
   message('Loading cached FindAllMarkers...')
   markers <- readRDS(.cache_fresh_markers)
@@ -145,6 +145,13 @@ clean_ids <- c(
   "13" = "Dendritic Cell"               # cDC1 — BTLA, CLEC9A, IDO1 (merged with cDC2 per Koenig)
 )
 
+## WARNING (2026-06-14): clean_ids is pinned to the ORIGINAL 14-cluster FindClusters
+## result (→ canonical 4245-cell object). FindClusters has NO set.seed and is
+## non-deterministic: a fresh run can yield a DIFFERENT cluster count/numbering
+## (observed: 15 clusters), which makes this map misfire and corrupts the object
+## (wrong cell count + scrambled labels). Treat dependencies/shared/myeloid_subclust_new.rds
+## (4245 cells, from SSD canonical) as FROZEN — do NOT delete the caches and re-derive.
+## See helper_scripts/load_frozen_myeloid.R proposal before ever regenerating.
 M1$cluster_id <- unname(clean_ids[as.character(Idents(M1))])
 M1$cluster_id[is.na(M1$cluster_id)] <- "Contamination"
 Idents(M1) <- "cluster_id"
@@ -183,7 +190,17 @@ if (file.exists(.cache_clean_umap)) {
   dev.off()    
 
 
-saveRDS(M1_clean,"./dependencies/shared/myeloid_subclust_new.rds")
+## FREEZE the canonical myeloid object. FindClusters above is non-deterministic
+## (no set.seed) and can drift (e.g. 15 vs 14 clusters), which corrupts cell count
+## and labels. The SSD-canonical 4245-cell object is the source of truth: if present,
+## LOAD it for all downstream panels and never overwrite it. Only save if absent.
+.myeloid_canon <- "./dependencies/shared/myeloid_subclust_new.rds"
+if (file.exists(.myeloid_canon)) {
+  message("Using FROZEN canonical myeloid object (4245 cells); not overwriting.")
+  M1_clean <- readRDS(.myeloid_canon); Idents(M1_clean) <- "cluster_id"
+} else {
+  saveRDS(M1_clean, .myeloid_canon)
+}
 
 # Reorder identities for plotting
 ident_order <- c("CCR2- Resident Mac",
@@ -951,58 +968,55 @@ Idents(M1_clean) <- 'cluster_id'
 
 #####################################################################
 ########### FIGURE 6G + 6H — Myeloid transcriptional programs #######
-###########  GR-homeostatic / HIF-vascular / NF-kB-MHCII /  #########
-###########  IFNg antigen-presentation                       #########
-###########  6G = pseudobulk violins; 6H = companion dotplots ######
+###########  GR targets (down) / MHC-II (up) /                #######
+###########  Inflammasome & Type-I IFN (pertinent negatives)  #######
+###########  6G = pooled-myeloid pseudobulk box plots;        #######
+###########  6H = gene-level companion dot plots              #######
 #####################################################################
-# Cross-checking the bidirectional NR3C1 enrichment in CCR2- Resident Mac
-# revealed that the "down" arm is a textbook collapse of the canonical
-# GR-transactivated homeostatic program (Lavin 2014 Cell; Uhlenhaut 2013
-# Mol Cell), while the "up" arm is dominated by canonical HIF1A/HIF2A
-# targets (Imtiyaz 2010 J Clin Invest; Takeda 2010 Genes Dev). NF-kB
-# de-repression in our data localizes to Mac_Inflammatory and centers on
-# MHCII / inflammasome rather than the classical CCL/IL1B cytokine set.
-# IFNg antigen-presentation (Reactome R-HSA-877300) is induced across
-# every myeloid cluster, suggesting a tissue-wide IFNg drive (likely
-# T-cell-derived).
+# Two coherent, pan-myeloid Phase-1 shifts survive per-gene/per-patient
+# scrutiny: (1) collapse of the canonical GR negative-feedback program
+# (FKBP5, TSC22D3/GILZ, ZBTB16, KLF9, ANGPTL4 — all confirmed down per-patient;
+# divergent/confounded members SGK1 [MR-shared, rises], PER1/DUSP1 [MAPK/IEG],
+# DDIT4 [HIF], KLF13/GADD45B/TFCP2L1 [non-GR] excluded), and (2) CIITA-driven
+# MHC-II / antigen-presentation induction. Two innate axes expected in failure
+# that do NOT engage are shown as pertinent negatives: the NLRP3 inflammasome
+# and the type-I interferon (antiviral ISG) response — both flat NF->disease
+# in pooled myeloid. ("disease" = pRV+RVF pooled throughout.)
 
 suppressPackageStartupMessages({library(ggpubr)})
 
-GR_homeostatic <- c('TSC22D3','FKBP5','KLF9','KLF13','MERTK','CD163','MARCO',
-                    'MT2A','GLUL','ZBTB16','BCL6','CEBPB','TFCP2L1','MAFB',
-                    'GADD45B','ANGPTL4')
-HIF_vascular   <- c('EPAS1','RAMP3','NAMPT','TIMP3','PECAM1','MYH9','LDLR',
-                    'PODXL','ID1','MAF','CHD7','ADIPOR2')
-NFkB_MHCII     <- c('CD74','HLA-DRB1','HLA-DRA','HLA-DPA1','HLA-DPB1',
-                    'NLRP1','NLRP3','AIM2','CIITA','RUNX1','FOSL2','SRGN',
-                    'FOXO3','IRF1','CD83')
-IFNg_AP        <- c('STAT1','IRF1','IRF8','JAK2',
-                    'B2M','HLA-A','HLA-B','HLA-C',
-                    'PSMB8','PSMB9','TAP1','IFI30',
-                    'GBP1','GBP2','GBP4','GBP5','ICAM1')
-# Trimmed to bona fide IFNg antigen-presentation set: removed type-I-IFN-dominated
-# antiviral genes (OAS1, MX1, ISG15, IFITM1/2/3, IFI35, IRF7) which are not
-# specific to the IFNg-AP axis.
+## --- gene sets (intersected to object) ---------------------------------
+## GR-transactivation negative-feedback reporters, per-gene confirmed DOWN.
+GR_targets   <- c('FKBP5','TSC22D3','ZBTB16','KLF9','ANGPTL4')
+## MHC-II / antigen presentation (CIITA-driven), confirmed UP.
+MHCII        <- c('CIITA','CD74','HLA-DRA','HLA-DRB1','HLA-DRB5','HLA-DPA1',
+                  'HLA-DPB1','HLA-DQA1','HLA-DQB1','HLA-DMA','HLA-DMB','HLA-DOA')
+## Pertinent negative #1: NLRP3 inflammasome machinery (flat).
+Inflammasome <- c('NLRP3','NLRP1','AIM2','CASP1','PYCARD','IL1B','IL18',
+                  'GSDMD','CASP4','NAIP')
+## Pertinent negative #2: type-I interferon / antiviral ISGs (flat).
+TypeI_IFN    <- c('ISG15','MX1','MX2','OAS1','OAS2','OAS3','IFIT1','IFIT3',
+                  'IRF7','RSAD2','USP18','IFI6','IFI44')
 
 .in_obj <- function(g) intersect(g, rownames(M1_clean))
-prog_list <- list(GR_homeostatic = .in_obj(GR_homeostatic),
-                  HIF_vascular   = .in_obj(HIF_vascular),
-                  NFkB_MHCII     = .in_obj(NFkB_MHCII),
-                  IFNg_AP        = .in_obj(IFNg_AP))
+prog_list <- list(GR_targets   = .in_obj(GR_targets),
+                  MHCII        = .in_obj(MHCII),
+                  Inflammasome = .in_obj(Inflammasome),
+                  TypeI_IFN    = .in_obj(TypeI_IFN))
 
 # Supplementary table -------------------------------------------------------
 supp_tbl <- do.call(rbind, lapply(names(prog_list), function(p) {
   data.frame(program = p, gene = prog_list[[p]],
     expected_direction = switch(p,
-      GR_homeostatic = 'down (RVF<NF) in CCR2- Resident Mac',
-      HIF_vascular   = 'up (RVF>NF) in CCR2- Resident Mac',
-      NFkB_MHCII     = 'up (RVF>NF) in Mac_Inflammatory',
-      IFNg_AP        = 'up (RVF>NF) across clusters'),
+      GR_targets   = 'down (disease<NF), pan-myeloid',
+      MHCII        = 'up (disease>NF), pan-myeloid',
+      Inflammasome = 'unchanged (pertinent negative)',
+      TypeI_IFN    = 'unchanged (pertinent negative)'),
     source = switch(p,
-      GR_homeostatic = 'Curated GR-transactivated targets (Lavin 2014; Uhlenhaut 2013) + observed M1 down-DE in CCR2- Resident Mac',
-      HIF_vascular   = 'Canonical HIF1A/HIF2A targets (Imtiyaz 2010; Takeda 2010) + M1 up-DE NR3C1 overlap (hypergeometric p=6.7e-12)',
-      NFkB_MHCII     = 'NF-kB ChEA up-DE in Mac_Inflammatory + curated MHCII / inflammasome (Reith 2005; Latz 2013)',
-      IFNg_AP        = 'Reactome R-HSA-877300 Interferon Gamma Signaling top genes (top hit, p<1e-5 in 4/5 myeloid clusters)'),
+      GR_targets   = 'Canonical GR negative-feedback transactivation reporters (Lavin 2014; Uhlenhaut 2013); each gene confirmed down per-patient pseudobulk',
+      MHCII        = 'CIITA-driven MHC-II / antigen presentation (Reith 2005)',
+      Inflammasome = 'NLRP3 inflammasome machinery (Latz 2013); flat NF->disease',
+      TypeI_IFN    = 'Type-I IFN / antiviral ISG signature; flat NF->disease'),
     stringsAsFactors = FALSE)
 }))
 write.csv(supp_tbl, './output/SuppTable_Myeloid_Programs.csv', row.names = FALSE)
@@ -1033,11 +1047,10 @@ hm_long <- do.call(rbind, lapply(split(hm_long, hm_long$program), function(d) {
   d$z <- as.numeric(scale(d$mean_score)); d
 }))
 hm_long$program <- factor(hm_long$program,
-                           levels = c('GR_homeostatic','HIF_vascular',
-                                      'NFkB_MHCII','IFNg_AP'),
-                           labels = c('GR homeostatic','HIF vascular drift',
-                                      'NF-kB MHCII / inflammasome',
-                                      'IFNg antigen presentation'))
+                           levels = c('GR_targets','MHCII',
+                                      'Inflammasome','TypeI_IFN'),
+                           labels = c('GR targets (down)','MHC-II (up)',
+                                      'Inflammasome (neg)','Type-I IFN (neg)'))
 hm_long$cluster_id <- factor(hm_long$cluster_id, levels = .myeloid_levels)
 hm_long$group      <- factor(hm_long$group, levels = c('NF','pRV','RVF'))
 
@@ -1053,111 +1066,86 @@ print(ggplot(hm_long, aes(x = group, y = cluster_id, fill = z)) +
 dev.off()
 cat('Wrote: Myeloid_programs_heatmap.pdf\n')
 
-# Violins per home cluster --------------------------------------------------
-home <- list(GR_homeostatic = 'CCR2- Resident Mac',
-             HIF_vascular   = 'CCR2- Resident Mac',
-             NFkB_MHCII     = 'Mac_Inflammatory',
-             IFNg_AP        = 'pooled')
-prog_label <- c(GR_homeostatic = 'GR homeostatic',
-                HIF_vascular   = 'HIF / vascular drift',
-                NFkB_MHCII     = 'NF-kB MHCII / inflammasome',
-                IFNg_AP        = 'IFNg antigen presentation')
-
-## Pseudobulk: each point = one patient's mean module score in the target cluster
-## (or pooled across all myeloid for IFNg). Drops patient×cluster cells with <10 nuclei.
+# 6G: pooled-myeloid pseudobulk box plots -----------------------------------
+# Each point = one patient's mean module score, pooled across all myeloid.
+# Program name on the y-axis; title = NF vs disease (pRV+RVF) Wilcoxon p.
 md$patient <- as.character(md$patient)
-.pseudobulk <- function(prog, tgt) {
-  col <- score_cols[[prog]]; d <- md
-  if (tgt != 'pooled') d <- d[d$cluster_id == tgt, ]
-  d <- d[!is.na(d$group) & !is.na(d$cluster_id), ]
-  d %>% dplyr::group_by(patient, group) %>%
-    dplyr::summarise(score = mean(.data[[col]], na.rm = TRUE),
-                     n_cells = dplyr::n(), .groups = 'drop') %>%
-    dplyr::filter(n_cells >= 10)
-}
-.make_pb_plot <- function(prog) {
-  tgt <- home[[prog]]; d <- .pseudobulk(prog, tgt)
-  ttl <- if (tgt == 'pooled')
-    sprintf('%s - all myeloid pooled (pseudobulk)', prog_label[prog])
-  else sprintf('%s - %s (pseudobulk)', prog_label[prog], tgt)
-  # Pooled NF vs Disease (pRV+RVF) Wilcoxon
-  nf_v  <- d$score[d$group == 'NF']
-  dis_v <- d$score[d$group %in% c('pRV','RVF')]
-  pp <- if (length(nf_v) >= 2 && length(dis_v) >= 2)
-          suppressWarnings(wilcox.test(nf_v, dis_v)$p.value) else NA
-  pp_lbl <- if (is.na(pp)) 'NF vs Disease: NA' else
-            sprintf('NF vs Disease (pRV+RVF) p = %.3g', pp)
-  ggplot(d, aes(x = group, y = score, fill = group)) +
-    geom_boxplot(width = 0.55, outlier.shape = NA, alpha = 0.5) +
-    geom_jitter(width = 0.12, size = 2.4, shape = 21, color = 'black', stroke = 0.4) +
-    ggpubr::stat_compare_means(method = 'kruskal.test', size = 3,
-                                label.x.npc = 'left', label.y.npc = 'top') +
-    ggpubr::stat_compare_means(comparisons = list(c('NF','pRV'),
-                                                   c('pRV','RVF'),
-                                                   c('NF','RVF')),
-                                method = 'wilcox.test', size = 3, label = 'p.format') +
-    annotate('text', x = 2, y = max(d$score) * 1.18, hjust = 0.5,
-             label = pp_lbl, size = 3, fontface = 'italic') +
-    scale_fill_manual(values = c(NF='#888888', pRV='#3B82F6', RVF='#DC2626')) +
-    xlab('') + ylab('Patient mean module score') + ggtitle(ttl) +
-    theme_classic() +
-    theme(legend.position = 'none',
-          plot.title = element_text(size = 10, face = 'bold'))
-}
-vlns <- lapply(names(prog_list), .make_pb_plot); names(vlns) <- names(prog_list)
-pdf('./output/Myeloid_programs_violins_home.pdf', width = 3.2, height = 9.45)
-print(vlns$GR_homeostatic / vlns$HIF_vascular /
-      vlns$NFkB_MHCII     / vlns$IFNg_AP)
-dev.off()
-cat('Wrote: Myeloid_programs_violins_home.pdf (4x1 stacked, 3.2 x 9.45 in)\n')
+md$grp <- factor(md$group, levels = c('NF','pRV','RVF'))
+.grp_cols <- c(NF = '#888888', pRV = '#3B82F6', RVF = '#DC2626')
 
-# Composite dotplot: 4 stacked panels (genes on x-axis), shared color/size legends
-# S2F-style: white-to-red gradient, theme_classic, no grid lines, no axis lines.
+.pb_pooled <- function(scorecol) {
+  d <- md[!is.na(md$group), ]
+  a <- aggregate(d[[scorecol]], list(patient = d$patient, grp = d$grp), mean)
+  setNames(a, c('patient','grp','score'))
+}
+.pval_nf_dis <- function(df) {
+  nf <- df$score[df$grp == 'NF']; dis <- df$score[df$grp %in% c('pRV','RVF')]
+  if (length(nf) >= 2 && length(dis) >= 2)
+    suppressWarnings(wilcox.test(nf, dis)$p.value) else NA
+}
+.g6_defs <- list(list(s = score_cols[['GR_targets']],   y = 'GR targets'),
+                 list(s = score_cols[['MHCII']],        y = 'MHC-II'),
+                 list(s = score_cols[['Inflammasome']], y = 'Inflammasome'),
+                 list(s = score_cols[['TypeI_IFN']],    y = 'Type-I IFN'))
+.make_6g <- function(d) {
+  df <- .pb_pooled(d$s); pp <- .pval_nf_dis(df)
+  ggplot(df, aes(x = grp, y = score, fill = grp)) +
+    geom_boxplot(width = 0.7, outlier.shape = NA, alpha = 0.5) +
+    geom_jitter(width = 0.12, size = 2.4, shape = 21, color = 'black', stroke = 0.4) +
+    scale_fill_manual(values = .grp_cols) +
+    scale_x_discrete(expand = expansion(add = 0.45)) +
+    xlab('') + ylab(d$y) + ggtitle(sprintf('NF vs disease  p=%.3f', pp)) +
+    theme_classic(base_size = 13.75) +
+    theme(legend.position = 'none',
+          plot.title   = element_text(size = 12.5, face = 'bold', color = 'black'),
+          axis.text.x  = element_text(color = 'black'),
+          axis.text.y  = element_text(color = 'black'),
+          axis.title.y = element_text(color = 'black', face = 'bold'),
+          plot.margin  = margin(1.5, 4, 1.5, 4))
+}
+g6_panels <- lapply(.g6_defs, .make_6g)
+.gh <- 2.36 * 0.75 * length(g6_panels)
+pdf('./output/Myeloid_programs_violins_home.pdf', width = 2.92, height = .gh)
+print(patchwork::wrap_plots(g6_panels, ncol = 1)); dev.off()
+cat('Wrote: Myeloid_programs_violins_home.pdf (6G, 4 pooled-myeloid box panels)\n')
+
+# 6H: gene-level companion dot plots (fixed/non-z-scored color scale) --------
+# Color = absolute log1p mean expression (scale = FALSE) with shared limits, so a
+# truly flat gene keeps the same color across NF/pRV/RVF (negatives read flat).
 .s2f_theme <- function() {
-  theme_classic() +
+  theme_classic(base_size = 13.75) +        # fonts +25%
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           panel.border     = element_rect(linewidth = 1, fill = NA, color = 'black'),
           axis.line.x      = element_blank(),
           axis.line.y      = element_blank(),
-          axis.text.x      = element_text(angle = 45, hjust = 1, vjust = 1, size = 9),
-          axis.text.y      = element_text(size = 9),
-          plot.title       = element_text(size = 10, face = 'bold'),
+          axis.text.x      = element_text(angle = 45, hjust = 1, vjust = 1, size = 10.6),
+          axis.text.y      = element_text(size = 11.25),
+          plot.title       = element_text(size = 12.5, face = 'bold'),
           plot.margin      = margin(2, 4, 2, 4))
 }
-.make_dot <- function(prog) {
-  tgt <- home[[prog]]
-  obj <- M1_clean
-  if (tgt != 'pooled') obj <- subset(obj, cluster_id == tgt)
-  Idents(obj) <- 'group'
-  feats <- intersect(prog_list[[prog]], rownames(obj))
-  ttl <- if (tgt == 'pooled')
-    sprintf('%s - all myeloid pooled', prog_label[prog])
-  else sprintf('%s - %s', prog_label[prog], tgt)
-  DotPlot(obj, features = feats, dot.scale = 5,
-          col.min = 0, col.max = 2) +
-    scale_color_gradient(low = 'white', high = '#B2182B',
-                         limits = c(0, 2), name = 'avg expr (z)') +
+Idents(M1_clean) <- factor(as.character(M1_clean$group), levels = c('NF','pRV','RVF'))
+.h6_blocks <- list('GR-transactivation targets (down)'     = prog_list[['GR_targets']],
+                   'MHC-II / antigen presentation (up)'     = prog_list[['MHCII']],
+                   'Inflammasome (pertinent negative)'      = prog_list[['Inflammasome']],
+                   'Type-I interferon (pertinent negative)' = prog_list[['TypeI_IFN']])
+.make_6h <- function(nm, feats)
+  DotPlot(M1_clean, features = feats, dot.scale = 5, scale = FALSE) +
+    scale_color_gradient(low = 'white', high = '#B2182B', limits = c(0, 3),
+                         oob = scales::squish, name = 'avg expr (log1p)') +
     scale_size(limits = c(0, 100), range = c(0.5, 5), name = '% expressed') +
-    ggtitle(ttl) + xlab('') + ylab('') + .s2f_theme()
-}
-dots <- lapply(names(prog_list), .make_dot); names(dots) <- names(prog_list)
-composite_dot <- (dots$GR_homeostatic / dots$HIF_vascular /
-                  dots$NFkB_MHCII     / dots$IFNg_AP) +
+    ggtitle(nm) + xlab('') + ylab('') + .s2f_theme()
+h6 <- mapply(.make_6h, names(.h6_blocks), .h6_blocks, SIMPLIFY = FALSE)
+composite_dot <- patchwork::wrap_plots(h6, ncol = 1) +
   patchwork::plot_layout(guides = 'collect') &
-  guides(color = guide_colorbar(direction = 'horizontal',
-                                title.position = 'top',
-                                barwidth = unit(2.5, 'cm'),
-                                barheight = unit(0.35, 'cm')),
-         size  = guide_legend(direction = 'horizontal',
-                              title.position = 'top', nrow = 1)) &
-  theme(legend.position = 'bottom',
-        legend.box      = 'horizontal',
-        legend.title    = element_text(size = 8),
-        legend.text     = element_text(size = 7))
-pdf('./output/Myeloid_programs_dotplots_composite.pdf', width = 4.2, height = 9)
+  guides(color = guide_colorbar(direction = 'horizontal', title.position = 'top',
+                                barwidth = unit(2.5, 'cm'), barheight = unit(0.35, 'cm')),
+         size  = guide_legend(direction = 'horizontal', title.position = 'top', nrow = 1)) &
+  theme(legend.position = 'bottom', legend.box = 'horizontal',
+        legend.title = element_text(size = 8), legend.text = element_text(size = 7))
+pdf('./output/Myeloid_programs_dotplots_composite.pdf', width = 3.6, height = 8.6)
 print(composite_dot); dev.off()
-cat('Wrote: Myeloid_programs_dotplots_composite.pdf (4 stacked, horizontal legend bottom, 4.2 x 9 in)\n')
+cat('Wrote: Myeloid_programs_dotplots_composite.pdf (6H, 4 program blocks)\n')
 
 saveRDS(M1_clean@meta.data, './output/fig6_program_scores_meta.rds')
 cat('Saved score-augmented metadata: fig6_program_scores_meta.rds\n')

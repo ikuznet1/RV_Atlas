@@ -64,3 +64,44 @@ shinyXenium/
 # ───────────────────────────────────────────────────────────────────────────
 *.osx_arm64_lock
 *.linux_64_lock
+
+# ───────────────────────────────────────────────────────────────────────────
+# Large data staging / manual uploads (distributed via Zenodo, never via git)
+# ───────────────────────────────────────────────────────────────────────────
+zenodo_manual_upload/
+dependencies_zenodo_staging/
+
+# ───────────────────────────────────────────────────────────────────────────
+# Local backups (renumber / figure-run snapshots)
+# ───────────────────────────────────────────────────────────────────────────
+.renumber_backup_*/
+
+# ───────────────────────────────────────────────────────────────────────────
+# Python runtime artifacts + run logs
+# ───────────────────────────────────────────────────────────────────────────
+__pycache__/
+**/__pycache__/
+*.pyc
+*.log
+
+# ───────────────────────────────────────────────────────────────────────────
+# Mycelium / internal knowledge + working layer
+# Kept private, consistent with CLAUDE.md and .claude/ above.
+# ───────────────────────────────────────────────────────────────────────────
+.living/
+algorithms/
+analysis/
+data/
+reference_material/
+skillpacks/
+todo/
+
+# ───────────────────────────────────────────────────────────────────────────
+# helper_scripts: publish only the canonical sourced helpers; the rest are
+# exploratory scratch (draft_*, regen_*, replot_*, *_check.R, screens, pab_flow/).
+# Add a new canonical helper with an explicit !whitelist line or `git add -f`.
+# ───────────────────────────────────────────────────────────────────────────
+helper_scripts/*
+!helper_scripts/_shared_helpers.R
+!helper_scripts/annotate_subnames.r
+!helper_scripts/spatial_functions.R

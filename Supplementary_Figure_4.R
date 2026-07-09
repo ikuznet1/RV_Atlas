@@ -314,9 +314,10 @@ rm(p_sn, p_sc, p_M2); invisible(gc(verbose = FALSE))
 #######################################
 # Patient-level pseudobulk module-score box plots in LV (Koenig snRNA-seq)
 # myeloid cells, DCM vs Donor (NF). Mirrors Fig 6 panels G/H gene sets.
-# Single horizontal panel combining all 4 program scores:
-#   GR-homeostatic (down in DCM) | HIF/vascular drift (up) |
-#   NF-kB MHCII / inflammasome (up) | IFNg antigen presentation (up)
+# Single horizontal panel combining all 4 program scores (kept in sync with
+# the canonical Fig 6G/6H programs):
+#   GR targets (down in DCM) | MHC-II / antigen presentation (up) |
+#   Inflammasome (pertinent negative) | Type-I IFN (pertinent negative)
 
 # Self-loading: light NormalizeData on RNA assay (no SCTransform) keeps
 # the LV myeloid object well under the 40 GB R cap on this 48 GB box.
@@ -327,75 +328,74 @@ snLV <- subset(snLV, tech == 'SN')
 DefaultAssay(snLV) <- 'RNA'
 snLV <- NormalizeData(snLV, verbose = FALSE)
 
-GR_homeostatic <- c('TSC22D3','FKBP5','KLF9','KLF13','MERTK','CD163','MARCO',
-                    'MT2A','GLUL','ZBTB16','BCL6','CEBPB','TFCP2L1','MAFB',
-                    'GADD45B','ANGPTL4')
-HIF_vascular   <- c('EPAS1','RAMP3','NAMPT','TIMP3','PECAM1','MYH9','LDLR',
-                    'PODXL','ID1','MAF','CHD7','ADIPOR2')
-NFkB_MHCII     <- c('CD74','HLA-DRB1','HLA-DRA','HLA-DPA1','HLA-DPB1',
-                    'NLRP1','NLRP3','AIM2','CIITA','RUNX1','FOSL2','SRGN',
-                    'FOXO3','IRF1','CD83')
-IFNg_AP        <- c('STAT1','IRF1','IRF8','JAK2',
-                    'B2M','HLA-A','HLA-B','HLA-C',
-                    'PSMB8','PSMB9','TAP1','IFI30',
-                    'GBP1','GBP2','GBP4','GBP5','ICAM1')
+# Canonical Fig 6G/6H gene sets (mirror Figure_6.R:990-999).
+GR_targets   <- c('FKBP5','TSC22D3','ZBTB16','KLF9','ANGPTL4')          # down in disease
+MHCII        <- c('CIITA','CD74','HLA-DRA','HLA-DRB1','HLA-DRB5','HLA-DPA1',
+                  'HLA-DPB1','HLA-DQA1','HLA-DQB1','HLA-DMA','HLA-DMB','HLA-DOA')  # up
+Inflammasome <- c('NLRP3','NLRP1','AIM2','CASP1','PYCARD','IL1B','IL18',
+                  'GSDMD','CASP4','NAIP')                               # pertinent negative
+TypeI_IFN    <- c('ISG15','MX1','MX2','OAS1','OAS2','OAS3','IFIT1','IFIT3',
+                  'IRF7','RSAD2','USP18','IFI6','IFI44')                # pertinent negative
 
 .in_obj <- function(g, obj) intersect(g, rownames(obj))
-snLV <- AddModuleScore(snLV, list(.in_obj(GR_homeostatic, snLV)), name = 'GR_hom')
-snLV <- AddModuleScore(snLV, list(.in_obj(HIF_vascular,   snLV)), name = 'HIF_vasc')
-snLV <- AddModuleScore(snLV, list(.in_obj(NFkB_MHCII,     snLV)), name = 'NFkB_MHCII')
-snLV <- AddModuleScore(snLV, list(.in_obj(IFNg_AP,        snLV)), name = 'IFNg_AP')
+snLV <- AddModuleScore(snLV, list(.in_obj(GR_targets,   snLV)), name = 'GR_tgt')
+snLV <- AddModuleScore(snLV, list(.in_obj(MHCII,        snLV)), name = 'MHCII')
+snLV <- AddModuleScore(snLV, list(.in_obj(Inflammasome, snLV)), name = 'Inflammasome')
+snLV <- AddModuleScore(snLV, list(.in_obj(TypeI_IFN,    snLV)), name = 'TypeI_IFN')
 
 snLV$condition <- factor(snLV$condition, levels = c('Donor','DCM'))
 
 # Per-patient mean module score (pseudobulk)
 .patient_scores <- aggregate(
-  cbind(GR_hom     = snLV$GR_hom1,
-        HIF_vasc   = snLV$HIF_vasc1,
-        NFkB_MHCII = snLV$NFkB_MHCII1,
-        IFNg_AP    = snLV$IFNg_AP1),
+  cbind(GR_targets   = snLV$GR_tgt1,
+        MHCII        = snLV$MHCII1,
+        Inflammasome = snLV$Inflammasome1,
+        TypeI_IFN    = snLV$TypeI_IFN1),
   by  = list(patient = as.character(snLV$orig.ident),
              condition = snLV$condition),
   FUN = mean
 )
 write.csv(.patient_scores,
-  './output/fig_s4_panel_FGH_LV_myeloid_module_scores.csv', row.names = FALSE)
+  file.path(V52_FIG_DIR, 'fig_s4_panel_I_LV_myeloid_module_scores.csv'),
+  row.names = FALSE)
 
-.box_plot <- function(df, col, title) {
+# Published S4I look: p-value as the title, program name as the y-axis label,
+# grey boxes (Donor/DCM fall through scale_fill_disease() to grey).
+.fmt_p <- function(p)
+  if (is.na(p)) 'p = NA' else if (p < 0.001) 'p < 0.001' else paste0('p = ', signif(p, 2))
+.box_plot <- function(df, col, ylab) {
   pv <- tryCatch(wilcox.test(df[[col]] ~ df$condition)$p.value,
                  error = function(e) NA_real_)
   ggplot(df, aes(x = condition, y = .data[[col]], fill = condition)) +
     geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
-    geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
+    geom_jitter(width = 0.12, size = PS$scatter_pt, shape = 16, alpha = 0.85) +
     scale_fill_disease() +
-    labs(title = title, x = NULL,
-         y = 'Per-patient mean module score',
-         subtitle = paste0('Wilcoxon p = ', signif(pv, 2))) +
+    labs(title = .fmt_p(pv), x = NULL, y = ylab) +
     theme_v52(COMP_W) +
-    theme(legend.position = 'none')
+    theme(legend.position = 'none',
+          axis.text.x = element_text(angle = 45, hjust = 1))
 }
 
 # Build all 4 box plots
-p_GR    <- .box_plot(.patient_scores, 'GR_hom',     'GR homeostatic (down in DCM)')
-p_HIF   <- .box_plot(.patient_scores, 'HIF_vasc',   'HIF / vascular drift (up in DCM)')
-p_MHCII <- .box_plot(.patient_scores, 'NFkB_MHCII', 'NF-kB MHCII / inflammasome (up in DCM)')
-p_IFNg  <- .box_plot(.patient_scores, 'IFNg_AP',    'IFNg antigen presentation (up in DCM)')
+p_GR    <- .box_plot(.patient_scores, 'GR_targets',   'GR targets score')
+p_MHCII <- .box_plot(.patient_scores, 'MHCII',        'MHC-II score')
+p_INFL  <- .box_plot(.patient_scores, 'Inflammasome', 'Inflammasome score')
+p_IFN1  <- .box_plot(.patient_scores, 'TypeI_IFN',    'Type-I IFN score')
 
-# Concatenate horizontally — share the y-axis label, drop redundant per-plot y titles
-.strip_y <- theme(axis.title.y = element_blank())
-panel_I <- (p_GR + (p_HIF + .strip_y) +
-            (p_MHCII + .strip_y) + (p_IFNg + .strip_y)) +
+# Concatenate horizontally — each panel keeps its own y-axis (program score)
+# label and y-range, matching the published S4I layout.
+panel_I <- (p_GR + p_MHCII + p_INFL + p_IFN1) +
   plot_layout(nrow = 1)
 
-pdf(paste0('./output/', 'fig_s4_panel_I_LV_myeloid_module_scores_box.pdf'),
-  width = 5, height = 3)
+pdf(file.path(V52_FIG_DIR, 'fig_s4_panel_I_LV_myeloid_module_scores_box.pdf'),
+  width = 5.51, height = 3)
 print(panel_I)
 dev.off()
 
 # Free the LV myeloid pipeline objects before reloading for the FB sections.
 rm(list = intersect(ls(),
   c('snLV','scLV','M1','M2','anchors','predictions','score',
-    'p1','p2','p_GR','p_HIF','p_MHCII','p_IFNg','.patient_scores',
+    'p1','p2','p_GR','p_MHCII','p_INFL','p_IFN1','.patient_scores',
     'a','b','dataset','dataset_fb','shared','shared_fb','labs','labs_fb')))
 invisible(gc(verbose = FALSE))
 

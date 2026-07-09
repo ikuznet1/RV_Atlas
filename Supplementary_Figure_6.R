@@ -489,41 +489,55 @@ write.csv(.human_mito_pat,
           './output/RV_human_CM_mitocarto_per_patient.csv',
           row.names = FALSE)
 
-p1 <- ggplot(.mouse_mito_pat, aes(x = group, y = mito, fill = group)) +
-  geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
-  geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
-  scale_fill_manual(values = mhc_pal_mouse) +
-  ggpubr::stat_compare_means(
-    comparisons = list(c('Nor','Mod'), c('Nor','Sev'), c('Mod','Sev')),
-    method      = 'wilcox.test',
-    label       = 'p.format',
-    size        = PS$text_mm
-  ) +
-  labs(title = 'Mouse PAB — CM MitoCarta',
-       x = NULL, y = 'Per-animal mean score') +
-  theme_v52(COMP_W) +
-  theme(legend.position = 'none')
+## ── FIGURE S6F (v67): mouse PAB CM MitoCarta volcano (Severe-RVF vs control) ──
+## Replaces the prior per-subject module-score boxplots (underpowered at n=3-4
+## per group). Per-animal pseudobulk -> DESeq2 -> apeglm shrink (padj from the
+## unshrunken Wald test); MitoCarta genes coloured by MitoCarta3.0 top-level
+## category using the same fixed scheme as S6G. The per-animal module-score CSVs
+## above are retained for reference. fgsea gives the headline statistic
+## (mouse Sev-vs-Nor NES ~ -1.8, FDR < 1e-17); the per-animal test is underpowered.
+suppressPackageStartupMessages({library(DESeq2); library(apeglm); library(EnhancedVolcano)})
 
-p2 <- ggplot(.human_mito_pat, aes(x = group, y = mito, fill = group)) +
-  geom_boxplot(width = 0.55, outlier.shape = NA, linewidth = PS$linewidth_mm) +
-  geom_jitter(width = 0.12, size = PS$scatter_pt, alpha = 0.85) +
-  scale_fill_manual(values = mhc_pal_human) +
-  ggpubr::stat_compare_means(
-    comparisons = list(c('NF','pRV'), c('NF','RVF'), c('pRV','RVF')),
-    method      = 'wilcox.test',
-    label       = 'p.format',
-    size        = PS$text_mm
-  ) +
-  labs(title = 'Human RV — CM MitoCarta',
-       x = NULL, y = 'Per-patient mean score') +
-  theme_v52(COMP_W) +
-  theme(legend.position = 'none')
+.s6f_pb   <- AggregateExpression(M2, group.by = 'patient', assays = 'RNA',
+                                 slot = 'counts', return.seurat = FALSE)
+.s6f_mat  <- round(as.matrix(.s6f_pb$RNA)); colnames(.s6f_mat) <- sub('^g', '', colnames(.s6f_mat))
+.s6f_meta <- unique(M2@meta.data[, c('patient', 'group')]); .s6f_meta$patient <- as.character(.s6f_meta$patient)
+.s6f_meta <- .s6f_meta[match(colnames(.s6f_mat), .s6f_meta$patient), ]; rownames(.s6f_meta) <- .s6f_meta$patient
+.s6f_meta$group <- factor(as.character(.s6f_meta$group), levels = c('Nor', 'Mod', 'Sev'))
+.s6f_dds  <- DESeq(DESeqDataSetFromMatrix(.s6f_mat, .s6f_meta, ~ group))
+.s6f_raw  <- as.data.frame(results(.s6f_dds, contrast = c('group', 'Sev', 'Nor')))
+.s6f_shr  <- as.data.frame(lfcShrink(.s6f_dds, coef = 'group_Sev_vs_Nor', type = 'apeglm'))
+.s6f_res  <- .s6f_shr; .s6f_res$padj <- .s6f_raw[rownames(.s6f_res), 'padj']
 
-pdf(paste0('./output/', 'PAB_RV_CM_mitocarto.pdf'), width = 3.2, height = 4.675)
-print(p1 / p2)
-dev.off()
-ggsave(file.path(V52_FIG_DIR, 'PAB_RV_CM_mitocarto.pdf'),
-       p1 / p2, width = 3.2, height = 4.675)
+## mouse MitoCarta category (same remap as human S6G; fixed colour map = S6G legend)
+.s6f_remap <- function(x) { x <- as.character(x); o <- character(length(x))
+  o[is.na(x) | x == ''] <- 'No annotation'; o[x == 'Metabolism'] <- 'Metabolism'; o[x == 'OXPHOS'] <- 'Oxidative phos'
+  o[x == 'Protein homeostasis'] <- 'Protein import/sorting'; o[x == 'Mitochondrial central dogma'] <- 'Mito central dogma'
+  o[x == 'Mitochondrial dynamics and surveillance'] <- 'Mito dynamics'; o[x == 'Signaling'] <- 'Signaling'
+  o[x == 'Small molecule transport'] <- 'Transport'; o[o == ''] <- 'No annotation'; o }
+.s6f_an   <- trimws(unlist(lapply(lapply(lapply(Mouse.Mito$MitoCarta3.0_MitoPathways, str_split, '>'), '[[', 1), '[[', 1)))
+.s6f_an[.s6f_an == 'Small molecule transport | Signaling'] <- 'Small molecule transport'
+.s6f_anno <- setNames(.s6f_remap(.s6f_an), Mouse.Mito$Symbol)
+.s6f_fix  <- c('Oxidative phos' = '#1B9E77', 'Metabolism' = '#D95F02', 'No annotation' = '#7570B3',
+  'Mito central dogma' = '#E7298A', 'Transport' = '#66A61E', 'Signaling' = '#E6AB02',
+  'Mito dynamics' = '#A6761D', 'Protein import/sorting' = '#666666')
+
+.s6f_g <- intersect(Mouse.Mito$Symbol, rownames(.s6f_res))
+.s6f_a <- data.frame(avg_log2FC = .s6f_res[.s6f_g, 'log2FoldChange'],
+                     p_val_adj  = .s6f_res[.s6f_g, 'padj'], row.names = .s6f_g)
+.s6f_a <- .s6f_a[complete.cases(.s6f_a), ]; .s6f_a$p_val_adj[.s6f_a$p_val_adj < 1e-50] <- 1e-50
+write.csv(cbind(gene = rownames(.s6f_a), .s6f_a),
+          './output/PAB_mouse_CM_mitocarto_volcano_pseudobulk.csv', row.names = FALSE)
+.s6f_kv  <- .s6f_anno[rownames(.s6f_a)]; .s6f_col <- .s6f_fix[.s6f_kv]; names(.s6f_col) <- .s6f_kv
+
+p_s6f <- EnhancedVolcano(.s6f_a, lab = rownames(.s6f_a), x = 'avg_log2FC', y = 'p_val_adj',
+  xlim = c(-3, 3), ylim = c(0, 6), FCcutoff = 0.5, pCutoff = 0.05, colCustom = .s6f_col,
+  labFace = 'italic', title = 'Mouse PAB CM (Severe-RVF vs control)', subtitle = NULL, caption = NULL,
+  legendPosition = 'bottom') +
+  guides(colour = guide_legend(nrow = 4, ncol = 2, byrow = FALSE, override.aes = list(size = 3))) +
+  theme(legend.position = 'bottom', legend.title = element_blank())
+ggsave('./output/PAB_mouse_CM_mitocarto_volcano.pdf', p_s6f, width = 6, height = 7)
+ggsave(file.path(V52_FIG_DIR, 'PAB_mouse_CM_mitocarto_volcano.pdf'), p_s6f, width = 6, height = 7)
 
 anno <- trimws(unlist(lapply(lapply(lapply(Human.Mito$MitoCarta3.0_MitoPathways,str_split,'>'),'[[',1),'[[',1)))
 
@@ -2531,7 +2545,7 @@ save_figure(p_final, 'S6G_mitocarto_volcano.pdf', width = 8, height = 11)
 ## V52_FIG_DIR/Figure_S6_panel_<L>.pdf. v57 S6:
 ##   A mouse→human CM ref-map | B human-CM-marker score in mouse |
 ##   C per-subcluster mapping score | D cross-species FC scatter |
-##   E mouse-CM WGCNA module dot by disease | F per-subject MitoCarta |
+##   E mouse-CM WGCNA module dot by disease | F mouse-CM MitoCarta volcano (apeglm) |
 ##   G pseudobulk DESeq2 MitoCarta volcano (apeglm) |
 ##   H within-mouse FC traj (i)+(ii) | I Sirius-Red fibrosis |
 ##   J cross-species 3-program concordance (FAO/Failure/GR).
@@ -2542,7 +2556,7 @@ save_figure(p_final, 'S6G_mitocarto_volcano.pdf', width = 8, height = 11)
   C   = 'PAB_CM_scores.pdf',
   D   = 'PAB_vs_RV_CM__dot.pdf',
   E   = 'PAB_seurat_dot_CM.pdf',
-  F   = 'PAB_RV_CM_mitocarto.pdf',
+  F   = c('PAB_mouse_CM_mitocarto_volcano.pdf', 'PAB_RV_CM_mitocarto.pdf'),
   G   = c('S6G_mitocarto_volcano.pdf', 'PAB_RV_CM_mitocarto_volcano.pdf'),
   Hi  = 'PAB_CM_Sev_Nor_Mod_Nor_dot.pdf',
   Hii = 'PAB_CM_Sev_Mod_Mod_Nor_dot.pdf',

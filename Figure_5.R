@@ -1729,68 +1729,66 @@ message('Figure 5 Panel 5F complete (MitoCarta_All dotplot, Subnames_manual × g
 
 
 ###############################################################################
-## Panel F — Subject-level pan-CM mitochondrial-TF activity heatmap.
-## Faithful reimplementation of additional_scripts/mito_TF.R "patient
-## breakdown": CollecTRI ULM activity (run_ulm) over ALL CM cells, z-scored
-## per TF (Seurat ScaleData equivalent), averaged PER PATIENT, shown for the
-## 7 mito regulators, patients ordered NF -> pRV -> RVF. The expensive
-## run_ulm is read from the committed cache dependencies/shared/TF_activity.rds
-## (the exact mito_TF.R output); cell -> patient/group comes from seurat_ref
-## (cm_subclust_new_new, already loaded; 100% barcode overlap).
+## Panel F — Per-patient pseudobulk mito-TF activity heatmap.
+## CollecTRI ULM activity computed on PER-PATIENT PSEUDOBULK profiles (the
+## decoupleR-recommended workflow for condition comparison), not per-cell. The
+## old per-cell-averaged cache was dropout-noisy and artifactually buried the
+## coactivator PGC-1A / ERRa while inflating PPARA; pseudobulk recovers the
+## coordinate PGC-1A/ERRa/PPARa decline. Built by
+## helper_scripts/fig5f_pseudobulk_ulm.R -> dependencies/shared/
+## TF_activity_pseudobulk.rds (condition = patient). Significance = per-patient
+## Jonckheere-Terpstra ordered trend (NF->pRV->RVF), BH-corrected across the 7.
 ###############################################################################
-## Image row order (top -> bottom): NFE2L2, NRF1, PPARGC1A, PPARD, PPARA,
-## ESRRG, ESRRA. ggplot puts the first y factor level at the bottom, so list
-## bottom -> top.
 .panel_F_mito_tfs <- c('NFE2L2','NRF1','PPARGC1A','PPARD','PPARA','ESRRG','ESRRA')
-.panel_F_tf_levels <- rev(.panel_F_mito_tfs)        # ESRRA ... NFE2L2 (bottom->top)
-.tf_activity_rds <- './dependencies/shared/TF_activity.rds'
+.panel_F_nice <- c(PPARGC1A='PGC-1α', ESRRA='ERRα', ESRRG='ERRγ',
+                   PPARA='PPARα', PPARD='PPARδ', NRF1='NRF1', NFE2L2='NRF2')
+.tf_activity_rds <- './dependencies/shared/TF_activity_pseudobulk.rds'
+.pg_csv          <- './dependencies/shared/snRNA_patient_group.csv'
 
-panel_F_df <- NULL
-if (!file.exists(.tf_activity_rds)) {
-  message('Panel F: ', .tf_activity_rds, ' missing — skipping.')
-} else if (!exists('seurat_ref')) {
-  message('Panel F: seurat_ref not loaded — skipping.')
+panel_F_df <- NULL; panel_F_lab <- NULL
+if (!file.exists(.tf_activity_rds) || !file.exists(.pg_csv)) {
+  message('Panel F: pseudobulk activity / patient-group cache missing — skipping.')
 } else {
-  message('Panel F: building subject-level pan-CM mito-TF heatmap from ',
+  message('Panel F: building per-patient pseudobulk mito-TF heatmap from ',
           .tf_activity_rds, ' ...')
   panel_F_df <- tryCatch({
     acts <- readRDS(.tf_activity_rds)
     acts <- acts[acts$statistic == 'ulm' &
                    acts$source %in% .panel_F_mito_tfs, , drop = FALSE]
-    md <- seurat_ref@meta.data
-    md$.cell <- rownames(md)
-    .pg <- unique(data.frame(.cell   = md$.cell,
-                             patient = as.character(md$patient),
-                             group   = as.character(md$group),
-                             stringsAsFactors = FALSE))
-    acts <- acts[acts$condition %in% .pg$.cell, , drop = FALSE]
-    ## TF x cell score matrix (base R; small after the TF filter).
-    .cells <- unique(acts$condition)
-    M <- matrix(NA_real_, length(.panel_F_mito_tfs), length(.cells),
-                dimnames = list(.panel_F_mito_tfs, .cells))
-    M[cbind(match(acts$source, .panel_F_mito_tfs),
-            match(acts$condition, .cells))] <- acts$score
-    ## Per-TF z-score across cells (Seurat ScaleData equivalent).
-    Mz <- t(scale(t(M)))
-    Mz[!is.finite(Mz)] <- 0
-    ## Per-patient mean of the scaled activity.
-    .cellpat <- setNames(.pg$patient, .pg$.cell)[.cells]
-    agg <- vapply(split(seq_along(.cells), .cellpat),
-                  function(ix) rowMeans(Mz[, ix, drop = FALSE], na.rm = TRUE),
-                  numeric(length(.panel_F_mito_tfs)))
-    rownames(agg) <- .panel_F_mito_tfs
-    ## Long frame + patient ordering NF -> pRV -> RVF (sorted within group).
-    .p2g <- setNames(.pg$group, .pg$patient)
-    long <- data.frame(
-      tf      = rep(rownames(agg), times = ncol(agg)),
-      patient = rep(colnames(agg), each  = nrow(agg)),
-      value   = as.vector(agg), stringsAsFactors = FALSE)
-    long$group <- factor(.p2g[long$patient], levels = c('NF','pRV','RVF'))
+    pg   <- read.csv(.pg_csv, colClasses = 'character')
+    p2g  <- setNames(pg$group, pg$patient)
+    long <- data.frame(tf = acts$source, patient = as.character(acts$condition),
+                       value = acts$score, stringsAsFactors = FALSE)
+    long$group <- factor(p2g[long$patient], levels = c('NF','pRV','RVF'))
+    long <- long[!is.na(long$group), ]
+    ## per-TF z-score across patients (display only).
+    M <- tapply(long$value, list(long$tf, long$patient), function(x) x[1])
+    Mz <- t(scale(t(M))); Mz[!is.finite(Mz)] <- 0
+    long$value <- Mz[cbind(match(long$tf, rownames(Mz)),
+                           match(long$patient, colnames(Mz)))]
+    ## Jonckheere-Terpstra ordered-trend significance per TF, BH across the 7.
+    long$ord <- as.integer(long$group)
+    jt <- sapply(.panel_F_mito_tfs, function(tf){
+      d <- long[long$tf == tf, ]
+      if (requireNamespace('clinfun', quietly = TRUE))
+        tryCatch(clinfun::jonckheere.test(d$value, d$ord, alternative = 'two.sided')$p.value,
+                 error = function(e) NA_real_)
+      else tryCatch(summary(lm(value ~ ord, d))$coef['ord','Pr(>|t|)'], error = function(e) NA_real_)
+    })
+    jt_bh <- p.adjust(jt, 'BH')
+    star  <- ifelse(jt_bh < 0.001, '***', ifelse(jt_bh < 0.01, '**', ifelse(jt_bh < 0.05, '*', '')))
+    names(star) <- .panel_F_mito_tfs
+    ## y labels (nice name + star), rows ordered most-significant at TOP.
+    ord_sig <- names(sort(jt))                       # ascending p (most sig first)
+    lab     <- setNames(paste0(.panel_F_nice[.panel_F_mito_tfs],
+                               ifelse(star == '', '', paste0(' ', star))),
+                        .panel_F_mito_tfs)
+    panel_F_lab <<- lab[ord_sig]                      # already named by ord_sig
+    long$tf <- factor(long$tf, levels = rev(ord_sig))   # most sig = last level = top
     .porder <- unlist(lapply(c('NF','pRV','RVF'),
                              function(g) sort(unique(long$patient[long$group == g]))))
     long$patient <- factor(long$patient, levels = .porder)
-    long$tf      <- factor(long$tf,      levels = .panel_F_tf_levels)
-    long[!is.na(long$patient) & !is.na(long$group), ]
+    long[!is.na(long$patient), ]
   }, error = function(e) {
     message('Panel F build failed (', conditionMessage(e),
             '); skipping so downstream G/H/I/J still run.')
@@ -1806,16 +1804,17 @@ if (!is.null(panel_F_df) && nrow(panel_F_df) > 0) {
                                 high = '#b2182b', midpoint = 0,
                                 limits = c(-2, 2),
                                 oob = scales::squish,
-                                name = expression(-Log[10]*P)) +
+                                name = 'Activity\n(z-score)') +
+          scale_y_discrete(labels = function(x) panel_F_lab[x]) +
           facet_grid(~ group, scales = 'free_x', space = 'free_x') +
           labs(x = NULL, y = NULL,
-               title = 'Subject-level pan-CM mito-TF activity') +
+               title = 'Pan-CM mito-TF activity (per-patient pseudobulk)') +
           theme_v52(COMP_W) +
           theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
-                panel.spacing.x = unit(0.15, 'lines'))
+                panel.spacing = unit(0, 'lines'))   # no white space between groups
   save_figure(p_5F, 'Figure_5_panel_F_collectri_TF_activity.pdf',
-              width = 7, height = 3)
-  message('Figure 5 Panel F complete (subject-level pan-CM mito-TF heatmap, ',
+              width = 7, height = 3.75)
+  message('Figure 5 Panel F complete (per-patient pseudobulk mito-TF heatmap, ',
           nlevels(panel_F_df$patient), ' patients).')
 } else {
   message('Panel F: no data — emitted no PDF.')

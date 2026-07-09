@@ -34,8 +34,9 @@
 ##   originally published v51 figure; manuscript text reports the more
 ##   conservative pseudobulk interpretation for the IRF8 specific claim.
 ##
-##   Panel "E2" (S7E_program_scores_box.pdf) — GR_homeostatic /
-##   HIF_vascular / NFkB_MHCII / IFNg_AP module scores — IS plotted at
+##   Panel "E2" (S7E_program_scores_box.pdf; = layout panel F) — the four
+##   Figure 6 myeloid programs (GR_targets / MHCII / Inflammasome /
+##   TypeI_IFN) module scores — IS plotted at
 ##   per-patient resolution (cell-level Seurat AddModuleScore aggregated
 ##   to per-patient means; ANOVA across 14 patients). Each dot = one
 ##   patient, so this panel is pseudobulk-style aggregation.
@@ -559,35 +560,40 @@ dev.off()
 cat('Wrote: S7E_chea_RVF_vs_NF_up_down.pdf\n')
 
 ###############################################################################
-## (E2) Curated myeloid program module scores — boxplots per disease state
-##      Gene lists pulled from new_scripts/Figure_6.R lines 915-925:
-##        GR_homeostatic, HIF_vascular, NFkB_MHCII, IFNg_AP
+## (E2) Myeloid transcriptional program module scores — boxplots per disease
+##      state. Gene lists are the FOUR authoritative transcriptional programs
+##      from Figure_6.R (panels 6G/6H, lines 990-999), projected onto the
+##      pediatric myeloid object (adult-RV -> pediatric cross-cohort test):
+##        GR_targets (down), MHCII (up), Inflammasome + TypeI_IFN (pertinent
+##        negatives). Kept gene-for-gene identical to Figure_6.R.
 ##      Rendered as a horizontally-concatenated panel of box+whisker plots
-##      with NF/pRV/RVF on x-axis, jittered points overlaid, ggpubr ANOVA.
+##      with ped-NF/ped-HLHS/ped-RVF on x-axis, jittered points, ggpubr ANOVA.
 ###############################################################################
-GR_homeostatic <- c('TSC22D3','FKBP5','KLF9','KLF13','MERTK','CD163','MARCO',
-                    'MT2A','GLUL','ZBTB16','BCL6','CEBPB','TFCP2L1','MAFB',
-                    'GADD45B','ANGPTL4')
-HIF_vascular   <- c('EPAS1','RAMP3','NAMPT','TIMP3','PECAM1','MYH9','LDLR',
-                    'PODXL','ID1','MAF','CHD7','ADIPOR2')
-NFkB_MHCII     <- c('CD74','HLA-DRB1','HLA-DRA','HLA-DPA1','HLA-DPB1',
-                    'NLRP1','NLRP3','AIM2','CIITA','RUNX1','FOSL2','SRGN',
-                    'FOXO3','IRF1','CD83')
-IFNg_AP        <- c('STAT1','IRF1','IRF8','JAK2',
-                    'B2M','HLA-A','HLA-B','HLA-C',
-                    'PSMB8','PSMB9','TAP1','IFI30',
-                    'GBP1','GBP2','GBP4','GBP5','ICAM1')
+## --- Figure 6 programs (gene-for-gene identical to Figure_6.R lines 990-999)
+GR_targets   <- c('FKBP5','TSC22D3','ZBTB16','KLF9','ANGPTL4')
+MHCII        <- c('CIITA','CD74','HLA-DRA','HLA-DRB1','HLA-DRB5','HLA-DPA1',
+                  'HLA-DPB1','HLA-DQA1','HLA-DQB1','HLA-DMA','HLA-DMB','HLA-DOA')
+Inflammasome <- c('NLRP3','NLRP1','AIM2','CASP1','PYCARD','IL1B','IL18',
+                  'GSDMD','CASP4','NAIP')
+TypeI_IFN    <- c('ISG15','MX1','MX2','OAS1','OAS2','OAS3','IFIT1','IFIT3',
+                  'IRF7','RSAD2','USP18','IFI6','IFI44')
 
 prog_list <- list(
-  GR_homeostatic = intersect(GR_homeostatic, rownames(M1)),
-  HIF_vascular   = intersect(HIF_vascular,   rownames(M1)),
-  NFkB_MHCII     = intersect(NFkB_MHCII,     rownames(M1)),
-  IFNg_AP        = intersect(IFNg_AP,        rownames(M1))
+  GR_targets   = intersect(GR_targets,   rownames(M1)),
+  MHCII        = intersect(MHCII,        rownames(M1)),
+  Inflammasome = intersect(Inflammasome, rownames(M1)),
+  TypeI_IFN    = intersect(TypeI_IFN,    rownames(M1))
 )
-prog_label <- c(GR_homeostatic = 'GR homeostatic',
-                HIF_vascular   = 'HIF / vascular drift',
-                NFkB_MHCII     = 'NF-kB MHCII / inflammasome',
-                IFNg_AP        = 'IFNg antigen presentation')
+## Direction-neutral labels: the (down)/(up)/(pertinent negative) tags in
+## Figure_6.R describe the ADULT RV direction; the pediatric projection here
+## does not always follow it (e.g. GR targets rise NF->HLHS->RVF in peds), so
+## the axis labels assert no direction. Cross-cohort discordance is discussed
+## in the legend/text, not the panel.
+## Short names so single-line facet titles ("<name> (ANOVA p = X)") fit.
+prog_label <- c(GR_targets   = 'GR targets',
+                MHCII        = 'MHC-II',
+                Inflammasome = 'Inflammasome',
+                TypeI_IFN    = 'Type-I IFN')
 
 for (nm in names(prog_list)) {
   M1 <- AddModuleScore(M1, list(prog_list[[nm]]),
@@ -628,23 +634,45 @@ ped_pal <- setNames(unname(disease_pal[c('NF','pRV','RVF')]),
 prog_long_pat$group <- factor(prog_long_pat$group,
                               levels = rev(c('ped-NF','ped-HLHS','ped-RVF')))
 
+## Jonckheere-Terpstra ordered-trend p-value per program (ped-NF < ped-HLHS <
+## ped-RVF). ANOVA ignores the severity ordering; JT is the manuscript
+## convention for this per-patient pseudobulk trend (Figure_5.R / fig5f
+## helpers). The display factor is reversed for coord_flip(), so derive the
+## severity ordinal explicitly rather than from factor levels.
+stopifnot(requireNamespace('clinfun', quietly = TRUE))
+prog_pvals <- sapply(levels(prog_long_pat$program), function(pr) {
+  d   <- prog_long_pat[prog_long_pat$program == pr, ]
+  ord <- match(as.character(d$group), c('ped-NF','ped-HLHS','ped-RVF'))
+  clinfun::jonckheere.test(d$score, ord, alternative = 'two.sided')$p.value
+})
+## Single-line strip titles: "<program> (p = X)". The p-value is a two-sided
+## Jonckheere-Terpstra ordered-trend test across ped-NF<ped-HLHS<ped-RVF
+## (state the test in the legend); the title is kept short to fit one line.
+prog_titles <- setNames(
+  sprintf('%s (p = %s)', levels(prog_long_pat$program),
+          formatC(prog_pvals, format = 'g', digits = 2)),
+  levels(prog_long_pat$program))
+
 p_box <- ggplot(prog_long_pat, aes(x = group, y = score, fill = group)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.85, linewidth = 0.4) +
-  geom_jitter(width = 0.18, size = 2.4, shape = 21,
-              colour = 'black', stroke = 0.3, alpha = 0.9) +
-  facet_wrap(~ program, nrow = 1, scales = 'free_x') +
+  ## width 0.875 (vs default 0.75) halves the white space between boxes
+  geom_boxplot(outlier.shape = NA, alpha = 0.85, linewidth = 0.4,
+               width = 0.875) +
+  ## solid black points (shape 16) — shape 21's outline over a same-colour
+  ## box made the centre look hollow ("bullseye / white inner border").
+  geom_jitter(width = 0.18, size = 2.0, shape = 16,
+              colour = 'black', alpha = 0.8) +
+  facet_wrap(~ program, nrow = 1, scales = 'free_x',
+             labeller = ggplot2::as_labeller(prog_titles)) +
   coord_flip() +
   scale_fill_manual(values = ped_pal) +
-  ggpubr::stat_compare_means(method = 'anova',
-                             label = 'p.format', size = 2.6) +
-  theme_classic() +
+  theme_classic(base_size = 22) +   # doubled font (default base_size 11)
   xlab('') + ylab('Module score (per-patient mean)') +
-  theme(strip.text   = element_text(face = 'bold'),
+  theme(strip.text   = element_text(face = 'bold', size = 15.4),  # title -30%
         legend.position = 'none',
         panel.border = element_rect(linewidth = 0.6, fill = NA, color = 'black'))
 
 pdf(file.path(OUT, 'S7E_program_scores_box.pdf'),
-    width = 11, height = 2.38)
+    width = 12.5, height = 2.8)   # 2x font; panel +20% vs 2.5 (fixed strip/axis text)
 print(p_box)
 dev.off()
 
