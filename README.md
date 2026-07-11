@@ -38,7 +38,7 @@ This repository enables reproduction of all publication figures (`Figure_1.R` �
 
 ### DATA BUNDLE (Zenodo) ###
 
-Figure scripts read processed data objects from `./dependencies/`. The full bundle (≈42 GB) is archived on Zenodo at **[DOI placeholder]**. Download and extract into the repository root so that `dependencies/` sits alongside the `Figure_*.R` scripts.
+Figure scripts read processed data objects from `./dependencies/`. The full bundle (≈58 GB) is archived on Zenodo at 10.5281/zenodo.20115563. Download and extract into the repository root so that `dependencies/` sits alongside the `Figure_*.R` scripts.
 
 **Layout**
 
