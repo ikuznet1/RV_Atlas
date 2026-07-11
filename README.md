@@ -38,7 +38,26 @@ This repository enables reproduction of all publication figures (`Figure_1.R` �
 
 ### DATA BUNDLE (Zenodo) ###
 
-Figure scripts read processed data objects from `./dependencies/`. The full bundle (≈58 GB) is archived on Zenodo at 10.5281/zenodo.20115563. Download and extract into the repository root so that `dependencies/` sits alongside the `Figure_*.R` scripts.
+Figure scripts read processed data objects from `./dependencies/`. The full bundle (≈58 GB unpacked) is archived on Zenodo at **10.5281/zenodo.20115563**. Because Zenodo caps a record at 100 files, the tree is stored as a compact set of objects — six `dependencies_part_00N.zip` archives (the many small files, batched), ~37 individually-uploaded large file-objects (mostly `.rds`), and a `manifest.csv` / `unpack_dependencies.sh` pair — that together reconstruct `dependencies/`.
+
+**Download & unpack**
+
+The record ships its own `manifest.csv` and `unpack_dependencies.sh`, so nothing from this repo is needed to rebuild the tree:
+
+```bash
+# 1. Fetch every object from the Zenodo record into ./zenodo_download/
+#    Install the helper once:  pip install zenodo_get
+zenodo_get -o ./zenodo_download 10.5281/zenodo.20115563
+
+# 2. Rebuild ./dependencies/ using the manifest that came with the download:
+#    file-objects are copied to their target_path; zip parts are extracted in place.
+bash ./zenodo_download/unpack_dependencies.sh ./zenodo_download ./dependencies
+
+# 3. (optional) reclaim space once the tree looks right
+rm -rf ./zenodo_download
+```
+
+The two largest objects — `shared/RV_data.rds` (≈5.2 GB, adult snRNA-seq) and `shared/all_peds_data.rds` (≈4.6 GB, pediatric snRNA-seq) — are placed by the same step. A manual browser download works identically: don't unzip anything by hand — just point `unpack_dependencies.sh <downloaded_dir> ./dependencies` at the folder you downloaded into. When finished, `dependencies/` sits alongside the `Figure_*.R` scripts.
 
 **Layout**
 
